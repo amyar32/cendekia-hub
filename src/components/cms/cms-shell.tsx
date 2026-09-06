@@ -32,6 +32,7 @@ import {
   IconSettings,
   IconSchool,
   IconArrowUpRight,
+  IconCalendarEvent,
 } from '@tabler/icons-react';
 import { modules, can } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -42,7 +43,10 @@ const icons = {
   audit: IconHistory,
   categories: IconFolder,
   school: IconSchool,
+  'academic-years': IconCalendarEvent,
 };
+
+const upcomingAcademicMenus = ['Semester', 'Tingkat / Kelas', 'Rombel', 'Mata Pelajaran'];
 export function CmsShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
@@ -115,6 +119,36 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
               leftSection={<IconLayoutDashboard size={20} />}
               label="Ringkasan"
             />
+          )}
+          {modules.some(
+            (module) => module.group === 'Akademik' && can(user.permissions, module.permission),
+          ) && (
+            <div>
+              <Text className={styles.navLabel} variant="eyebrow">
+                AKADEMIK
+              </Text>
+              {modules
+                .filter(
+                  (module) =>
+                    module.group === 'Akademik' && can(user.permissions, module.permission),
+                )
+                .map((module) => {
+                  const Icon = icons[module.key];
+                  return (
+                    <NavLink
+                      component={Link}
+                      key={module.key}
+                      href={module.path}
+                      active={path === module.path}
+                      leftSection={<Icon size={20} />}
+                      label={module.label}
+                    />
+                  );
+                })}
+              {upcomingAcademicMenus.map((label) => (
+                <NavLink key={label} label={label} disabled />
+              ))}
+            </div>
           )}
           {['Master data', 'Administrasi'].map((group) => (
             <div key={group}>

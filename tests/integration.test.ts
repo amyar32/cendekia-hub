@@ -190,6 +190,74 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(updatedSchool.id, createdSchool.id);
   assert.equal(updatedSchool.name, 'SMA Cendekia Baru');
   assert.equal(updatedSchool.is_active, 0);
+  assert.equal(
+    (
+      await api('/api/modules/academic-years', 'POST', {
+        name: 'Tidak valid',
+        start_date: '2027-07-01',
+        end_date: '2026-06-30',
+        is_active: false,
+      })
+    ).status,
+    400,
+  );
+  res = await api('/api/modules/academic-years', 'POST', {
+    name: '2025/2026',
+    start_date: '2025-07-01',
+    end_date: '2026-06-30',
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const firstAcademicYear = await res.json();
+  res = await api('/api/modules/academic-years', 'POST', {
+    name: '2026/2027',
+    start_date: '2026-07-01',
+    end_date: '2027-06-30',
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const secondAcademicYear = await res.json();
+  res = await api('/api/modules/academic-years');
+  const academicYears = await res.json();
+  assert.equal(academicYears.total, 2);
+  assert.equal(
+    academicYears.rows.find((row: { id: string }) => row.id === firstAcademicYear.id).is_active,
+    0,
+  );
+  assert.equal(
+    academicYears.rows.find((row: { id: string }) => row.id === secondAcademicYear.id).is_active,
+    1,
+  );
+  assert.equal(
+    (
+      await api(
+        '/api/modules/academic-years',
+        'PATCH',
+        {
+          id: secondAcademicYear.id,
+          name: '2026/2027 revisi',
+          start_date: '2026-07-13',
+          end_date: '2027-06-30',
+          is_active: true,
+        },
+        adminCookie,
+        'https://evil.example',
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await api('/api/modules/academic-years', 'PATCH', {
+        id: secondAcademicYear.id,
+        name: '2026/2027 revisi',
+        start_date: '2026-07-13',
+        end_date: '2027-06-30',
+        is_active: true,
+      })
+    ).status,
+    200,
+  );
   res = await api('/api/modules/school');
   assert.equal((await res.json()).school.timezone, 'Asia/Makassar');
   assert.equal(
@@ -228,6 +296,26 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal((await api('/api/modules/audit', 'GET', undefined, viewerCookie)).status, 403);
   assert.equal((await api('/api/modules/school', 'GET', undefined, viewerCookie)).status, 403);
   assert.equal(
+    (await api('/api/modules/academic-years', 'GET', undefined, viewerCookie)).status,
+    200,
+  );
+  assert.equal(
+    (
+      await api(
+        '/api/modules/academic-years',
+        'POST',
+        {
+          name: 'Tanpa izin',
+          start_date: '2028-07-01',
+          end_date: '2029-06-30',
+          is_active: false,
+        },
+        viewerCookie,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
     (
       await api(
         '/api/modules/school',
@@ -265,6 +353,17 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.deepEqual(
     schoolHistory.rows.map((r: { action: string }) => r.action),
     ['update', 'create'],
+  );
+  assert.equal(
+    (await api('/api/modules/academic-years', 'DELETE', { id: firstAcademicYear.id })).status,
+    200,
+  );
+  res = await api('/api/modules/audit?q=academic_years');
+  const academicYearHistory = await res.json();
+  assert.equal(academicYearHistory.total, 4);
+  assert.deepEqual(
+    academicYearHistory.rows.map((r: { action: string }) => r.action),
+    ['delete', 'update', 'create', 'create'],
   );
   assert.equal((await api('/api/modules/audit', 'DELETE', { id: history.rows[0].id })).status, 405);
   res = await api('/api/modules/roles', 'POST', {

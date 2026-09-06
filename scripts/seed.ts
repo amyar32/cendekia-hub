@@ -18,7 +18,13 @@ db().transaction(() => {
       'editor',
       'Editor',
       'Mengelola master data',
-      JSON.stringify(['dashboard.read', 'categories.read', 'categories.write']),
+      JSON.stringify([
+        'dashboard.read',
+        'categories.read',
+        'categories.write',
+        'academic-years.read',
+        'academic-years.write',
+      ]),
     );
   db()
     .prepare('INSERT OR IGNORE INTO roles(id,name,description,permissions) VALUES (?,?,?,?)')
@@ -26,7 +32,7 @@ db().transaction(() => {
       'viewer',
       'Viewer',
       'Akses baca untuk master data',
-      JSON.stringify(['dashboard.read', 'categories.read']),
+      JSON.stringify(['dashboard.read', 'categories.read', 'academic-years.read']),
     );
   if (!db().prepare('SELECT id FROM users WHERE email = ?').get(email)) {
     const id = randomUUID();

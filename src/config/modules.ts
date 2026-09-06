@@ -9,9 +9,11 @@ export const permissions = [
   'categories.write',
   'school.read',
   'school.write',
+  'academic-years.read',
+  'academic-years.write',
 ] as const;
 export type Permission = (typeof permissions)[number];
-export type ModuleKey = 'users' | 'roles' | 'audit' | 'categories' | 'school';
+export type ModuleKey = 'users' | 'roles' | 'audit' | 'categories' | 'school' | 'academic-years';
 export type CmsModule = {
   key: ModuleKey;
   label: string;
@@ -22,6 +24,14 @@ export type CmsModule = {
 };
 
 export const modules: CmsModule[] = [
+  {
+    key: 'academic-years',
+    label: 'Tahun Ajaran',
+    description: 'Kelola periode tahun ajaran dan tentukan periode yang sedang aktif.',
+    path: '/academic/academic-years',
+    permission: 'academic-years.read',
+    group: 'Akademik',
+  },
   {
     key: 'school',
     label: 'Pengaturan Sekolah',
@@ -48,7 +58,7 @@ export const modules: CmsModule[] = [
   },
   {
     key: 'roles',
-    label: 'Role & permission',
+    label: 'Role & Permission',
     description: 'Tentukan apa yang dapat diakses oleh setiap role.',
     path: '/roles',
     permission: 'roles.read',
@@ -56,7 +66,7 @@ export const modules: CmsModule[] = [
   },
   {
     key: 'audit',
-    label: 'Audit trail',
+    label: 'Audit Trail',
     description: 'Telusuri aktivitas dan perubahan di workspace.',
     path: '/audit',
     permission: 'audit.read',
