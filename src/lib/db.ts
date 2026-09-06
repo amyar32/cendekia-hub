@@ -29,6 +29,10 @@ export function db() {
     CREATE TABLE IF NOT EXISTS teacher_subjects (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teacher_id, subject_id));
     CREATE TABLE IF NOT EXISTS teaching_assignments (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, semester_id TEXT REFERENCES semesters(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teacher_id, subject_id, class_id, academic_year_id, semester_id));
     CREATE TABLE IF NOT EXISTS homeroom_assignments (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (class_id, academic_year_id), UNIQUE (teacher_id, academic_year_id));
+    CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, nis TEXT NOT NULL, nisn TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male', 'female')), birth_date TEXT, birth_place TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', enrollment_date TEXT, is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, nis));
+    CREATE TABLE IF NOT EXISTS guardians (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, name TEXT NOT NULL, relation TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS student_documents (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, type TEXT NOT NULL, file_url TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS class_memberships (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, start_date TEXT NOT NULL, end_date TEXT, status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'transferred', 'withdrawn')), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), CHECK (end_date IS NULL OR start_date <= end_date), UNIQUE (student_id, class_id, academic_year_id, start_date));
     CREATE INDEX IF NOT EXISTS audit_created ON audit(created_at);
     CREATE INDEX IF NOT EXISTS uploads_created ON uploads(created_at);
     CREATE INDEX IF NOT EXISTS academic_years_school_dates ON academic_years(school_id, start_date DESC);
@@ -44,6 +48,13 @@ export function db() {
     CREATE INDEX IF NOT EXISTS teaching_assignments_year_class ON teaching_assignments(academic_year_id, class_id);
     CREATE UNIQUE INDEX IF NOT EXISTS teaching_assignments_unique ON teaching_assignments(teacher_id, subject_id, class_id, academic_year_id, COALESCE(semester_id, ''));
     CREATE INDEX IF NOT EXISTS homeroom_assignments_year_class ON homeroom_assignments(academic_year_id, class_id);
+    CREATE INDEX IF NOT EXISTS students_school_name ON students(school_id, name);
+    CREATE UNIQUE INDEX IF NOT EXISTS students_school_nisn ON students(school_id, nisn) WHERE nisn <> '';
+    CREATE INDEX IF NOT EXISTS guardians_student ON guardians(student_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS guardians_one_primary ON guardians(student_id) WHERE is_primary = 1;
+    CREATE INDEX IF NOT EXISTS student_documents_student ON student_documents(student_id);
+    CREATE INDEX IF NOT EXISTS class_memberships_year_class ON class_memberships(academic_year_id, class_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS class_memberships_one_active ON class_memberships(student_id, academic_year_id) WHERE status = 'active';
     CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
     CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
   `);
@@ -140,6 +151,28 @@ export function db() {
     if (!teacherColumns.some((column) => column.name === 'photo_url'))
       connection.exec("ALTER TABLE teachers ADD COLUMN photo_url TEXT NOT NULL DEFAULT ''");
     connection.pragma('user_version = 8');
+  }
+  if (schemaVersion < 9) {
+    connection.transaction(() => {
+      const systemRoles = connection
+        .prepare('SELECT id, permissions FROM roles WHERE system = 1')
+        .all() as { id: string; permissions: string }[];
+      const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
+      for (const role of systemRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        for (const moduleKey of [
+          'students',
+          'guardians',
+          'student-documents',
+          'class-memberships',
+        ]) {
+          grants.add(`${moduleKey}.read`);
+          grants.add(`${moduleKey}.write`);
+        }
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.pragma('user_version = 9');
+    })();
   }
   globalDb.cmsDb = connection;
   return connection;

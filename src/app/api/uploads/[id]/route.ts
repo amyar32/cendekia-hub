@@ -10,10 +10,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const upload = db().prepare('SELECT * FROM uploads WHERE id = ?').get(id) as
       UploadRow | undefined;
-    if (!upload) throw new HttpError(404, 'Gambar tidak ditemukan.');
+    if (!upload) throw new HttpError(404, 'File tidak ditemukan.');
 
     const scope = uploadScopes[upload.scope];
-    if (!scope) throw new HttpError(404, 'Gambar tidak ditemukan.');
+    if (!scope) throw new HttpError(404, 'File tidak ditemukan.');
     if (!scope.public) await requireUser(scope.readPermission);
 
     let bytes: Buffer;
@@ -21,7 +21,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       bytes = await readUpload(upload.storage_key);
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-        throw new HttpError(404, 'Gambar tidak ditemukan.');
+        throw new HttpError(404, 'File tidak ditemukan.');
       }
       throw error;
     }
@@ -33,7 +33,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         'Content-Length': String(bytes.byteLength),
         'Cache-Control': 'public, max-age=31536000, immutable',
         'X-Content-Type-Options': 'nosniff',
-        'Content-Disposition': 'inline',
+        'Content-Disposition': `${scope.kind === 'document' ? 'attachment' : 'inline'}; filename="${upload.original_name.replace(/["\\\r\n]/g, '_')}"`,
       },
     });
   } catch (error) {

@@ -9,12 +9,21 @@ export const uploadScopes = {
     writePermission: 'school.write',
     public: true,
     maxBytes: 5 * 1024 * 1024,
+    kind: 'image',
   },
   'teacher.photo': {
     readPermission: 'teachers.read',
     writePermission: 'teachers.write',
     public: false,
     maxBytes: 5 * 1024 * 1024,
+    kind: 'image',
+  },
+  'student.document': {
+    readPermission: 'student-documents.read',
+    writePermission: 'student-documents.write',
+    public: false,
+    maxBytes: 10 * 1024 * 1024,
+    kind: 'document',
   },
 } as const satisfies Record<
   string,
@@ -23,6 +32,7 @@ export const uploadScopes = {
     writePermission: Permission;
     public: boolean;
     maxBytes: number;
+    kind: 'image' | 'document';
   }
 >;
 
@@ -88,6 +98,16 @@ export function validateImage(bytes: Uint8Array, mimeType: string) {
   return type.extension;
 }
 
+export function validateDocument(bytes: Uint8Array, mimeType: string) {
+  if (
+    mimeType === 'application/pdf' &&
+    bytes.length >= 5 &&
+    String.fromCharCode(...bytes.slice(0, 5)) === '%PDF-'
+  )
+    return '.pdf';
+  return validateImage(bytes, mimeType);
+}
+
 function storageRoot() {
   return resolve(/* turbopackIgnore: true */ process.env.UPLOAD_STORAGE_PATH || './data/uploads');
 }
@@ -99,9 +119,9 @@ function storagePath(key: string) {
   return path;
 }
 
-export async function storeUpload(bytes: Uint8Array, extension: string) {
+export async function storeUpload(bytes: Uint8Array, extension: string, folder = 'images') {
   const now = new Date();
-  const key = `images/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${randomUUID()}${extension}`;
+  const key = `${folder}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${randomUUID()}${extension}`;
   const path = storagePath(key);
   await mkdir(resolve(path, '..'), { recursive: true });
   await writeFile(path, bytes, { flag: 'wx' });

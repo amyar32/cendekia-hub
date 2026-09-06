@@ -434,6 +434,77 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     (await api('/api/modules/teacher-subjects', 'DELETE', { id: teacherSubject.id })).status,
     200,
   );
+  res = await api('/api/modules/students', 'POST', {
+    nis: 's-001',
+    nisn: '0098765432',
+    name: 'Ayu Cendekia',
+    gender: 'female',
+    birth_date: '2012-05-20',
+    birth_place: 'Makassar',
+    address: 'Jalan Pelajar 1',
+    phone: '081200000001',
+    email: 'ayu@cendekia.test',
+    enrollment_date: '2026-07-15',
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const student = await res.json();
+  res = await api('/api/modules/students?q=Ayu');
+  const students = await res.json();
+  assert.equal(students.total, 1);
+  assert.equal(students.rows[0].nis, 'S-001');
+  assert.equal(students.rows[0].gender_label, 'Perempuan');
+  res = await api('/api/modules/guardians', 'POST', {
+    student_id: student.id,
+    name: 'Ibu Ayu',
+    relation: 'Ibu',
+    phone: '081200000002',
+    email: '',
+    address: 'Jalan Pelajar 1',
+    is_primary: true,
+  });
+  assert.equal(res.status, 201);
+  const guardian = await res.json();
+  assert.equal((await api('/api/modules/guardians?q=Ayu')).status, 200);
+  const pdf = Buffer.from('%PDF-1.4\n%%EOF');
+  res = await uploadApi(pdf, 'application/pdf', adminCookie, base, 'student.document');
+  assert.equal(res.status, 201);
+  const studentFile = (await res.json()).upload;
+  res = await api('/api/modules/student-documents', 'POST', {
+    student_id: student.id,
+    type: 'Akta kelahiran',
+    file_url: studentFile.url,
+    description: 'Salinan terverifikasi',
+  });
+  assert.equal(res.status, 201);
+  const studentDocument = await res.json();
+  res = await fetch(base + studentFile.url, { headers: { cookie: adminCookie } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'application/pdf');
+  assert.match(res.headers.get('content-disposition') || '', /^attachment/);
+  res = await api('/api/modules/class-memberships', 'POST', {
+    student_id: student.id,
+    class_id: classroom.id,
+    academic_year_id: secondAcademicYear.id,
+    start_date: '2026-07-15',
+    end_date: '',
+    status: 'active',
+  });
+  assert.equal(res.status, 201);
+  const membership = await res.json();
+  res = await api('/api/modules/class-memberships?q=Ayu');
+  assert.equal((await res.json()).rows[0].class_name, '7A');
+  assert.equal((await api('/api/modules/students', 'DELETE', { id: student.id })).status, 409);
+  assert.equal(
+    (await api('/api/modules/class-memberships', 'DELETE', { id: membership.id })).status,
+    200,
+  );
+  assert.equal(
+    (await api('/api/modules/student-documents', 'DELETE', { id: studentDocument.id })).status,
+    200,
+  );
+  assert.equal((await api('/api/modules/guardians', 'DELETE', { id: guardian.id })).status, 200);
+  assert.equal((await api('/api/modules/students', 'DELETE', { id: student.id })).status, 200);
   res = await api('/api/modules/school');
   assert.equal((await res.json()).school.timezone, 'Asia/Makassar');
   assert.equal(

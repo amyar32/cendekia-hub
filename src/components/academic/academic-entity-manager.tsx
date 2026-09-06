@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   ActionIcon,
+  Anchor,
   Avatar,
   Badge,
   Box,
@@ -11,6 +12,7 @@ import {
   Modal,
   NumberInput,
   Select,
+  SimpleGrid,
   Stack,
   Switch,
   Table,
@@ -21,11 +23,19 @@ import {
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconPencil, IconSchool, IconTrash, IconUser } from '@tabler/icons-react';
+import {
+  IconCheck,
+  IconFile,
+  IconPencil,
+  IconSchool,
+  IconTrash,
+  IconUser,
+} from '@tabler/icons-react';
 import 'dayjs/locale/id';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
 import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
+import { FileUploader } from '@/components/cms/file-uploader/file-uploader';
 import type { UploadScope } from '@/lib/uploads';
 import classes from './academic-entity-manager.module.css';
 
@@ -38,7 +48,8 @@ export type AcademicRow = {
 export type AcademicField = {
   key: string;
   label: string;
-  kind?: 'text' | 'textarea' | 'number' | 'select' | 'date' | 'image';
+  kind?:
+    'text' | 'textarea' | 'number' | 'select' | 'date' | 'date-range' | 'image' | 'file' | 'switch';
   placeholder?: string;
   description?: string;
   required?: boolean;
@@ -48,11 +59,14 @@ export type AcademicField = {
   max?: number;
   maxLength?: number;
   uploadScope?: UploadScope;
+  secondaryKey?: string;
+  secondaryLabel?: string;
+  secondaryPlaceholder?: string;
 };
 export type AcademicColumn = {
   key: string;
   label: string;
-  kind?: 'text' | 'status' | 'date' | 'code' | 'avatar';
+  kind?: 'text' | 'status' | 'date' | 'code' | 'avatar' | 'file';
 };
 export type AcademicEntityConfig = {
   endpoint: string;
@@ -96,6 +110,10 @@ export function AcademicEntityManager({
       for (const field of config.fields) {
         const value = row[field.key] ?? config.defaults[field.key];
         values[field.key] = field.kind === 'select' ? String(value) : value;
+        if (field.kind === 'date-range' && field.secondaryKey) {
+          values[field.secondaryKey] =
+            row[field.secondaryKey] ?? config.defaults[field.secondaryKey];
+        }
       }
     if (config.hasStatus !== false)
       values.is_active = row ? Boolean(row.is_active) : config.defaults.is_active;
@@ -164,6 +182,16 @@ export function AcademicEntityManager({
         <Avatar src={value ? String(value) : undefined} size={38} radius="xl" color="gray">
           <IconUser size={19} />
         </Avatar>
+      );
+    if (column.kind === 'file')
+      return value ? (
+        <Anchor href={String(value)} target="_blank" size="xs">
+          <Group gap={5} wrap="nowrap">
+            <IconFile size={15} /> Buka
+          </Group>
+        </Anchor>
+      ) : (
+        '—'
       );
     if (column.kind === 'code')
       return (
@@ -289,6 +317,30 @@ export function AcademicEntityManager({
                     disabled={saving}
                   />
                 );
+              if (field.kind === 'file')
+                return (
+                  <FileUploader
+                    key={field.key}
+                    label={field.label}
+                    description={field.description}
+                    scope={field.uploadScope!}
+                    value={String(form[field.key] || '')}
+                    onChange={(value) => setForm({ ...form, [field.key]: value })}
+                    disabled={saving}
+                  />
+                );
+              if (field.kind === 'switch')
+                return (
+                  <Switch
+                    key={field.key}
+                    label={field.label}
+                    description={field.description}
+                    checked={Boolean(form[field.key])}
+                    onChange={(event) =>
+                      setForm({ ...form, [field.key]: event.currentTarget.checked })
+                    }
+                  />
+                );
               if (field.kind === 'textarea')
                 return (
                   <Textarea
@@ -336,6 +388,28 @@ export function AcademicEntityManager({
                     popoverProps={{ withinPortal: true }}
                     onChange={(value) => setForm({ ...form, [field.key]: value || '' })}
                   />
+                );
+              if (field.kind === 'date-range')
+                return (
+                  <SimpleGrid key={field.key} cols={{ base: 1, sm: 2 }} spacing="md">
+                    <DateInput
+                      {...common}
+                      placeholder={field.placeholder || 'Pilih tanggal mulai'}
+                      locale="id"
+                      valueFormat="D MMMM YYYY"
+                      popoverProps={{ withinPortal: true }}
+                      onChange={(value) => setForm({ ...form, [field.key]: value || '' })}
+                    />
+                    <DateInput
+                      label={field.secondaryLabel || 'Tanggal selesai'}
+                      placeholder={field.secondaryPlaceholder || 'Pilih tanggal selesai'}
+                      locale="id"
+                      valueFormat="D MMMM YYYY"
+                      popoverProps={{ withinPortal: true }}
+                      value={form[field.secondaryKey!] as never}
+                      onChange={(value) => setForm({ ...form, [field.secondaryKey!]: value || '' })}
+                    />
+                  </SimpleGrid>
                 );
               return (
                 <TextInput

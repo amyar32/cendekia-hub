@@ -10,6 +10,7 @@ import {
   uploadScopes,
   uploadUrl,
   validateImage,
+  validateDocument,
 } from '@/lib/uploads';
 
 export const runtime = 'nodejs';
@@ -33,25 +34,29 @@ export async function POST(request: Request) {
     const scope = uploadScopes[scopeValue];
     const actor = await requireUser(scope.writePermission);
     if (!(file instanceof File) || file.size === 0) {
-      throw new HttpError(400, 'Pilih file gambar yang akan diupload.');
+      throw new HttpError(400, 'Pilih file yang akan diupload.');
     }
     if (file.size > scope.maxBytes) {
-      throw new HttpError(413, `Ukuran gambar maksimal ${scope.maxBytes / 1024 / 1024} MB.`);
+      throw new HttpError(413, `Ukuran file maksimal ${scope.maxBytes / 1024 / 1024} MB.`);
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     let extension: string;
     try {
-      extension = validateImage(bytes, file.type);
+      extension =
+        scope.kind === 'image'
+          ? validateImage(bytes, file.type)
+          : validateDocument(bytes, file.type);
     } catch (error) {
-      throw new HttpError(
-        415,
-        error instanceof Error ? error.message : 'Format gambar tidak valid.',
-      );
+      throw new HttpError(415, error instanceof Error ? error.message : 'Format file tidak valid.');
     }
 
     const id = randomUUID();
-    storedKey = await storeUpload(bytes, extension);
+    storedKey = await storeUpload(
+      bytes,
+      extension,
+      scope.kind === 'image' ? 'images' : 'documents',
+    );
     const storageKey = storedKey;
     db().transaction(() => {
       db()

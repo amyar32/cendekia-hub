@@ -37,6 +37,8 @@ import {
   IconSchoolBell,
   IconUsersGroup,
   IconHome2,
+  IconFileDescription,
+  IconUserHeart,
 } from '@tabler/icons-react';
 import { modules, can } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -55,6 +57,10 @@ const icons = {
   'teacher-subjects': IconBooks,
   'teaching-assignments': IconSchoolBell,
   'homeroom-assignments': IconHome2,
+  students: IconUsersGroup,
+  guardians: IconUserHeart,
+  'student-documents': IconFileDescription,
+  'class-memberships': IconUsersGroup,
 };
 export function CmsShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
   const path = usePathname();
@@ -176,6 +182,32 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
                       href={module.path}
                       active={path === module.path}
                       leftSection={<Icon size={18} />}
+                      label={module.label}
+                    />
+                  );
+                })}
+            </div>
+          )}
+          {modules.some(
+            (module) => module.group === 'Murid' && can(user.permissions, module.permission),
+          ) && (
+            <div>
+              <Text className={styles.navLabel} variant="eyebrow">
+                MURID
+              </Text>
+              {modules
+                .filter(
+                  (module) => module.group === 'Murid' && can(user.permissions, module.permission),
+                )
+                .map((module) => {
+                  const Icon = icons[module.key];
+                  return (
+                    <NavLink
+                      component={Link}
+                      key={module.key}
+                      href={module.path}
+                      active={path === module.path}
+                      leftSection={<Icon size={20} />}
                       label={module.label}
                     />
                   );

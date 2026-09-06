@@ -25,6 +25,14 @@ export const permissions = [
   'teaching-assignments.write',
   'homeroom-assignments.read',
   'homeroom-assignments.write',
+  'students.read',
+  'students.write',
+  'guardians.read',
+  'guardians.write',
+  'student-documents.read',
+  'student-documents.write',
+  'class-memberships.read',
+  'class-memberships.write',
 ] as const;
 export type Permission = (typeof permissions)[number];
 export type ModuleKey =
@@ -40,7 +48,11 @@ export type ModuleKey =
   | 'teachers'
   | 'teacher-subjects'
   | 'teaching-assignments'
-  | 'homeroom-assignments';
+  | 'homeroom-assignments'
+  | 'students'
+  | 'guardians'
+  | 'student-documents'
+  | 'class-memberships';
 export type CmsModule = {
   key: ModuleKey;
   label: string;
@@ -122,6 +134,38 @@ export const modules: CmsModule[] = [
     path: '/teachers/homeroom-assignments',
     permission: 'homeroom-assignments.read',
     group: 'Guru',
+  },
+  {
+    key: 'students',
+    label: 'Data Murid',
+    description: 'Kelola identitas, kontak, dan status murid.',
+    path: '/students',
+    permission: 'students.read',
+    group: 'Murid',
+  },
+  {
+    key: 'guardians',
+    label: 'Wali Murid',
+    description: 'Kelola orang tua atau wali yang dapat dihubungi untuk setiap murid.',
+    path: '/students/guardians',
+    permission: 'guardians.read',
+    group: 'Murid',
+  },
+  {
+    key: 'student-documents',
+    label: 'Dokumen Murid',
+    description: 'Kelola berkas administrasi yang terkait dengan murid.',
+    path: '/students/documents',
+    permission: 'student-documents.read',
+    group: 'Murid',
+  },
+  {
+    key: 'class-memberships',
+    label: 'Riwayat Kelas',
+    description: 'Kelola keanggotaan murid dalam rombel pada setiap tahun ajaran.',
+    path: '/students/class-memberships',
+    permission: 'class-memberships.read',
+    group: 'Murid',
   },
   {
     key: 'school',

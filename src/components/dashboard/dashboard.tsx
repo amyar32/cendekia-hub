@@ -43,6 +43,14 @@ const cards = [
     path: '/teachers',
   },
   {
+    key: 'students',
+    label: 'Murid',
+    icon: IconUsers,
+    color: 'cyan',
+    note: 'Data tersimpan',
+    path: '/students',
+  },
+  {
     key: 'audit',
     label: 'Aktivitas tercatat',
     icon: IconHistory,

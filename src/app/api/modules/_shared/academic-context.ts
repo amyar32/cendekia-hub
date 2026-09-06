@@ -36,6 +36,15 @@ export function teacherOptions(schoolId: string) {
     .all(schoolId) as { value: string; label: string }[];
 }
 
+export function studentOptions(schoolId: string) {
+  return db()
+    .prepare(
+      `SELECT id AS value, name || ' — ' || nis || CASE WHEN is_active=0 THEN ' (nonaktif)' ELSE '' END AS label
+       FROM students WHERE school_id = ? ORDER BY is_active DESC, name`,
+    )
+    .all(schoolId) as { value: string; label: string }[];
+}
+
 export function subjectOptions(schoolId: string) {
   return db()
     .prepare(
@@ -68,6 +77,11 @@ export function semesterOptions(schoolId: string) {
 export function requireTeacher(schoolId: string, teacherId: string) {
   if (!db().prepare('SELECT id FROM teachers WHERE id=? AND school_id=?').get(teacherId, schoolId))
     throw new HttpError(400, 'Guru tidak valid.');
+}
+
+export function requireStudent(schoolId: string, studentId: string) {
+  if (!db().prepare('SELECT id FROM students WHERE id=? AND school_id=?').get(studentId, schoolId))
+    throw new HttpError(400, 'Murid tidak valid.');
 }
 
 export function requireSubject(schoolId: string, subjectId: string) {
