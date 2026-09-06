@@ -40,8 +40,43 @@
   margin: 27px 12px 12px;
 }
 
+.navMenu {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  padding-right: 4px;
+}
+
+.navMenu:hover {
+  scrollbar-color: color-mix(in srgb, var(--app-color-muted) 45%, transparent) transparent;
+}
+
+.navMenu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.navMenu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.navMenu::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.navMenu:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--app-color-muted) 45%, transparent);
+}
+
+.navMenu::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--app-color-brand) 65%, transparent);
+}
+
 .sidebarFooter {
-  margin-top: auto;
   padding: 25px 7px 0;
   display: flex;
   align-items: center;

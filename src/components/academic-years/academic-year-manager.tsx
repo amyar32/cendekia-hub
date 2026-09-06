@@ -4,19 +4,25 @@ import { useState } from 'react';
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Group,
   Modal,
   SimpleGrid,
+  Stack,
   Switch,
   Table,
   Text,
   TextInput,
+  ThemeIcon,
 } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconCalendarEvent, IconCheck, IconPencil, IconTrash } from '@tabler/icons-react';
+import 'dayjs/locale/id';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
+import classes from './academic-year-manager.module.css';
 
 type AcademicYear = {
   id: string;
@@ -203,50 +209,84 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
       <Modal
         opened={editing !== undefined}
         onClose={() => !saving && setEditing(undefined)}
-        title={`${editing ? 'Edit' : 'Tambah'} tahun ajaran`}
+        title={
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon variant="light" size={38} radius="md">
+              <IconCalendarEvent size={20} stroke={1.8} />
+            </ThemeIcon>
+            <Box>
+              <Text fw={700} lh={1.25}>
+                {editing ? 'Edit' : 'Tambah'} tahun ajaran
+              </Text>
+              <Text c="dimmed" size="xs" fw={400} mt={2}>
+                Atur nama, periode, dan status tahun ajaran.
+              </Text>
+            </Box>
+          </Group>
+        }
         centered
+        size="lg"
       >
         <form onSubmit={save}>
-          <TextInput
-            label="Nama tahun ajaran"
-            placeholder="Contoh: 2026/2027"
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
-            required
-            minLength={4}
-            maxLength={50}
-            mb="md"
-          />
-          <SimpleGrid cols={{ base: 1, sm: 2 }} mb="md">
+          <Stack gap="lg">
             <TextInput
-              type="date"
-              label="Tanggal mulai"
-              value={form.start_date}
-              max={form.end_date || undefined}
-              onChange={(event) => setForm({ ...form, start_date: event.currentTarget.value })}
+              label="Nama tahun ajaran"
+              description="Gunakan nama yang mudah dikenali oleh pengelola sekolah."
+              placeholder="Contoh: 2026/2027"
+              value={form.name}
+              onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
               required
+              minLength={4}
+              maxLength={50}
             />
-            <TextInput
-              type="date"
-              label="Tanggal selesai"
-              value={form.end_date}
-              min={form.start_date || undefined}
-              onChange={(event) => setForm({ ...form, end_date: event.currentTarget.value })}
-              required
-            />
-          </SimpleGrid>
-          <Switch
-            label="Jadikan tahun ajaran aktif"
-            description="Tahun ajaran lain yang aktif akan dinonaktifkan otomatis."
-            checked={form.is_active}
-            onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
-            mb="md"
-          />
-          <Group justify="flex-end" mt="xl">
+            <Box>
+              <Text size="sm" fw={600} mb={4}>
+                Periode tahun ajaran
+              </Text>
+              <Text size="xs" c="dimmed" mb="sm">
+                Pilih tanggal mulai dan selesai melalui kalender.
+              </Text>
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <DateInput
+                  label="Tanggal mulai"
+                  placeholder="Pilih tanggal mulai"
+                  value={form.start_date || null}
+                  maxDate={form.end_date || undefined}
+                  onChange={(value) => setForm({ ...form, start_date: value || '' })}
+                  valueFormat="D MMMM YYYY"
+                  locale="id"
+                  leftSection={<IconCalendarEvent size={17} stroke={1.6} />}
+                  popoverProps={{ withinPortal: true }}
+                  required
+                />
+                <DateInput
+                  label="Tanggal selesai"
+                  placeholder="Pilih tanggal selesai"
+                  value={form.end_date || null}
+                  minDate={form.start_date || undefined}
+                  onChange={(value) => setForm({ ...form, end_date: value || '' })}
+                  valueFormat="D MMMM YYYY"
+                  locale="id"
+                  leftSection={<IconCalendarEvent size={17} stroke={1.6} />}
+                  popoverProps={{ withinPortal: true }}
+                  required
+                />
+              </SimpleGrid>
+            </Box>
+            <Box className={classes.statusCard}>
+              <Switch
+                label="Jadikan tahun ajaran aktif"
+                description="Tahun ajaran lain yang aktif akan dinonaktifkan otomatis."
+                checked={form.is_active}
+                onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
+              />
+            </Box>
+          </Stack>
+          <Group className={classes.actions} justify="flex-end" mt="xl">
             <Button variant="default" disabled={saving} onClick={() => setEditing(undefined)}>
               Batal
             </Button>
-            <Button type="submit" loading={saving}>
+            <Button type="submit" loading={saving} leftSection={<IconCheck size={17} />}>
               Simpan
             </Button>
           </Group>

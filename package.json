@@ -15,10 +15,12 @@
   },
   "dependencies": {
     "@mantine/core": "^8.3.0",
+    "@mantine/dates": "^8.3.18",
     "@mantine/hooks": "^8.3.0",
     "@mantine/notifications": "^8.3.0",
     "@tabler/icons-react": "^3.35.0",
     "better-sqlite3": "^12.4.0",
+    "dayjs": "^1.11.23",
     "next": "^16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

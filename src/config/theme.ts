@@ -65,6 +65,30 @@ export const theme = createTheme({
     Paper: {
       defaultProps: { radius: 'md' },
     },
+    Modal: {
+      defaultProps: {
+        radius: 'lg',
+        overlayProps: { backgroundOpacity: 0.38, blur: 4 },
+        transitionProps: { transition: 'pop', duration: 180 },
+      },
+      styles: {
+        content: {
+          border: `1px solid ${appColors.border}`,
+          boxShadow: '0 24px 70px rgba(56, 44, 38, 0.18)',
+        },
+        header: {
+          borderBottom: `1px solid ${appColors.border}`,
+          padding: '20px 24px',
+        },
+        title: {
+          color: appColors.text,
+          fontSize: '17px',
+          fontWeight: 700,
+        },
+        body: { padding: '24px' },
+        close: { borderRadius: '50%' },
+      },
+    },
     NavLink: {
       styles: {
         root: {

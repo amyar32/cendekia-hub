@@ -107,7 +107,7 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
           </Stack>
           <IconChevronDown size={15} />
         </Paper>
-        <nav onClick={() => setOpened(false)}>
+        <nav className={styles.navMenu} onClick={() => setOpened(false)}>
           <Text className={styles.navLabel} variant="eyebrow">
             WORKSPACE
           </Text>
