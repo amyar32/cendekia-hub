@@ -19,8 +19,8 @@ export const uploadScopes = {
     kind: 'image',
   },
   'student.document': {
-    readPermission: 'student-documents.read',
-    writePermission: 'student-documents.write',
+    readPermission: 'students.read',
+    writePermission: 'students.write',
     public: false,
     maxBytes: 10 * 1024 * 1024,
     kind: 'document',

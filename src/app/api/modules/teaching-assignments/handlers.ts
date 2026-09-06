@@ -93,15 +93,6 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           if (semester.academic_year_id !== data.academic_year_id)
             throw new HttpError(400, 'Semester tidak berada pada tahun ajaran yang dipilih.');
         }
-        if (
-          !db()
-            .prepare('SELECT id FROM teacher_subjects WHERE teacher_id=? AND subject_id=?')
-            .get(data.teacher_id, data.subject_id)
-        )
-          throw new HttpError(
-            400,
-            'Mata pelajaran belum terdaftar sebagai mapel yang diampu guru.',
-          );
         details = data;
         const args = [
           data.teacher_id,

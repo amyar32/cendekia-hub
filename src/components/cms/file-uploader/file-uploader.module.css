@@ -1,0 +1,135 @@
+.input {
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.dropZone {
+  background:
+    linear-gradient(135deg, rgb(225 95 55 / 0.025), transparent 45%), var(--app-color-subtle);
+  border: 1px dashed #d8d1cc;
+  border-radius: var(--mantine-radius-md);
+  cursor: pointer;
+  min-height: 174px;
+  padding: 22px;
+  position: relative;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.dropZone:hover,
+.dropZone:focus-visible,
+.dropZone[data-dragging] {
+  background-color: var(--app-color-brand-soft);
+  border-color: var(--app-color-brand);
+  box-shadow: 0 0 0 3px rgb(225 95 55 / 0.09);
+  outline: none;
+}
+
+.dropZone[data-dragging] {
+  transform: translateY(-1px);
+}
+
+.dropZone[data-disabled] {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.dropZone[data-disabled]:hover {
+  background-color: var(--app-color-subtle);
+  border-color: #d8d1cc;
+  box-shadow: none;
+}
+
+.emptyState {
+  justify-content: center;
+  min-height: 128px;
+}
+
+.uploadIcon {
+  align-items: center;
+  background: var(--app-color-brand-soft);
+  border: 1px solid rgb(225 95 55 / 0.12);
+  border-radius: 50%;
+  color: var(--app-color-brand);
+  display: flex;
+  height: 52px;
+  justify-content: center;
+  width: 52px;
+}
+
+.fileHint {
+  color: var(--app-color-muted-soft);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+.previewLayout {
+  min-height: 128px;
+}
+
+.previewFrame {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--app-color-border);
+  border-radius: calc(var(--mantine-radius-md) + 2px);
+  box-shadow: 0 5px 16px rgb(68 52 44 / 0.07);
+  color: var(--app-color-brand);
+  display: flex;
+  flex: 0 0 auto;
+  height: 104px;
+  justify-content: center;
+  position: relative;
+  width: 104px;
+}
+
+.loadingOverlay {
+  align-items: center;
+  backdrop-filter: blur(2px);
+  background: rgb(255 255 255 / 0.78);
+  border-radius: var(--mantine-radius-md);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+}
+
+.previewCopy {
+  flex: 1;
+  min-width: 0;
+}
+
+.successIcon {
+  color: var(--mantine-color-green-6);
+  flex: 0 0 auto;
+}
+
+@media (max-width: 480px) {
+  .dropZone {
+    padding: 18px;
+  }
+
+  .previewLayout {
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .previewCopy {
+    align-items: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropZone {
+    transition: none;
+  }
+}

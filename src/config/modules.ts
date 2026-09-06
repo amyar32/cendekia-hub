@@ -19,20 +19,12 @@ export const permissions = [
   'subjects.write',
   'teachers.read',
   'teachers.write',
-  'teacher-subjects.read',
-  'teacher-subjects.write',
   'teaching-assignments.read',
   'teaching-assignments.write',
   'homeroom-assignments.read',
   'homeroom-assignments.write',
   'students.read',
   'students.write',
-  'guardians.read',
-  'guardians.write',
-  'student-documents.read',
-  'student-documents.write',
-  'class-memberships.read',
-  'class-memberships.write',
 ] as const;
 export type Permission = (typeof permissions)[number];
 export type ModuleKey =
@@ -46,13 +38,9 @@ export type ModuleKey =
   | 'classes'
   | 'subjects'
   | 'teachers'
-  | 'teacher-subjects'
   | 'teaching-assignments'
   | 'homeroom-assignments'
-  | 'students'
-  | 'guardians'
-  | 'student-documents'
-  | 'class-memberships';
+  | 'students';
 export type CmsModule = {
   key: ModuleKey;
   label: string;
@@ -112,17 +100,9 @@ export const modules: CmsModule[] = [
     group: 'Guru',
   },
   {
-    key: 'teacher-subjects',
-    label: 'Mapel Diampu',
-    description: 'Tentukan mata pelajaran yang dapat diampu setiap guru.',
-    path: '/teachers/subjects',
-    permission: 'teacher-subjects.read',
-    group: 'Guru',
-  },
-  {
     key: 'teaching-assignments',
-    label: 'Penugasan Mengajar',
-    description: 'Kelola penugasan guru pada rombel, mapel, tahun ajaran, dan semester.',
+    label: 'Mapel & Penugasan',
+    description: 'Kelola mapel yang diampu guru beserta rombel dan periode mengajarnya.',
     path: '/teachers/teaching-assignments',
     permission: 'teaching-assignments.read',
     group: 'Guru',
@@ -138,33 +118,9 @@ export const modules: CmsModule[] = [
   {
     key: 'students',
     label: 'Data Murid',
-    description: 'Kelola identitas, kontak, dan status murid.',
+    description: 'Kelola identitas, wali, dokumen, penempatan, dan riwayat kelas murid.',
     path: '/students',
     permission: 'students.read',
-    group: 'Murid',
-  },
-  {
-    key: 'guardians',
-    label: 'Wali Murid',
-    description: 'Kelola orang tua atau wali yang dapat dihubungi untuk setiap murid.',
-    path: '/students/guardians',
-    permission: 'guardians.read',
-    group: 'Murid',
-  },
-  {
-    key: 'student-documents',
-    label: 'Dokumen Murid',
-    description: 'Kelola berkas administrasi yang terkait dengan murid.',
-    path: '/students/documents',
-    permission: 'student-documents.read',
-    group: 'Murid',
-  },
-  {
-    key: 'class-memberships',
-    label: 'Riwayat Kelas',
-    description: 'Kelola keanggotaan murid dalam rombel pada setiap tahun ajaran.',
-    path: '/students/class-memberships',
-    permission: 'class-memberships.read',
     group: 'Murid',
   },
   {

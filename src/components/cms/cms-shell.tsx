@@ -37,8 +37,6 @@ import {
   IconSchoolBell,
   IconUsersGroup,
   IconHome2,
-  IconFileDescription,
-  IconUserHeart,
 } from '@tabler/icons-react';
 import { modules, can } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -54,13 +52,9 @@ const icons = {
   classes: IconUsersGroup,
   subjects: IconBooks,
   teachers: IconUsers,
-  'teacher-subjects': IconBooks,
   'teaching-assignments': IconSchoolBell,
   'homeroom-assignments': IconHome2,
   students: IconUsersGroup,
-  guardians: IconUserHeart,
-  'student-documents': IconFileDescription,
-  'class-memberships': IconUsersGroup,
 };
 export function CmsShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
   const path = usePathname();

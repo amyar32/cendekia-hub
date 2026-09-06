@@ -368,24 +368,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(teachers.rows[0].employee_code, 'GR-001');
   assert.equal(teachers.rows[0].gender_label, 'Laki-laki');
   assert.equal(teachers.rows[0].photo_url, teacherPhoto.url);
-  assert.equal(
-    (
-      await api('/api/modules/teaching-assignments', 'POST', {
-        teacher_id: teacher.id,
-        subject_id: subject.id,
-        class_id: classroom.id,
-        academic_year_id: secondAcademicYear.id,
-        semester_id: semester.id,
-      })
-    ).status,
-    400,
-  );
-  res = await api('/api/modules/teacher-subjects', 'POST', {
-    teacher_id: teacher.id,
-    subject_id: subject.id,
-  });
-  assert.equal(res.status, 201);
-  const teacherSubject = await res.json();
   res = await api('/api/modules/teaching-assignments', 'POST', {
     teacher_id: teacher.id,
     subject_id: subject.id,
@@ -430,10 +412,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     ).status,
     200,
   );
-  assert.equal(
-    (await api('/api/modules/teacher-subjects', 'DELETE', { id: teacherSubject.id })).status,
-    200,
-  );
   res = await api('/api/modules/students', 'POST', {
     nis: 's-001',
     nisn: '0098765432',
@@ -454,56 +432,77 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(students.total, 1);
   assert.equal(students.rows[0].nis, 'S-001');
   assert.equal(students.rows[0].gender_label, 'Perempuan');
-  res = await api('/api/modules/guardians', 'POST', {
-    student_id: student.id,
-    name: 'Ibu Ayu',
-    relation: 'Ibu',
-    phone: '081200000002',
-    email: '',
-    address: 'Jalan Pelajar 1',
-    is_primary: true,
-  });
-  assert.equal(res.status, 201);
-  const guardian = await res.json();
-  assert.equal((await api('/api/modules/guardians?q=Ayu')).status, 200);
   const pdf = Buffer.from('%PDF-1.4\n%%EOF');
   res = await uploadApi(pdf, 'application/pdf', adminCookie, base, 'student.document');
   assert.equal(res.status, 201);
   const studentFile = (await res.json()).upload;
-  res = await api('/api/modules/student-documents', 'POST', {
-    student_id: student.id,
-    type: 'Akta kelahiran',
-    file_url: studentFile.url,
-    description: 'Salinan terverifikasi',
-  });
-  assert.equal(res.status, 201);
-  const studentDocument = await res.json();
+  const completeStudentInput = {
+    id: student.id,
+    nis: 'S-001',
+    nisn: '0098765432',
+    name: 'Ayu Cendekia',
+    gender: 'female',
+    birth_date: '2012-05-20',
+    birth_place: 'Makassar',
+    address: 'Jalan Pelajar 1',
+    phone: '081200000001',
+    email: 'ayu@cendekia.test',
+    enrollment_date: '2026-07-15',
+    is_active: true,
+    guardians: [
+      {
+        name: 'Ibu Ayu',
+        relation: 'Ibu',
+        phone: '081200000002',
+        email: '',
+        address: 'Jalan Pelajar 1',
+        is_primary: true,
+      },
+    ],
+    documents: [
+      {
+        type: 'Akta kelahiran',
+        file_url: studentFile.url,
+        description: 'Salinan terverifikasi',
+      },
+    ],
+    placement: {
+      class_id: classroom.id,
+      start_date: '2026-07-15',
+    },
+  };
+  res = await api('/api/modules/students', 'PATCH', completeStudentInput);
+  assert.equal(res.status, 200);
   res = await fetch(base + studentFile.url, { headers: { cookie: adminCookie } });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'application/pdf');
   assert.match(res.headers.get('content-disposition') || '', /^attachment/);
-  res = await api('/api/modules/class-memberships', 'POST', {
-    student_id: student.id,
-    class_id: classroom.id,
+  res = await api('/api/modules/students?q=Ayu');
+  const completeStudent = (await res.json()).rows[0];
+  assert.equal(completeStudent.guardian_name, 'Ibu Ayu');
+  assert.equal(completeStudent.document_count, 1);
+  assert.equal(completeStudent.current_class_name, '7A');
+  assert.equal(completeStudent.history[0].status_label, 'Aktif');
+  res = await api('/api/modules/classes', 'POST', {
     academic_year_id: secondAcademicYear.id,
-    start_date: '2026-07-15',
-    end_date: '',
-    status: 'active',
+    grade_id: grade.id,
+    name: '7B',
+    capacity: 32,
+    is_active: true,
   });
   assert.equal(res.status, 201);
-  const membership = await res.json();
-  res = await api('/api/modules/class-memberships?q=Ayu');
-  assert.equal((await res.json()).rows[0].class_name, '7A');
-  assert.equal((await api('/api/modules/students', 'DELETE', { id: student.id })).status, 409);
-  assert.equal(
-    (await api('/api/modules/class-memberships', 'DELETE', { id: membership.id })).status,
-    200,
-  );
-  assert.equal(
-    (await api('/api/modules/student-documents', 'DELETE', { id: studentDocument.id })).status,
-    200,
-  );
-  assert.equal((await api('/api/modules/guardians', 'DELETE', { id: guardian.id })).status, 200);
+  const nextClassroom = await res.json();
+  res = await api('/api/modules/students', 'PATCH', {
+    ...completeStudentInput,
+    placement: { class_id: nextClassroom.id, start_date: '2026-08-01' },
+  });
+  assert.equal(res.status, 200);
+  res = await api('/api/modules/students?q=Ayu');
+  const transferredStudent = (await res.json()).rows[0];
+  assert.equal(transferredStudent.current_class_name, '7B');
+  assert.equal(transferredStudent.history.length, 2);
+  assert.equal(transferredStudent.history[0].status_label, 'Aktif');
+  assert.equal(transferredStudent.history[1].status_label, 'Pindah');
   assert.equal((await api('/api/modules/students', 'DELETE', { id: student.id })).status, 200);
   res = await api('/api/modules/school');
   assert.equal((await res.json()).school.timezone, 'Asia/Makassar');

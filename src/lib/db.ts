@@ -26,7 +26,6 @@ export function db() {
     CREATE TABLE IF NOT EXISTS classes (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, grade_id TEXT NOT NULL REFERENCES grades(id) ON DELETE RESTRICT, name TEXT NOT NULL, capacity INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0), is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, academic_year_id, name));
     CREATE TABLE IF NOT EXISTS subjects (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, code TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, code), UNIQUE (school_id, name));
     CREATE TABLE IF NOT EXISTS teachers (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, user_id TEXT REFERENCES users(id) ON DELETE SET NULL, photo_url TEXT NOT NULL DEFAULT '', employee_code TEXT NOT NULL, nip TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male', 'female')), birth_date TEXT, phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', join_date TEXT, employment_status TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, employee_code));
-    CREATE TABLE IF NOT EXISTS teacher_subjects (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teacher_id, subject_id));
     CREATE TABLE IF NOT EXISTS teaching_assignments (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, semester_id TEXT REFERENCES semesters(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teacher_id, subject_id, class_id, academic_year_id, semester_id));
     CREATE TABLE IF NOT EXISTS homeroom_assignments (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (class_id, academic_year_id), UNIQUE (teacher_id, academic_year_id));
     CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, nis TEXT NOT NULL, nisn TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male', 'female')), birth_date TEXT, birth_place TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', enrollment_date TEXT, is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, nis));
@@ -44,7 +43,6 @@ export function db() {
     CREATE INDEX IF NOT EXISTS teachers_school_name ON teachers(school_id, name);
     CREATE UNIQUE INDEX IF NOT EXISTS teachers_school_nip ON teachers(school_id, nip) WHERE nip <> '';
     CREATE UNIQUE INDEX IF NOT EXISTS teachers_one_user ON teachers(user_id) WHERE user_id IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS teacher_subjects_teacher ON teacher_subjects(teacher_id);
     CREATE INDEX IF NOT EXISTS teaching_assignments_year_class ON teaching_assignments(academic_year_id, class_id);
     CREATE UNIQUE INDEX IF NOT EXISTS teaching_assignments_unique ON teaching_assignments(teacher_id, subject_id, class_id, academic_year_id, COALESCE(semester_id, ''));
     CREATE INDEX IF NOT EXISTS homeroom_assignments_year_class ON homeroom_assignments(academic_year_id, class_id);
@@ -116,12 +114,7 @@ export function db() {
       const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
       for (const role of systemRoles) {
         const grants = new Set<string>(JSON.parse(role.permissions));
-        for (const moduleKey of [
-          'teachers',
-          'teacher-subjects',
-          'teaching-assignments',
-          'homeroom-assignments',
-        ]) {
+        for (const moduleKey of ['teachers', 'teaching-assignments', 'homeroom-assignments']) {
           grants.add(`${moduleKey}.read`);
           grants.add(`${moduleKey}.write`);
         }
@@ -160,18 +153,54 @@ export function db() {
       const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
       for (const role of systemRoles) {
         const grants = new Set<string>(JSON.parse(role.permissions));
-        for (const moduleKey of [
-          'students',
-          'guardians',
-          'student-documents',
-          'class-memberships',
-        ]) {
+        for (const moduleKey of ['students']) {
           grants.add(`${moduleKey}.read`);
           grants.add(`${moduleKey}.write`);
         }
         updateRole.run(JSON.stringify([...grants]), role.id);
       }
       connection.pragma('user_version = 9');
+    })();
+  }
+  if (schemaVersion < 10) {
+    connection.transaction(() => {
+      const storedRoles = connection.prepare('SELECT id, permissions FROM roles').all() as {
+        id: string;
+        permissions: string;
+      }[];
+      const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
+      for (const role of storedRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        const hadRead = grants.delete('teacher-subjects.read');
+        const hadWrite = grants.delete('teacher-subjects.write');
+        if (hadRead) grants.add('teaching-assignments.read');
+        if (hadWrite) grants.add('teaching-assignments.write');
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.exec('DROP TABLE IF EXISTS teacher_subjects');
+      connection.pragma('user_version = 10');
+    })();
+  }
+  if (schemaVersion < 11) {
+    connection.transaction(() => {
+      const storedRoles = connection.prepare('SELECT id, permissions FROM roles').all() as {
+        id: string;
+        permissions: string;
+      }[];
+      const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
+      for (const role of storedRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        const hadRead = ['guardians.read', 'student-documents.read', 'class-memberships.read']
+          .map((permission) => grants.delete(permission))
+          .some(Boolean);
+        const hadWrite = ['guardians.write', 'student-documents.write', 'class-memberships.write']
+          .map((permission) => grants.delete(permission))
+          .some(Boolean);
+        if (hadRead || hadWrite) grants.add('students.read');
+        if (hadWrite) grants.add('students.write');
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.pragma('user_version = 11');
     })();
   }
   globalDb.cmsDb = connection;

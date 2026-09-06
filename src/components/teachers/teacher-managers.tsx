@@ -83,35 +83,14 @@ const teacher: AcademicEntityConfig = {
   ],
 };
 
-const teacherSubject: AcademicEntityConfig = {
-  endpoint: '/api/modules/teacher-subjects',
-  title: 'Mapel Diampu',
-  singular: 'Mapel guru',
-  eyebrow: 'GURU',
-  description: 'Tentukan satu atau lebih mata pelajaran yang dapat diampu oleh setiap guru.',
-  note: 'Pasangan guru dan mata pelajaran hanya dapat didaftarkan satu kali.',
-  hasStatus: false,
-  defaults: { teacher_id: '', subject_id: '' },
-  fields: [
-    { key: 'teacher_id', label: 'Guru', kind: 'select', required: true },
-    { key: 'subject_id', label: 'Mata pelajaran', kind: 'select', required: true },
-  ],
-  columns: [
-    { key: 'teacher_name', label: 'GURU' },
-    { key: 'employee_code', label: 'KODE GURU', kind: 'code' },
-    { key: 'subject_code', label: 'KODE MAPEL', kind: 'code' },
-    { key: 'subject_name', label: 'MATA PELAJARAN' },
-  ],
-};
-
 const teachingAssignment: AcademicEntityConfig = {
   endpoint: '/api/modules/teaching-assignments',
-  title: 'Penugasan Mengajar',
+  title: 'Mapel & Penugasan Mengajar',
   singular: 'Penugasan mengajar',
   eyebrow: 'GURU',
   description:
-    'Kelola guru yang mengajar mata pelajaran tertentu pada rombel dan periode akademik.',
-  note: 'Rombel dan semester harus berada pada tahun ajaran yang dipilih.',
+    'Tentukan mapel yang diampu guru sekaligus rombel dan periode akademik tempatnya mengajar.',
+  note: 'Setiap penugasan langsung menetapkan mapel yang diampu. Rombel dan semester harus berada pada tahun ajaran yang dipilih.',
   hasStatus: false,
   defaults: { teacher_id: '', subject_id: '', class_id: '', academic_year_id: '', semester_id: '' },
   fields: [
@@ -160,9 +139,6 @@ const homeroomAssignment: AcademicEntityConfig = {
 
 export const TeacherManager = ({ writable }: { writable: boolean }) => (
   <AcademicEntityManager config={teacher} writable={writable} />
-);
-export const TeacherSubjectManager = ({ writable }: { writable: boolean }) => (
-  <AcademicEntityManager config={teacherSubject} writable={writable} />
 );
 export const TeachingAssignmentManager = ({ writable }: { writable: boolean }) => (
   <AcademicEntityManager config={teachingAssignment} writable={writable} />
