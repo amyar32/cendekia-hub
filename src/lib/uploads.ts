@@ -10,6 +10,12 @@ export const uploadScopes = {
     public: true,
     maxBytes: 5 * 1024 * 1024,
   },
+  'teacher.photo': {
+    readPermission: 'teachers.read',
+    writePermission: 'teachers.write',
+    public: false,
+    maxBytes: 5 * 1024 * 1024,
+  },
 } as const satisfies Record<
   string,
   {

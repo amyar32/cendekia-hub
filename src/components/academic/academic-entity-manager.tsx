@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   ActionIcon,
+  Avatar,
   Badge,
   Box,
   Button,
@@ -20,18 +21,24 @@ import {
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconPencil, IconSchool, IconTrash } from '@tabler/icons-react';
+import { IconCheck, IconPencil, IconSchool, IconTrash, IconUser } from '@tabler/icons-react';
 import 'dayjs/locale/id';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
+import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
+import type { UploadScope } from '@/lib/uploads';
 import classes from './academic-entity-manager.module.css';
 
 type Value = string | number | boolean;
-export type AcademicRow = { id: string; is_active: number; [key: string]: string | number };
+export type AcademicRow = {
+  id: string;
+  is_active?: number;
+  [key: string]: string | number | undefined;
+};
 export type AcademicField = {
   key: string;
   label: string;
-  kind?: 'text' | 'textarea' | 'number' | 'select' | 'date';
+  kind?: 'text' | 'textarea' | 'number' | 'select' | 'date' | 'image';
   placeholder?: string;
   description?: string;
   required?: boolean;
@@ -39,11 +46,13 @@ export type AcademicField = {
   optionsKey?: string;
   min?: number;
   max?: number;
+  maxLength?: number;
+  uploadScope?: UploadScope;
 };
 export type AcademicColumn = {
   key: string;
   label: string;
-  kind?: 'text' | 'status' | 'date' | 'code';
+  kind?: 'text' | 'status' | 'date' | 'code' | 'avatar';
 };
 export type AcademicEntityConfig = {
   endpoint: string;
@@ -54,6 +63,8 @@ export type AcademicEntityConfig = {
   fields: AcademicField[];
   columns: AcademicColumn[];
   defaults: Record<string, Value>;
+  eyebrow?: string;
+  hasStatus?: boolean;
 };
 
 const dateFormatter = new Intl.DateTimeFormat('id-ID', {
@@ -86,7 +97,8 @@ export function AcademicEntityManager({
         const value = row[field.key] ?? config.defaults[field.key];
         values[field.key] = field.kind === 'select' ? String(value) : value;
       }
-    values.is_active = row ? Boolean(row.is_active) : config.defaults.is_active;
+    if (config.hasStatus !== false)
+      values.is_active = row ? Boolean(row.is_active) : config.defaults.is_active;
     setForm(values);
     setEditing(row);
   }
@@ -147,6 +159,12 @@ export function AcademicEntityManager({
         </Badge>
       );
     if (column.kind === 'date') return value ? formatDate(String(value)) : '—';
+    if (column.kind === 'avatar')
+      return (
+        <Avatar src={value ? String(value) : undefined} size={38} radius="xl" color="gray">
+          <IconUser size={19} />
+        </Avatar>
+      );
     if (column.kind === 'code')
       return (
         <Badge variant="light" color="grape">
@@ -162,7 +180,7 @@ export function AcademicEntityManager({
   return (
     <>
       <ModuleListLayout
-        eyebrow="AKADEMIK"
+        eyebrow={config.eyebrow || 'AKADEMIK'}
         title={config.title}
         description={config.description}
         total={list.total}
@@ -259,6 +277,18 @@ export function AcademicEntityManager({
                 required: field.required,
                 value: form[field.key] as never,
               };
+              if (field.kind === 'image')
+                return (
+                  <ImageUploader
+                    key={field.key}
+                    label={field.label}
+                    description={field.description}
+                    scope={field.uploadScope!}
+                    value={String(form[field.key] || '')}
+                    onChange={(value) => setForm({ ...form, [field.key]: value })}
+                    disabled={saving}
+                  />
+                );
               if (field.kind === 'textarea')
                 return (
                   <Textarea
@@ -290,7 +320,7 @@ export function AcademicEntityManager({
                     placeholder={field.placeholder || `Pilih ${field.label.toLowerCase()}`}
                     data={field.options || list.options?.[field.optionsKey || field.key] || []}
                     searchable
-                    allowDeselect={false}
+                    allowDeselect={!field.required}
                     nothingFoundMessage="Data belum tersedia"
                     onChange={(value) => setForm({ ...form, [field.key]: value || '' })}
                   />
@@ -311,19 +341,21 @@ export function AcademicEntityManager({
                 <TextInput
                   key={field.key}
                   {...common}
-                  maxLength={100}
+                  maxLength={field.maxLength || 100}
                   onChange={(event) => setForm({ ...form, [field.key]: event.currentTarget.value })}
                 />
               );
             })}
-            <Box className={classes.statusCard}>
-              <Switch
-                label="Status aktif"
-                description="Data nonaktif tetap tersimpan tetapi tidak digunakan sebagai pilihan aktif."
-                checked={Boolean(form.is_active)}
-                onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
-              />
-            </Box>
+            {config.hasStatus !== false && (
+              <Box className={classes.statusCard}>
+                <Switch
+                  label="Status aktif"
+                  description="Data nonaktif tetap tersimpan tetapi tidak digunakan sebagai pilihan aktif."
+                  checked={Boolean(form.is_active)}
+                  onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
+                />
+              </Box>
+            )}
           </Stack>
           <Group className={classes.actions} justify="flex-end" mt="xl">
             <Button variant="default" disabled={saving} onClick={() => setEditing(undefined)}>

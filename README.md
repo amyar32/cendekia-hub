@@ -46,7 +46,7 @@ src/
       audit/                  Halaman audit trail
       settings/               Halaman pengaturan akun
         school/               Halaman pengaturan sekolah
-      master-data/categories/ Halaman kategori
+      academic/subjects/      Halaman mata pelajaran
     api/auth/                 Login, logout, perubahan password
     api/modules/              Route, handler, validasi, dan aturan bisnis per modul
   components/
@@ -66,7 +66,7 @@ tests/                       Pengujian unit dan integrasi HTTP
 
 ## Menambahkan modul
 
-Gunakan `categories` sebagai contoh implementasi modul sederhana:
+Gunakan `subjects` sebagai contoh implementasi modul sederhana:
 
 1. Tambahkan permission `products.read` / `products.write`, `ModuleKey`, dan metadata modul pada `src/config/modules.ts`.
 2. Tambahkan skema tabel melalui migrasi database. Skema awal ada di `src/lib/db.ts` (versi 1); saat proyek berkembang, gunakan migrasi berurutan untuk mengubah tabel yang sudah berisi data.

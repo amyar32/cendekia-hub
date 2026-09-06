@@ -26,9 +26,15 @@ async function api(
     redirect: 'manual',
   });
 }
-async function uploadApi(bytes: Uint8Array, mimeType: string, cookie = adminCookie, origin = base) {
+async function uploadApi(
+  bytes: Uint8Array,
+  mimeType: string,
+  cookie = adminCookie,
+  origin = base,
+  scope = 'school.logo',
+) {
   const body = new FormData();
-  body.set('scope', 'school.logo');
+  body.set('scope', scope);
   body.set('file', new Blob([Uint8Array.from(bytes).buffer], { type: mimeType }), 'logo.png');
   return fetch(base + '/api/uploads', {
     method: 'POST',
@@ -105,37 +111,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'image/png');
   assert.deepEqual(Buffer.from(await res.arrayBuffer()), png);
-  assert.equal(
-    (
-      await api(
-        '/api/modules/categories',
-        'POST',
-        { name: 'Blocked' },
-        adminCookie,
-        'https://evil.example',
-      )
-    ).status,
-    403,
-  );
-  res = await api('/api/modules/categories', 'POST', {
-    name: 'Pendidikan',
-    description: 'Kategori uji',
-    active: true,
-  });
-  assert.equal(res.status, 201);
-  const category = await res.json();
-  assert.equal(
-    (
-      await api('/api/modules/categories', 'PATCH', {
-        id: category.id,
-        name: 'Pendidikan baru',
-        active: false,
-      })
-    ).status,
-    200,
-  );
-  res = await api('/api/modules/categories?q=Pendidikan');
-  assert.equal((await res.json()).total, 1);
   assert.equal(
     (
       await api(
@@ -344,6 +319,102 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   );
   res = await api('/api/modules/subjects?q=MAT-01');
   assert.equal((await res.json()).total, 1);
+  res = await api('/api/modules/teachers', 'POST', {
+    user_id: '',
+    photo_url: '',
+    employee_code: 'gr-001',
+    nip: '198801012020121001',
+    name: 'Budi Santoso',
+    gender: 'male',
+    birth_date: '1988-01-01',
+    phone: '081234567890',
+    email: 'budi@cendekia.test',
+    address: 'Jalan Pendidikan 2',
+    join_date: '2020-07-01',
+    employment_status: 'permanent',
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const teacher = await res.json();
+  res = await uploadApi(png, 'image/png', adminCookie, base, 'teacher.photo');
+  assert.equal(res.status, 201);
+  const teacherPhoto = (await res.json()).upload;
+  assert.equal((await fetch(base + teacherPhoto.url)).status, 401);
+  assert.equal(
+    (
+      await api('/api/modules/teachers', 'PATCH', {
+        id: teacher.id,
+        user_id: '',
+        photo_url: teacherPhoto.url,
+        employee_code: 'GR-001',
+        nip: '198801012020121001',
+        name: 'Budi Santoso',
+        gender: 'male',
+        birth_date: '1988-01-01',
+        phone: '081234567890',
+        email: 'budi@cendekia.test',
+        address: 'Jalan Pendidikan 2',
+        join_date: '2020-07-01',
+        employment_status: 'permanent',
+        is_active: true,
+      })
+    ).status,
+    200,
+  );
+  assert.equal((await api(teacherPhoto.url)).status, 200);
+  res = await api('/api/modules/teachers?q=Budi');
+  const teachers = await res.json();
+  assert.equal(teachers.total, 1);
+  assert.equal(teachers.rows[0].employee_code, 'GR-001');
+  assert.equal(teachers.rows[0].gender_label, 'Laki-laki');
+  assert.equal(teachers.rows[0].photo_url, teacherPhoto.url);
+  assert.equal(
+    (
+      await api('/api/modules/teaching-assignments', 'POST', {
+        teacher_id: teacher.id,
+        subject_id: subject.id,
+        class_id: classroom.id,
+        academic_year_id: secondAcademicYear.id,
+        semester_id: semester.id,
+      })
+    ).status,
+    400,
+  );
+  res = await api('/api/modules/teacher-subjects', 'POST', {
+    teacher_id: teacher.id,
+    subject_id: subject.id,
+  });
+  assert.equal(res.status, 201);
+  const teacherSubject = await res.json();
+  res = await api('/api/modules/teaching-assignments', 'POST', {
+    teacher_id: teacher.id,
+    subject_id: subject.id,
+    class_id: classroom.id,
+    academic_year_id: secondAcademicYear.id,
+    semester_id: semester.id,
+  });
+  assert.equal(res.status, 201);
+  const teachingAssignment = await res.json();
+  res = await api('/api/modules/homeroom-assignments', 'POST', {
+    teacher_id: teacher.id,
+    class_id: classroom.id,
+    academic_year_id: secondAcademicYear.id,
+  });
+  assert.equal(res.status, 201);
+  const homeroomAssignment = await res.json();
+  res = await api('/api/modules/teaching-assignments?q=Matematika');
+  assert.equal((await res.json()).total, 1);
+  res = await api('/api/modules/homeroom-assignments?q=7A');
+  assert.equal((await res.json()).rows[0].teacher_name, 'Budi Santoso');
+  assert.equal((await api('/api/modules/teachers', 'DELETE', { id: teacher.id })).status, 409);
+  assert.equal(
+    (
+      await api('/api/modules/teaching-assignments', 'DELETE', {
+        id: teachingAssignment.id,
+      })
+    ).status,
+    200,
+  );
   assert.equal((await api('/api/modules/semesters?q=Ganjil')).status, 200);
   assert.equal((await api('/api/modules/semesters', 'DELETE', { id: semester.id })).status, 200);
   assert.equal(
@@ -351,6 +422,18 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     409,
   );
   assert.equal((await api('/api/modules/grades', 'DELETE', { id: grade.id })).status, 409);
+  assert.equal(
+    (
+      await api('/api/modules/homeroom-assignments', 'DELETE', {
+        id: homeroomAssignment.id,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await api('/api/modules/teacher-subjects', 'DELETE', { id: teacherSubject.id })).status,
+    200,
+  );
   res = await api('/api/modules/school');
   assert.equal((await res.json()).school.timezone, 'Asia/Makassar');
   assert.equal(
@@ -380,11 +463,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   );
   assert.equal(res.status, 200);
   const viewerCookie = res.headers.get('set-cookie')!.split(';')[0];
-  assert.equal((await api('/api/modules/categories', 'GET', undefined, viewerCookie)).status, 200);
-  assert.equal(
-    (await api('/api/modules/categories', 'POST', { name: 'Unauthorized' }, viewerCookie)).status,
-    403,
-  );
   assert.equal((await api('/api/modules/users', 'GET', undefined, viewerCookie)).status, 403);
   assert.equal((await api('/api/modules/audit', 'GET', undefined, viewerCookie)).status, 403);
   assert.equal((await api('/api/modules/school', 'GET', undefined, viewerCookie)).status, 403);
@@ -447,14 +525,9 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     ).status,
     200,
   );
-  assert.equal((await api('/api/modules/categories', 'GET', undefined, viewerCookie)).status, 401);
-  assert.equal((await api('/api/modules/categories', 'DELETE', { id: category.id })).status, 200);
-  res = await api('/api/modules/audit?q=categories');
-  const history = await res.json();
-  assert.equal(history.total, 3);
-  assert.deepEqual(
-    history.rows.map((r: { action: string }) => r.action),
-    ['delete', 'update', 'create'],
+  assert.equal(
+    (await api('/api/modules/academic-years', 'GET', undefined, viewerCookie)).status,
+    401,
   );
   res = await api('/api/modules/audit?q=schools');
   const schoolHistory = await res.json();
@@ -474,10 +547,13 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     academicYearHistory.rows.map((r: { action: string }) => r.action),
     ['delete', 'update', 'create', 'create'],
   );
-  assert.equal((await api('/api/modules/audit', 'DELETE', { id: history.rows[0].id })).status, 405);
+  assert.equal(
+    (await api('/api/modules/audit', 'DELETE', { id: schoolHistory.rows[0].id })).status,
+    405,
+  );
   res = await api('/api/modules/roles', 'POST', {
     name: 'Operator',
-    permissions: ['categories.read', 'roles.read', 'roles.write'],
+    permissions: ['subjects.read', 'roles.read', 'roles.write'],
   });
   assert.equal(res.status, 201);
   const role = await res.json();
@@ -497,10 +573,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   );
   assert.equal(res.status, 200);
   const operatorCookie = res.headers.get('set-cookie')!.split(';')[0];
-  assert.equal(
-    (await api('/api/modules/categories', 'GET', undefined, operatorCookie)).status,
-    200,
-  );
+  assert.equal((await api('/api/modules/subjects', 'GET', undefined, operatorCookie)).status, 200);
   assert.equal(
     (
       await api(
@@ -534,10 +607,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     ).status,
     200,
   );
-  assert.equal(
-    (await api('/api/modules/categories', 'GET', undefined, operatorCookie)).status,
-    403,
-  );
+  assert.equal((await api('/api/modules/subjects', 'GET', undefined, operatorCookie)).status, 403);
   assert.equal((await api('/api/modules/users', 'DELETE', { id: operator.id })).status, 200);
   assert.equal((await api('/api/modules/roles', 'DELETE', { id: role.id })).status, 200);
   res = await api('/api/modules/users');

@@ -5,8 +5,6 @@ export const permissions = [
   'roles.read',
   'roles.write',
   'audit.read',
-  'categories.read',
-  'categories.write',
   'school.read',
   'school.write',
   'academic-years.read',
@@ -19,19 +17,30 @@ export const permissions = [
   'classes.write',
   'subjects.read',
   'subjects.write',
+  'teachers.read',
+  'teachers.write',
+  'teacher-subjects.read',
+  'teacher-subjects.write',
+  'teaching-assignments.read',
+  'teaching-assignments.write',
+  'homeroom-assignments.read',
+  'homeroom-assignments.write',
 ] as const;
 export type Permission = (typeof permissions)[number];
 export type ModuleKey =
   | 'users'
   | 'roles'
   | 'audit'
-  | 'categories'
   | 'school'
   | 'academic-years'
   | 'semesters'
   | 'grades'
   | 'classes'
-  | 'subjects';
+  | 'subjects'
+  | 'teachers'
+  | 'teacher-subjects'
+  | 'teaching-assignments'
+  | 'homeroom-assignments';
 export type CmsModule = {
   key: ModuleKey;
   label: string;
@@ -83,20 +92,44 @@ export const modules: CmsModule[] = [
     group: 'Akademik',
   },
   {
+    key: 'teachers',
+    label: 'Data Guru',
+    description: 'Kelola identitas dan status kepegawaian guru.',
+    path: '/teachers',
+    permission: 'teachers.read',
+    group: 'Guru',
+  },
+  {
+    key: 'teacher-subjects',
+    label: 'Mapel Diampu',
+    description: 'Tentukan mata pelajaran yang dapat diampu setiap guru.',
+    path: '/teachers/subjects',
+    permission: 'teacher-subjects.read',
+    group: 'Guru',
+  },
+  {
+    key: 'teaching-assignments',
+    label: 'Penugasan Mengajar',
+    description: 'Kelola penugasan guru pada rombel, mapel, tahun ajaran, dan semester.',
+    path: '/teachers/teaching-assignments',
+    permission: 'teaching-assignments.read',
+    group: 'Guru',
+  },
+  {
+    key: 'homeroom-assignments',
+    label: 'Wali Kelas',
+    description: 'Tentukan guru wali kelas untuk setiap rombel dan tahun ajaran.',
+    path: '/teachers/homeroom-assignments',
+    permission: 'homeroom-assignments.read',
+    group: 'Guru',
+  },
+  {
     key: 'school',
     label: 'Pengaturan Sekolah',
     description: 'Kelola identitas dan informasi kontak sekolah.',
     path: '/settings/school',
     permission: 'school.read',
     group: 'Preferensi',
-  },
-  {
-    key: 'categories',
-    label: 'Kategori',
-    description: 'Kelola kategori untuk mengorganisir data Anda.',
-    path: '/master-data/categories',
-    permission: 'categories.read',
-    group: 'Master data',
   },
   {
     key: 'users',

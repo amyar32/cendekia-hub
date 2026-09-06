@@ -14,7 +14,7 @@ export default async function Page() {
   const stats = {
     users: can(user.permissions, 'users.read') ? count('users') : null,
     roles: can(user.permissions, 'roles.read') ? count('roles') : null,
-    categories: can(user.permissions, 'categories.read') ? count('categories') : null,
+    teachers: can(user.permissions, 'teachers.read') ? count('teachers') : null,
     audit: can(user.permissions, 'audit.read') ? count('audit') : null,
   };
   const activities = can(user.permissions, 'audit.read')

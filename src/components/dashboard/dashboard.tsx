@@ -6,7 +6,7 @@ import {
   IconArrowRight,
   IconUsers,
   IconShieldCheck,
-  IconFolder,
+  IconChalkboardTeacher,
   IconHistory,
   IconPuzzle,
   IconCircleCheck,
@@ -35,12 +35,12 @@ const cards = [
     path: '/roles',
   },
   {
-    key: 'categories',
-    label: 'Kategori',
-    icon: IconFolder,
+    key: 'teachers',
+    label: 'Guru',
+    icon: IconChalkboardTeacher,
     color: 'brand',
     note: 'Data tersimpan',
-    path: '/master-data/categories',
+    path: '/teachers',
   },
   {
     key: 'audit',
@@ -90,13 +90,9 @@ export function Dashboard({
             <br />
             Mulai dari data yang rapi hingga akses tim yang terkendali.
           </Text>
-          {can(user.permissions, 'categories.read') && (
-            <Button
-              component={Link}
-              href="/master-data/categories"
-              rightSection={<IconArrowRight size={17} />}
-            >
-              Kelola master data
+          {can(user.permissions, 'teachers.read') && (
+            <Button component={Link} href="/teachers" rightSection={<IconArrowRight size={17} />}>
+              Kelola data guru
             </Button>
           )}
         </div>

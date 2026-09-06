@@ -26,7 +26,6 @@ import {
   IconUsers,
   IconShieldCheck,
   IconHistory,
-  IconFolder,
   IconLogout,
   IconChevronDown,
   IconSettings,
@@ -37,6 +36,7 @@ import {
   IconHierarchy,
   IconSchoolBell,
   IconUsersGroup,
+  IconHome2,
 } from '@tabler/icons-react';
 import { modules, can } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -45,13 +45,16 @@ const icons = {
   users: IconUsers,
   roles: IconShieldCheck,
   audit: IconHistory,
-  categories: IconFolder,
   school: IconSchool,
   'academic-years': IconCalendarEvent,
   semesters: IconSchoolBell,
   grades: IconHierarchy,
   classes: IconUsersGroup,
   subjects: IconBooks,
+  teachers: IconUsers,
+  'teacher-subjects': IconBooks,
+  'teaching-assignments': IconSchoolBell,
+  'homeroom-assignments': IconHome2,
 };
 export function CmsShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
   const path = usePathname();
@@ -153,7 +156,33 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
                 })}
             </div>
           )}
-          {['Master data', 'Administrasi'].map((group) => (
+          {modules.some(
+            (module) => module.group === 'Guru' && can(user.permissions, module.permission),
+          ) && (
+            <div>
+              <Text className={styles.navLabel} variant="eyebrow">
+                GURU
+              </Text>
+              {modules
+                .filter(
+                  (module) => module.group === 'Guru' && can(user.permissions, module.permission),
+                )
+                .map((module) => {
+                  const Icon = icons[module.key];
+                  return (
+                    <NavLink
+                      component={Link}
+                      key={module.key}
+                      href={module.path}
+                      active={path === module.path}
+                      leftSection={<Icon size={18} />}
+                      label={module.label}
+                    />
+                  );
+                })}
+            </div>
+          )}
+          {['Administrasi'].map((group) => (
             <div key={group}>
               {modules.some((m) => m.group === group && can(user.permissions, m.permission)) && (
                 <Text className={styles.navLabel} variant="eyebrow">

@@ -27,6 +27,73 @@ export function gradeOptions(schoolId: string) {
     .all(schoolId) as { value: string; label: string }[];
 }
 
+export function teacherOptions(schoolId: string) {
+  return db()
+    .prepare(
+      `SELECT id AS value, name || ' — ' || employee_code || CASE WHEN is_active=0 THEN ' (nonaktif)' ELSE '' END AS label
+       FROM teachers WHERE school_id = ? ORDER BY is_active DESC, name`,
+    )
+    .all(schoolId) as { value: string; label: string }[];
+}
+
+export function subjectOptions(schoolId: string) {
+  return db()
+    .prepare(
+      `SELECT id AS value, code || ' — ' || name || CASE WHEN is_active=0 THEN ' (nonaktif)' ELSE '' END AS label
+       FROM subjects WHERE school_id = ? ORDER BY is_active DESC, name`,
+    )
+    .all(schoolId) as { value: string; label: string }[];
+}
+
+export function classOptions(schoolId: string) {
+  return db()
+    .prepare(
+      `SELECT c.id AS value, c.name || ' — ' || ay.name AS label FROM classes c
+       JOIN academic_years ay ON ay.id=c.academic_year_id
+       WHERE c.school_id = ? ORDER BY ay.is_active DESC, ay.start_date DESC, c.name`,
+    )
+    .all(schoolId) as { value: string; label: string }[];
+}
+
+export function semesterOptions(schoolId: string) {
+  return db()
+    .prepare(
+      `SELECT s.id AS value, s.name || ' — ' || ay.name AS label FROM semesters s
+       JOIN academic_years ay ON ay.id=s.academic_year_id
+       WHERE ay.school_id = ? ORDER BY ay.is_active DESC, ay.start_date DESC, s.period`,
+    )
+    .all(schoolId) as { value: string; label: string }[];
+}
+
+export function requireTeacher(schoolId: string, teacherId: string) {
+  if (!db().prepare('SELECT id FROM teachers WHERE id=? AND school_id=?').get(teacherId, schoolId))
+    throw new HttpError(400, 'Guru tidak valid.');
+}
+
+export function requireSubject(schoolId: string, subjectId: string) {
+  if (!db().prepare('SELECT id FROM subjects WHERE id=? AND school_id=?').get(subjectId, schoolId))
+    throw new HttpError(400, 'Mata pelajaran tidak valid.');
+}
+
+export function requireClass(schoolId: string, classId: string) {
+  const classroom = db()
+    .prepare('SELECT id,academic_year_id FROM classes WHERE id=? AND school_id=?')
+    .get(classId, schoolId) as { id: string; academic_year_id: string } | undefined;
+  if (!classroom) throw new HttpError(400, 'Rombel tidak valid.');
+  return classroom;
+}
+
+export function requireSemester(schoolId: string, semesterId: string) {
+  const semester = db()
+    .prepare(
+      `SELECT s.id,s.academic_year_id FROM semesters s JOIN academic_years ay ON ay.id=s.academic_year_id
+       WHERE s.id=? AND ay.school_id=?`,
+    )
+    .get(semesterId, schoolId) as { id: string; academic_year_id: string } | undefined;
+  if (!semester) throw new HttpError(400, 'Semester tidak valid.');
+  return semester;
+}
+
 export function requireAcademicYear(schoolId: string, academicYearId: string) {
   const year = db()
     .prepare('SELECT id, start_date, end_date FROM academic_years WHERE id = ? AND school_id = ?')

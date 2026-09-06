@@ -10,8 +10,8 @@ test('password hashing uses unique salts and rejects incorrect passwords', () =>
   assert.equal(verifyPassword('wrong', 'malformed'), false);
 });
 test('RBAC denies absent permissions and does not infer write from read', () => {
-  assert.equal(can(['categories.read'], 'categories.read'), true);
-  assert.equal(can(['categories.read'], 'categories.write'), false);
+  assert.equal(can(['subjects.read'], 'subjects.read'), true);
+  assert.equal(can(['subjects.read'], 'subjects.write'), false);
   assert.equal(can([], 'users.read'), false);
   assert.equal(can(['school.read'], 'school.read'), true);
   assert.equal(can(['school.read'], 'school.write'), false);

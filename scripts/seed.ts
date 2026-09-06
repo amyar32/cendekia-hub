@@ -20,8 +20,6 @@ db().transaction(() => {
       'Mengelola master data',
       JSON.stringify([
         'dashboard.read',
-        'categories.read',
-        'categories.write',
         'academic-years.read',
         'academic-years.write',
         'semesters.read',
@@ -32,6 +30,14 @@ db().transaction(() => {
         'classes.write',
         'subjects.read',
         'subjects.write',
+        'teachers.read',
+        'teachers.write',
+        'teacher-subjects.read',
+        'teacher-subjects.write',
+        'teaching-assignments.read',
+        'teaching-assignments.write',
+        'homeroom-assignments.read',
+        'homeroom-assignments.write',
       ]),
     );
   db()
@@ -42,12 +48,15 @@ db().transaction(() => {
       'Akses baca untuk master data',
       JSON.stringify([
         'dashboard.read',
-        'categories.read',
         'academic-years.read',
         'semesters.read',
         'grades.read',
         'classes.read',
         'subjects.read',
+        'teachers.read',
+        'teacher-subjects.read',
+        'teaching-assignments.read',
+        'homeroom-assignments.read',
       ]),
     );
   if (!db().prepare('SELECT id FROM users WHERE email = ?').get(email)) {
