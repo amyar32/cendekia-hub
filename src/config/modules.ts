@@ -11,9 +11,27 @@ export const permissions = [
   'school.write',
   'academic-years.read',
   'academic-years.write',
+  'semesters.read',
+  'semesters.write',
+  'grades.read',
+  'grades.write',
+  'classes.read',
+  'classes.write',
+  'subjects.read',
+  'subjects.write',
 ] as const;
 export type Permission = (typeof permissions)[number];
-export type ModuleKey = 'users' | 'roles' | 'audit' | 'categories' | 'school' | 'academic-years';
+export type ModuleKey =
+  | 'users'
+  | 'roles'
+  | 'audit'
+  | 'categories'
+  | 'school'
+  | 'academic-years'
+  | 'semesters'
+  | 'grades'
+  | 'classes'
+  | 'subjects';
 export type CmsModule = {
   key: ModuleKey;
   label: string;
@@ -30,6 +48,38 @@ export const modules: CmsModule[] = [
     description: 'Kelola periode tahun ajaran dan tentukan periode yang sedang aktif.',
     path: '/academic/academic-years',
     permission: 'academic-years.read',
+    group: 'Akademik',
+  },
+  {
+    key: 'semesters',
+    label: 'Semester',
+    description: 'Kelola semester dan periode dalam setiap tahun ajaran.',
+    path: '/academic/semesters',
+    permission: 'semesters.read',
+    group: 'Akademik',
+  },
+  {
+    key: 'grades',
+    label: 'Tingkat / Kelas',
+    description: 'Kelola jenjang tingkat kelas yang berlaku di sekolah.',
+    path: '/academic/grades',
+    permission: 'grades.read',
+    group: 'Akademik',
+  },
+  {
+    key: 'classes',
+    label: 'Rombel',
+    description: 'Kelola rombongan belajar per tahun ajaran dan tingkat.',
+    path: '/academic/classes',
+    permission: 'classes.read',
+    group: 'Akademik',
+  },
+  {
+    key: 'subjects',
+    label: 'Mata Pelajaran',
+    description: 'Kelola kode, kategori, dan identitas mata pelajaran.',
+    path: '/academic/subjects',
+    permission: 'subjects.read',
     group: 'Akademik',
   },
   {

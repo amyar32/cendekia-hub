@@ -258,6 +258,99 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     ).status,
     200,
   );
+  assert.equal(
+    (
+      await api('/api/modules/semesters', 'POST', {
+        academic_year_id: secondAcademicYear.id,
+        name: 'Di luar tahun ajaran',
+        period: 1,
+        start_date: '2026-06-01',
+        end_date: '2026-12-31',
+        is_active: false,
+      })
+    ).status,
+    400,
+  );
+  res = await api('/api/modules/semesters', 'POST', {
+    academic_year_id: secondAcademicYear.id,
+    name: 'Semester Ganjil',
+    period: 1,
+    start_date: '2026-07-13',
+    end_date: '2026-12-31',
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const semester = await res.json();
+  res = await api('/api/modules/grades', 'POST', {
+    name: 'Kelas 7',
+    level_order: 7,
+    description: 'Tingkat pertama SMP',
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const grade = await res.json();
+  res = await api('/api/modules/classes', 'POST', {
+    academic_year_id: secondAcademicYear.id,
+    grade_id: grade.id,
+    name: '7A',
+    capacity: 32,
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const classroom = await res.json();
+  res = await api('/api/modules/classes?q=7A');
+  const classrooms = await res.json();
+  assert.equal(classrooms.total, 1);
+  assert.equal(classrooms.rows[0].grade_name, 'Kelas 7');
+  assert.equal(classrooms.rows[0].academic_year_name, '2026/2027 revisi');
+  assert.ok(classrooms.options.academic_year_id.length >= 2);
+  assert.ok(
+    classrooms.options.grade_id.some((option: { value: string }) => option.value === grade.id),
+  );
+  assert.equal(
+    (
+      await api('/api/modules/classes', 'PATCH', {
+        id: classroom.id,
+        academic_year_id: secondAcademicYear.id,
+        grade_id: '00000000-0000-4000-8000-000000000000',
+        name: '7A',
+        capacity: 30,
+        is_active: true,
+      })
+    ).status,
+    400,
+  );
+  res = await api('/api/modules/subjects', 'POST', {
+    code: 'mat',
+    name: 'Matematika',
+    category: 'Wajib',
+    description: 'Mata pelajaran wajib',
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const subject = await res.json();
+  assert.equal(
+    (
+      await api('/api/modules/subjects', 'PATCH', {
+        id: subject.id,
+        code: 'mat-01',
+        name: 'Matematika',
+        category: 'Wajib',
+        description: '',
+        is_active: true,
+      })
+    ).status,
+    200,
+  );
+  res = await api('/api/modules/subjects?q=MAT-01');
+  assert.equal((await res.json()).total, 1);
+  assert.equal((await api('/api/modules/semesters?q=Ganjil')).status, 200);
+  assert.equal((await api('/api/modules/semesters', 'DELETE', { id: semester.id })).status, 200);
+  assert.equal(
+    (await api('/api/modules/academic-years', 'DELETE', { id: secondAcademicYear.id })).status,
+    409,
+  );
+  assert.equal((await api('/api/modules/grades', 'DELETE', { id: grade.id })).status, 409);
   res = await api('/api/modules/school');
   assert.equal((await res.json()).school.timezone, 'Asia/Makassar');
   assert.equal(
@@ -298,6 +391,22 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(
     (await api('/api/modules/academic-years', 'GET', undefined, viewerCookie)).status,
     200,
+  );
+  for (const moduleKey of ['semesters', 'grades', 'classes', 'subjects'])
+    assert.equal(
+      (await api(`/api/modules/${moduleKey}`, 'GET', undefined, viewerCookie)).status,
+      200,
+    );
+  assert.equal(
+    (
+      await api(
+        '/api/modules/subjects',
+        'POST',
+        { code: 'NO', name: 'Tanpa izin', is_active: true },
+        viewerCookie,
+      )
+    ).status,
+    403,
   );
   assert.equal(
     (

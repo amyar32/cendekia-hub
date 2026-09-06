@@ -167,7 +167,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                   <Table.Td>{formatDate(year.start_date)}</Table.Td>
                   <Table.Td>{formatDate(year.end_date)}</Table.Td>
                   <Table.Td>
-                    <Badge variant="dot" color={year.is_active ? 'brand' : 'gray'}>
+                    <Badge variant="dot" color={year.is_active ? 'green' : 'gray'}>
                       {year.is_active ? 'Aktif' : 'Nonaktif'}
                     </Badge>
                   </Table.Td>

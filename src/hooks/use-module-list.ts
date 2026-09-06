@@ -7,6 +7,7 @@ export type ModuleListResponse<Row> = {
   rows: Row[];
   total: number;
   roles?: { id: string; name: string }[];
+  options?: Record<string, { value: string; label: string }[]>;
 };
 
 export function useModuleList<Row>(endpoint: string) {

@@ -33,6 +33,10 @@ import {
   IconSchool,
   IconArrowUpRight,
   IconCalendarEvent,
+  IconBooks,
+  IconHierarchy,
+  IconSchoolBell,
+  IconUsersGroup,
 } from '@tabler/icons-react';
 import { modules, can } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -44,9 +48,11 @@ const icons = {
   categories: IconFolder,
   school: IconSchool,
   'academic-years': IconCalendarEvent,
+  semesters: IconSchoolBell,
+  grades: IconHierarchy,
+  classes: IconUsersGroup,
+  subjects: IconBooks,
 };
-
-const upcomingAcademicMenus = ['Semester', 'Tingkat / Kelas', 'Rombel', 'Mata Pelajaran'];
 export function CmsShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
@@ -145,9 +151,6 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
                     />
                   );
                 })}
-              {upcomingAcademicMenus.map((label) => (
-                <NavLink key={label} label={label} disabled />
-              ))}
             </div>
           )}
           {['Master data', 'Administrasi'].map((group) => (

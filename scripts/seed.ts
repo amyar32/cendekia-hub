@@ -24,6 +24,14 @@ db().transaction(() => {
         'categories.write',
         'academic-years.read',
         'academic-years.write',
+        'semesters.read',
+        'semesters.write',
+        'grades.read',
+        'grades.write',
+        'classes.read',
+        'classes.write',
+        'subjects.read',
+        'subjects.write',
       ]),
     );
   db()
@@ -32,7 +40,15 @@ db().transaction(() => {
       'viewer',
       'Viewer',
       'Akses baca untuk master data',
-      JSON.stringify(['dashboard.read', 'categories.read', 'academic-years.read']),
+      JSON.stringify([
+        'dashboard.read',
+        'categories.read',
+        'academic-years.read',
+        'semesters.read',
+        'grades.read',
+        'classes.read',
+        'subjects.read',
+      ]),
     );
   if (!db().prepare('SELECT id FROM users WHERE email = ?').get(email)) {
     const id = randomUUID();
