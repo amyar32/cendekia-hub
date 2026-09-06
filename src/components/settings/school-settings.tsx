@@ -18,6 +18,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconSchool } from '@tabler/icons-react';
+import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import { formatDate } from '@/lib/format';
 import styles from './school-settings.module.css';
@@ -202,14 +203,13 @@ export function SchoolSettings({
             mt="md"
             disabled={!writable}
           />
-          <TextInput
-            label="URL logo"
-            description="Masukkan alamat gambar publik untuk logo sekolah."
-            type="url"
+          <Divider my="lg" />
+          <ImageUploader
+            label="Logo sekolah"
+            description="PNG, JPEG, atau WebP. Ukuran maksimal 5 MB."
+            scope="school.logo"
             value={form.logo_url}
-            onChange={(event) => setField('logo_url', event.currentTarget.value)}
-            maxLength={2048}
-            mt="md"
+            onChange={(value) => setField('logo_url', value)}
             disabled={!writable}
           />
           <Switch

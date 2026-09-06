@@ -26,10 +26,21 @@ async function api(
     redirect: 'manual',
   });
 }
+async function uploadApi(bytes: Uint8Array, mimeType: string, cookie = adminCookie, origin = base) {
+  const body = new FormData();
+  body.set('scope', 'school.logo');
+  body.set('file', new Blob([Uint8Array.from(bytes).buffer], { type: mimeType }), 'logo.png');
+  return fetch(base + '/api/uploads', {
+    method: 'POST',
+    headers: { origin, cookie },
+    body,
+  });
+}
 before(async () => {
   const env = {
     ...process.env,
     DATABASE_PATH: join(dir, 'test.sqlite'),
+    UPLOAD_STORAGE_PATH: join(dir, 'uploads'),
     SEED_ADMIN_EMAIL: 'admin@test.local',
     SEED_ADMIN_PASSWORD: 'test-admin-password-123',
   };
@@ -76,6 +87,24 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   adminCookie = res.headers.get('set-cookie')!.split(';')[0];
   assert.match(adminCookie, /cms_session=/);
   assert.equal((await api('/')).status, 200);
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  );
+  assert.equal((await uploadApi(png, 'image/png', '')).status, 401);
+  assert.equal(
+    (await uploadApi(png, 'image/png', adminCookie, 'https://evil.example')).status,
+    403,
+  );
+  assert.equal((await uploadApi(new Uint8Array([1, 2, 3]), 'image/png')).status, 415);
+  res = await uploadApi(png, 'image/png');
+  assert.equal(res.status, 201);
+  const uploadedLogo = (await res.json()).upload;
+  assert.match(uploadedLogo.url, /^\/api\/uploads\/[0-9a-f-]{36}$/);
+  res = await fetch(base + uploadedLogo.url);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await res.arrayBuffer()), png);
   assert.equal(
     (
       await api(
@@ -126,7 +155,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     address: 'Jalan Pendidikan 1',
     email: 'halo@cendekia.test',
     phone: '+62 21 555 0101',
-    logo_url: 'https://example.com/logo.png',
+    logo_url: uploadedLogo.url,
     timezone: 'Asia/Jakarta',
     is_active: true,
   });
@@ -134,6 +163,17 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   const createdSchool = (await res.json()).school;
   assert.equal(createdSchool.name, 'SMA Cendekia Utama');
   assert.equal(createdSchool.is_active, 1);
+  assert.equal(createdSchool.logo_url, uploadedLogo.url);
+  assert.equal(
+    (
+      await api('/api/modules/school', 'PATCH', {
+        name: 'Logo invalid',
+        logo_url: '/api/uploads/00000000-0000-4000-8000-000000000000',
+        timezone: 'Asia/Jakarta',
+      })
+    ).status,
+    400,
+  );
   res = await api('/api/modules/school', 'PATCH', {
     name: 'SMA Cendekia Baru',
     code: 'SCB',

@@ -27,7 +27,8 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **RBAC:** role Administrator, Editor, Viewer; custom role dengan permission baca/tulis per modul. Permission diperiksa ulang dari database pada setiap request. Navigasi juga mengikuti permission.
 - **Audit trail:** login berhasil/gagal, logout, perubahan password, dan setiap mutasi modul. Mutasi data dan audit berada dalam satu transaksi SQLite. Password dan token tidak dicatat. Endpoint hanya baca; trigger database menolak UPDATE/DELETE audit.
 - **Master data kategori:** CRUD, status aktif, pencarian, paginasi, validasi, dan konfirmasi penghapusan.
-- **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, logo, zona waktu, status aktif, RBAC, dan audit perubahan.
+- **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
+- **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
 - **Dashboard:** statistik dan aktivitas aktual, sesuai akses pengguna.
 
 Administrator sistem tidak dapat diedit/dihapus, pengguna tidak dapat mengubah akses akunnya sendiri, dan pengguna tidak dapat memberikan akses melebihi permission yang dimilikinya. Akun dibuat administrator; registrasi publik dan reset password melalui email belum disertakan.
@@ -57,6 +58,7 @@ src/
     db.ts                     Skema SQLite, koneksi dan audit writer
     password.ts               Hash/verifikasi password
     http.ts                   Pemetaan error API
+    uploads.ts                Registry scope dan adapter storage upload
   config/modules.ts          Katalog modul, permission, dan navigasi
 scripts/seed.ts                Role awal dan akun administrator
 tests/                       Pengujian unit dan integrasi HTTP
@@ -95,7 +97,7 @@ npm run build
 npm start
 ```
 
-Gunakan HTTPS karena cookie sesi memakai `Secure` pada produksi. Jika menggunakan reverse proxy, pertahankan host/origin publik agar pemeriksaan origin cocok. Database SQLite membutuhkan disk persisten dengan izin tulis; rancangan ini ditujukan untuk satu instance Node.js. Untuk deployment serverless atau beberapa instance, pindahkan penyimpanan ke database bersama seperti PostgreSQL serta siapkan migrasi dan strategi backup.
+Gunakan HTTPS karena cookie sesi memakai `Secure` pada produksi. Jika menggunakan reverse proxy, pertahankan host/origin publik agar pemeriksaan origin cocok. Database SQLite dan direktori `UPLOAD_STORAGE_PATH` membutuhkan disk persisten dengan izin tulis; keduanya perlu dibackup bersama. Rancangan ini ditujukan untuk satu instance Node.js. Untuk deployment serverless atau beberapa instance, pindahkan database ke PostgreSQL dan implementasi fungsi storage di `src/lib/uploads.ts` ke object storage bersama (misalnya S3-compatible), lalu siapkan migrasi dan strategi backup.
 
 Trigger audit mencegah perubahan melalui koneksi aplikasi biasa, tetapi bukan penyimpanan tahan manipulasi oleh pemilik file database. Gunakan layanan audit terpisah jika membutuhkan jaminan tersebut.
 

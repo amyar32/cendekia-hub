@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { audit, db } from '@/lib/db';
-import { checkOrigin, requireUser } from '@/lib/auth';
+import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { failure } from '@/lib/http';
+import { uploadIdFromUrl } from '@/lib/uploads';
 
 const optionalEmail = z
   .string()
@@ -14,7 +15,15 @@ const optionalUrl = z
   .string()
   .trim()
   .max(2048)
-  .refine((value) => !value || z.url().safeParse(value).success, 'Format URL logo tidak valid.');
+  .refine((value) => {
+    if (!value || uploadIdFromUrl(value)) return true;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'Format URL logo tidak valid.');
 
 const schoolSchema = z.object({
   name: z.string().trim().min(2, 'Nama sekolah minimal 2 karakter.').max(150),
@@ -81,6 +90,13 @@ export async function PATCH(request: Request) {
     checkOrigin(request);
     const actor = await requireUser('school.write');
     const data = schoolSchema.parse(await request.json());
+    const uploadId = uploadIdFromUrl(data.logo_url);
+    if (uploadId) {
+      const upload = db()
+        .prepare("SELECT id FROM uploads WHERE id = ? AND scope = 'school.logo'")
+        .get(uploadId);
+      if (!upload) throw new HttpError(400, 'Logo hasil upload tidak valid.');
+    }
     let id = '';
 
     db().transaction(() => {
