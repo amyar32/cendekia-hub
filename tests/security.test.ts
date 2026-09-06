@@ -13,4 +13,6 @@ test('RBAC denies absent permissions and does not infer write from read', () => 
   assert.equal(can(['categories.read'], 'categories.read'), true);
   assert.equal(can(['categories.read'], 'categories.write'), false);
   assert.equal(can([], 'users.read'), false);
+  assert.equal(can(['school.read'], 'school.read'), true);
+  assert.equal(can(['school.read'], 'school.write'), false);
 });

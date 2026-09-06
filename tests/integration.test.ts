@@ -59,6 +59,7 @@ after(async () => {
 });
 test('authentication, CRUD, RBAC, session revocation and audit end-to-end', async () => {
   assert.equal((await api('/api/modules/users', 'GET', undefined, '')).status, 401);
+  assert.equal((await api('/api/modules/school', 'GET', undefined, '')).status, 401);
   assert.equal((await api('/', 'GET', undefined, '')).status, 307);
   assert.equal(
     (await api('/api/auth/login', 'POST', { email: 'admin@test.local', password: 'wrong' }, ''))
@@ -107,6 +108,56 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   res = await api('/api/modules/categories?q=Pendidikan');
   assert.equal((await res.json()).total, 1);
   assert.equal(
+    (
+      await api(
+        '/api/modules/school',
+        'PATCH',
+        { name: 'Sekolah Ditolak', timezone: 'Asia/Jakarta' },
+        adminCookie,
+        'https://evil.example',
+      )
+    ).status,
+    403,
+  );
+  res = await api('/api/modules/school', 'PATCH', {
+    name: 'SMA Cendekia Utama',
+    code: 'SCU',
+    npsn: '12345678',
+    address: 'Jalan Pendidikan 1',
+    email: 'halo@cendekia.test',
+    phone: '+62 21 555 0101',
+    logo_url: 'https://example.com/logo.png',
+    timezone: 'Asia/Jakarta',
+    is_active: true,
+  });
+  assert.equal(res.status, 200);
+  const createdSchool = (await res.json()).school;
+  assert.equal(createdSchool.name, 'SMA Cendekia Utama');
+  assert.equal(createdSchool.is_active, 1);
+  res = await api('/api/modules/school', 'PATCH', {
+    name: 'SMA Cendekia Baru',
+    code: 'SCB',
+    npsn: '12345678',
+    address: '',
+    email: '',
+    phone: '',
+    logo_url: '',
+    timezone: 'Asia/Makassar',
+    is_active: false,
+  });
+  assert.equal(res.status, 200);
+  const updatedSchool = (await res.json()).school;
+  assert.equal(updatedSchool.id, createdSchool.id);
+  assert.equal(updatedSchool.name, 'SMA Cendekia Baru');
+  assert.equal(updatedSchool.is_active, 0);
+  res = await api('/api/modules/school');
+  assert.equal((await res.json()).school.timezone, 'Asia/Makassar');
+  assert.equal(
+    (await api('/api/modules/school', 'PATCH', { name: 'Invalid', timezone: 'Mars/Olympus' }))
+      .status,
+    400,
+  );
+  assert.equal(
     (await api('/api/modules/roles', 'PATCH', { id: 'admin', name: 'Unsafe', permissions: [] }))
       .status,
     403,
@@ -135,6 +186,18 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   );
   assert.equal((await api('/api/modules/users', 'GET', undefined, viewerCookie)).status, 403);
   assert.equal((await api('/api/modules/audit', 'GET', undefined, viewerCookie)).status, 403);
+  assert.equal((await api('/api/modules/school', 'GET', undefined, viewerCookie)).status, 403);
+  assert.equal(
+    (
+      await api(
+        '/api/modules/school',
+        'PATCH',
+        { name: 'Tanpa akses', timezone: 'Asia/Jakarta' },
+        viewerCookie,
+      )
+    ).status,
+    403,
+  );
   assert.equal(
     (
       await api('/api/modules/users', 'PATCH', {
@@ -155,6 +218,13 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.deepEqual(
     history.rows.map((r: { action: string }) => r.action),
     ['delete', 'update', 'create'],
+  );
+  res = await api('/api/modules/audit?q=schools');
+  const schoolHistory = await res.json();
+  assert.equal(schoolHistory.total, 2);
+  assert.deepEqual(
+    schoolHistory.rows.map((r: { action: string }) => r.action),
+    ['update', 'create'],
   );
   assert.equal((await api('/api/modules/audit', 'DELETE', { id: history.rows[0].id })).status, 405);
   res = await api('/api/modules/roles', 'POST', {

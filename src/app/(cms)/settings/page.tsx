@@ -1,8 +1,5 @@
-import { AccountSettings } from '@/components/settings/account-settings';
-import { currentUser } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
-export default async function Page() {
-  const user = (await currentUser())!;
-
-  return <AccountSettings user={user} />;
+export default function Page() {
+  redirect('/settings/account');
 }

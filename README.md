@@ -27,6 +27,7 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **RBAC:** role Administrator, Editor, Viewer; custom role dengan permission baca/tulis per modul. Permission diperiksa ulang dari database pada setiap request. Navigasi juga mengikuti permission.
 - **Audit trail:** login berhasil/gagal, logout, perubahan password, dan setiap mutasi modul. Mutasi data dan audit berada dalam satu transaksi SQLite. Password dan token tidak dicatat. Endpoint hanya baca; trigger database menolak UPDATE/DELETE audit.
 - **Master data kategori:** CRUD, status aktif, pencarian, paginasi, validasi, dan konfirmasi penghapusan.
+- **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Dashboard:** statistik dan aktivitas aktual, sesuai akses pengguna.
 
 Administrator sistem tidak dapat diedit/dihapus, pengguna tidak dapat mengubah akses akunnya sendiri, dan pengguna tidak dapat memberikan akses melebihi permission yang dimilikinya. Akun dibuat administrator; registrasi publik dan reset password melalui email belum disertakan.
@@ -43,6 +44,7 @@ src/
       roles/                  Halaman role
       audit/                  Halaman audit trail
       settings/               Halaman pengaturan akun
+        school/               Halaman pengaturan sekolah
       master-data/categories/ Halaman kategori
     api/auth/                 Login, logout, perubahan password
     api/modules/              Route, handler, validasi, dan aturan bisnis per modul

@@ -7,9 +7,11 @@ export const permissions = [
   'audit.read',
   'categories.read',
   'categories.write',
+  'school.read',
+  'school.write',
 ] as const;
 export type Permission = (typeof permissions)[number];
-export type ModuleKey = 'users' | 'roles' | 'audit' | 'categories';
+export type ModuleKey = 'users' | 'roles' | 'audit' | 'categories' | 'school';
 export type CmsModule = {
   key: ModuleKey;
   label: string;
@@ -20,6 +22,14 @@ export type CmsModule = {
 };
 
 export const modules: CmsModule[] = [
+  {
+    key: 'school',
+    label: 'Pengaturan Sekolah',
+    description: 'Kelola identitas dan informasi kontak sekolah.',
+    path: '/settings/school',
+    permission: 'school.read',
+    group: 'Preferensi',
+  },
   {
     key: 'categories',
     label: 'Kategori',

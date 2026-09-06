@@ -1,0 +1,10 @@
+.panel {
+  max-width: 900px;
+  padding: 28px;
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: 20px;
+  }
+}

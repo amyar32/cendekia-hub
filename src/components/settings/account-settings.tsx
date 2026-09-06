@@ -48,7 +48,7 @@ export function AccountSettings({ user }: { user: SessionUser }) {
     <>
       <PageHeading
         eyebrow="PREFERENSI"
-        title="Pengaturan akun"
+        title="Pengaturan Akun"
         description="Informasi profil dan keamanan akun Anda."
       />
       <Paper component="section" className={styles.panel} withBorder>

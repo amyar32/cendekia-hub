@@ -30,6 +30,7 @@ import {
   IconLogout,
   IconChevronDown,
   IconSettings,
+  IconSchool,
   IconArrowUpRight,
 } from '@tabler/icons-react';
 import { modules, can } from '@/config/modules';
@@ -40,6 +41,7 @@ const icons = {
   roles: IconShieldCheck,
   audit: IconHistory,
   categories: IconFolder,
+  school: IconSchool,
 };
 export function CmsShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
   const path = usePathname();
@@ -141,12 +143,27 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
           <Text className={styles.navLabel} variant="eyebrow">
             PREFERENSI
           </Text>
+          {modules
+            .filter((m) => m.group === 'Preferensi' && can(user.permissions, m.permission))
+            .map((m) => {
+              const Icon = icons[m.key];
+              return (
+                <NavLink
+                  component={Link}
+                  key={m.key}
+                  href={m.path}
+                  active={path === m.path}
+                  leftSection={<Icon size={20} />}
+                  label={m.label}
+                />
+              );
+            })}
           <NavLink
             component={Link}
-            href="/settings"
-            active={path === '/settings'}
+            href="/settings/account"
+            active={path === '/settings/account'}
             leftSection={<IconSettings size={20} />}
-            label="Pengaturan akun"
+            label="Pengaturan Akun"
           />
         </nav>
         <Group className={styles.sidebarFooter} gap={7} wrap="nowrap">
@@ -179,7 +196,8 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
                 Workspace
               </Anchor>
               <Text size="xs" fw={500}>
-                {activeModule?.label || (path === '/settings' ? 'Pengaturan akun' : 'Ringkasan')}
+                {activeModule?.label ||
+                  (path === '/settings/account' ? 'Pengaturan Akun' : 'Ringkasan')}
               </Text>
             </Breadcrumbs>
           </Group>
@@ -200,8 +218,12 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Label>{user.email}</Menu.Label>
-              <Menu.Item component={Link} href="/settings" leftSection={<IconSettings size={16} />}>
-                Pengaturan akun
+              <Menu.Item
+                component={Link}
+                href="/settings/account"
+                leftSection={<IconSettings size={16} />}
+              >
+                Pengaturan Akun
               </Menu.Item>
               <Menu.Divider />
               <Menu.Item color="red" leftSection={<IconLogout size={16} />} onClick={logout}>
@@ -235,7 +257,7 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
           </Text>
           <Button
             component={Link}
-            href="/settings"
+            href="/settings/account"
             variant="subtle"
             color="gray"
             size="compact-xs"
