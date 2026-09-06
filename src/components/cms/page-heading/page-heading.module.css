@@ -1,0 +1,13 @@
+.root {
+  margin-bottom: 27px;
+}
+
+@media (max-width: 780px) {
+  .root {
+    align-items: flex-start;
+  }
+
+  .root :global(.mantine-Badge-root) {
+    display: none;
+  }
+}

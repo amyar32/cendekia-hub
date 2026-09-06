@@ -1,0 +1,8 @@
+.detailJson {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  background: var(--app-color-subtle);
+  padding: 18px;
+  border-radius: 8px;
+}

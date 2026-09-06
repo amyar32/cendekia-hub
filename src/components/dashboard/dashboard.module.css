@@ -1,0 +1,250 @@
+.statusDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--app-color-brand);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.welcomeBanner {
+  border: 1px solid color-mix(in srgb, var(--app-color-brand) 25%, var(--app-color-surface));
+  background: linear-gradient(
+    110deg,
+    var(--app-color-brand-soft) 0%,
+    color-mix(in srgb, var(--app-color-brand-soft), var(--app-color-surface) 55%) 58%,
+    color-mix(in srgb, var(--app-color-brand-soft), var(--app-color-brand) 8%) 100%
+  );
+  border-radius: 12px;
+  padding: 30px 32px;
+  display: flex;
+  justify-content: space-between;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 25px;
+}
+
+.bannerArt {
+  width: 260px;
+  display: grid;
+  place-items: center;
+}
+
+.artOrbit {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border: 1px solid color-mix(in srgb, var(--app-color-brand) 32%, var(--app-color-surface));
+  border-radius: 50%;
+  outline: 1px solid color-mix(in srgb, var(--app-color-brand) 20%, var(--app-color-surface));
+  outline-offset: 27px;
+  transform: rotate(-13deg);
+}
+
+.artTile {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  box-shadow: 0 15px 30px color-mix(in srgb, var(--app-color-brand-strong) 10%, transparent);
+}
+
+.tileBack {
+  background: var(--app-color-surface);
+  border: 1px solid color-mix(in srgb, var(--app-color-brand) 25%, var(--app-color-surface));
+  width: 88px;
+  height: 96px;
+  top: 7px;
+  right: -3px;
+  color: color-mix(in srgb, var(--app-color-brand) 70%, var(--app-color-surface));
+  transform: rotate(23deg);
+}
+
+.tileFront {
+  background: linear-gradient(130deg, var(--app-color-brand), var(--app-color-brand-strong));
+  color: var(--app-color-surface);
+  width: 108px;
+  height: 115px;
+  left: 8px;
+  top: 63px;
+}
+
+.artDot {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--app-color-brand) 45%, var(--app-color-surface));
+}
+
+.dotOne {
+  top: 3px;
+  left: 20px;
+}
+
+.dotTwo {
+  bottom: 5px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 27px;
+}
+
+.statCard {
+  padding: 21px;
+  background: var(--app-color-surface);
+  border: 1px solid var(--app-color-border);
+  border-radius: 10px;
+  transition: box-shadow 0.15s;
+}
+
+.statCard:hover {
+  box-shadow: 0 5px 20px color-mix(in srgb, var(--app-color-text) 6%, transparent);
+}
+
+.statTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 19px;
+}
+
+.statValue {
+  letter-spacing: -0.7px;
+}
+
+.dashboardBottom {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 24px;
+}
+
+.panel {
+  overflow: hidden;
+}
+
+.panelHeader {
+  padding: 22px 23px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--app-color-border);
+}
+
+.activityList {
+  padding: 0 22px;
+}
+
+.activityItem {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 19px 0;
+  border-bottom: 1px solid var(--app-color-border);
+}
+
+.activityItem:last-child {
+  border-bottom: 0;
+}
+
+.activityTime {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.moduleLinks {
+  padding: 7px 20px;
+}
+
+.moduleLinks a {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 0;
+}
+
+.moduleLinks a > svg {
+  margin-left: auto;
+  color: var(--app-color-muted-soft);
+}
+
+.moduleIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--app-color-subtle);
+  color: var(--app-color-muted);
+}
+
+.moduleNote {
+  background: var(--app-color-subtle);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--app-color-border);
+}
+
+.emptySmall {
+  text-align: center;
+  padding: 45px 20px;
+}
+
+@media (min-width: 1500px) {
+  .welcomeBanner {
+    padding: 40px;
+  }
+
+  .statsGrid {
+    gap: 24px;
+  }
+}
+
+@media (max-width: 1150px) {
+  .statsGrid {
+    gap: 12px;
+  }
+
+  .statCard {
+    padding: 17px;
+  }
+
+  .dashboardBottom {
+    grid-template-columns: 1fr;
+  }
+
+  .bannerArt {
+    width: 200px;
+  }
+}
+
+@media (max-width: 780px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .welcomeBanner {
+    padding: 25px;
+  }
+
+  .bannerArt {
+    display: none;
+  }
+
+  .activityTime {
+    font-size: 8px;
+  }
+
+  .activityList {
+    padding: 0 16px;
+  }
+}

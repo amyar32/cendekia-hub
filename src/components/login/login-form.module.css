@@ -1,0 +1,92 @@
+.layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.story {
+  padding: 50px 64px;
+  background: radial-gradient(
+    ellipse at bottom right,
+    var(--app-color-brand-strong),
+    color-mix(in srgb, var(--app-color-brand-strong), var(--app-color-text) 70%) 65%
+  );
+  color: var(--app-color-surface);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100vh;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+  white-space: nowrap;
+  gap: 3px;
+}
+
+.brandIcon {
+  margin-right: 8px;
+}
+
+.brandLight {
+  font-weight: 400;
+  color: color-mix(in srgb, var(--app-color-brand-soft), var(--app-color-brand) 25%);
+}
+
+.intro {
+  color: color-mix(in srgb, var(--app-color-brand-soft), var(--app-color-muted) 25%);
+  line-height: 1.9;
+  font-size: 14px;
+}
+
+.formWrap {
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  background: var(--app-color-surface);
+}
+
+.form {
+  max-width: 375px;
+  width: 100%;
+}
+
+.form form {
+  margin-top: 32px;
+}
+
+.help {
+  text-align: center;
+  margin-top: 25px;
+}
+
+@media (max-width: 1150px) {
+  .story {
+    padding: 40px;
+  }
+}
+
+@media (max-width: 780px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .story {
+    min-height: auto;
+    padding: 25px;
+  }
+
+  .story > div:not(.brand),
+  .copyright {
+    display: none;
+  }
+
+  .formWrap {
+    min-height: calc(100vh - 84px);
+    padding: 35px 22px;
+  }
+}

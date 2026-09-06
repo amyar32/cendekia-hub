@@ -1,0 +1,52 @@
+.panel {
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 22px 24px;
+}
+
+.footer {
+  padding: 18px 24px;
+  border-top: 1px solid var(--app-color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.note {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin: 19px 0;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 65px 20px;
+}
+
+.emptyState :global(.mantine-Loader-root) {
+  margin: auto;
+}
+
+.emptyIcon {
+  border-radius: 16px;
+  padding: 17px;
+  background: var(--app-color-brand-soft);
+  display: inline-flex;
+  color: var(--app-color-brand);
+}
+
+@media (max-width: 780px) {
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 20px;
+  }
+}

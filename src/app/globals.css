@@ -1,0 +1,14 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--app-color-background);
+  color: var(--app-color-text);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
