@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { academicYearOptions, currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 import { listParams } from '@/app/api/modules/_shared/list-params';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
@@ -13,17 +14,116 @@ const isoDate = z
     return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
   }, 'Tanggal tidak valid.');
 
+const semesterSchema = z.object({
+  id: z.string().uuid('ID semester tidak valid.').optional(),
+  name: z.string().trim().min(2, 'Nama semester minimal 2 karakter.').max(50),
+  period: z.coerce.number().int().min(1).max(2),
+  start_date: isoDate,
+  end_date: isoDate,
+  is_active: z.boolean().default(false),
+});
+
+const classroomSchema = z.object({
+  id: z.string().uuid('ID rombel tidak valid.').optional(),
+  grade_id: z.string().uuid('Tingkat / kelas tidak valid.'),
+  name: z.string().trim().min(1, 'Nama rombel wajib diisi.').max(50),
+  capacity: z.coerce.number().int().min(0, 'Kapasitas tidak boleh negatif.').max(1000),
+  is_active: z.boolean().default(true),
+});
+
 const academicYearSchema = z
   .object({
     name: z.string().trim().min(4, 'Nama minimal 4 karakter.').max(50),
     start_date: isoDate,
     end_date: isoDate,
     is_active: z.boolean().default(false),
+    semesters: z
+      .array(semesterSchema)
+      .max(2, 'Tahun ajaran hanya dapat memiliki Semester Ganjil dan Semester Genap.')
+      .default([]),
+    classrooms: z.array(classroomSchema).max(100, 'Jumlah rombel terlalu banyak.').default([]),
   })
   .refine((data) => data.start_date < data.end_date, {
     message: 'Tanggal selesai harus setelah tanggal mulai.',
     path: ['end_date'],
+  })
+  .superRefine((data, context) => {
+    const periods = new Set<number>();
+    let activeSemesters = 0;
+    for (const [index, semester] of data.semesters.entries()) {
+      if (periods.has(semester.period))
+        context.addIssue({
+          code: 'custom',
+          message: 'Periode semester tidak boleh sama.',
+          path: ['semesters', index, 'period'],
+        });
+      periods.add(semester.period);
+      if (semester.start_date < data.start_date || semester.end_date > data.end_date)
+        context.addIssue({
+          code: 'custom',
+          message: 'Periode semester harus berada dalam rentang tahun ajaran.',
+          path: ['semesters', index, 'start_date'],
+        });
+      if (semester.start_date >= semester.end_date)
+        context.addIssue({
+          code: 'custom',
+          message: 'Tanggal selesai semester harus setelah tanggal mulai.',
+          path: ['semesters', index, 'end_date'],
+        });
+      if (semester.is_active) activeSemesters += 1;
+    }
+    for (let index = 0; index < data.semesters.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < data.semesters.length; otherIndex += 1) {
+        const semester = data.semesters[index];
+        const other = data.semesters[otherIndex];
+        if (semester.start_date <= other.end_date && other.start_date <= semester.end_date)
+          context.addIssue({
+            code: 'custom',
+            message: 'Periode semester tidak boleh saling bertabrakan.',
+            path: ['semesters', otherIndex, 'start_date'],
+          });
+      }
+    }
+    if (activeSemesters > 1)
+      context.addIssue({ code: 'custom', message: 'Hanya satu semester yang dapat aktif.' });
+    if (!data.is_active && activeSemesters > 0)
+      context.addIssue({
+        code: 'custom',
+        message: 'Semester aktif hanya dapat berada pada tahun ajaran aktif.',
+      });
+    const classroomNames = new Set<string>();
+    for (const [index, classroom] of data.classrooms.entries()) {
+      const normalizedName = classroom.name.toLocaleLowerCase('id-ID');
+      if (classroomNames.has(normalizedName))
+        context.addIssue({
+          code: 'custom',
+          message: 'Nama rombel tidak boleh sama dalam satu tahun ajaran.',
+          path: ['classrooms', index, 'name'],
+        });
+      classroomNames.add(normalizedName);
+    }
   });
+
+const copySchema = z.object({
+  copy_from_academic_year_id: z
+    .union([z.literal(''), z.string().uuid('Tahun ajaran sumber tidak valid.')])
+    .default(''),
+  copy_semesters: z.boolean().default(false),
+  copy_classrooms: z.boolean().default(false),
+  copy_teaching_assignments: z.boolean().default(false),
+  copy_homeroom_assignments: z.boolean().default(false),
+});
+
+function shiftDate(value: string, sourceStart: string, targetStart: string, targetEnd: string) {
+  const day = 86_400_000;
+  const offset = Math.round(
+    (Date.parse(`${value}T00:00:00Z`) - Date.parse(`${sourceStart}T00:00:00Z`)) / day,
+  );
+  const shifted = new Date(Date.parse(`${targetStart}T00:00:00Z`) + offset * day)
+    .toISOString()
+    .slice(0, 10);
+  return shifted > targetEnd ? targetEnd : shifted;
+}
 
 type AcademicYearRow = {
   id: string;
@@ -34,35 +134,81 @@ type AcademicYearRow = {
   is_active: number;
 };
 
-function currentSchoolId() {
-  const school = db()
-    .prepare('SELECT id FROM schools ORDER BY is_active DESC, created_at LIMIT 1')
-    .get() as { id: string } | undefined;
-  if (!school)
-    throw new HttpError(409, 'Lengkapi Pengaturan Sekolah sebelum membuat tahun ajaran.');
-  return school.id;
-}
-
 export async function GET(request: Request) {
   try {
     await requireUser('academic-years.read');
     const schoolId = currentSchoolId();
+    const url = new URL(request.url);
+    const copySourceId = url.searchParams.get('copy_source_id');
+    if (copySourceId) {
+      const sourceId = z.string().uuid('Tahun ajaran sumber tidak valid.').parse(copySourceId);
+      const year = db()
+        .prepare('SELECT * FROM academic_years WHERE id=? AND school_id=?')
+        .get(sourceId, schoolId) as AcademicYearRow | undefined;
+      if (!year) throw new HttpError(404, 'Tahun ajaran sumber tidak ditemukan.');
+      return Response.json(
+        {
+          year: {
+            ...year,
+            semesters: db()
+              .prepare(
+                `SELECT id,name,period,start_date,end_date,is_active FROM semesters
+                 WHERE academic_year_id=? ORDER BY period`,
+              )
+              .all(year.id),
+            classrooms: db()
+              .prepare(
+                `SELECT c.id,c.grade_id,c.name,c.capacity,c.is_active,g.name AS grade_name
+                 FROM classes c JOIN grades g ON g.id=c.grade_id
+                 WHERE c.school_id=? AND c.academic_year_id=? ORDER BY g.level_order,c.name`,
+              )
+              .all(schoolId, year.id),
+          },
+        },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
     const { filter, offset } = listParams(request);
-    const rows = db()
+    const baseRows = db()
       .prepare(
         `SELECT id, school_id, name, start_date, end_date, is_active, created_at, updated_at
          FROM academic_years
          WHERE school_id = ? AND name LIKE ?
-         ORDER BY is_active DESC, start_date DESC
+         ORDER BY start_date DESC, is_active DESC
          LIMIT 10 OFFSET ?`,
       )
-      .all(schoolId, filter, offset);
+      .all(schoolId, filter, offset) as AcademicYearRow[];
+    const rows = baseRows.map((year) => ({
+      ...year,
+      semesters: db()
+        .prepare(
+          `SELECT id,name,period,start_date,end_date,is_active FROM semesters
+           WHERE academic_year_id=? ORDER BY period`,
+        )
+        .all(year.id),
+      classrooms: db()
+        .prepare(
+          `SELECT c.id,c.grade_id,c.name,c.capacity,c.is_active,g.name AS grade_name
+           FROM classes c JOIN grades g ON g.id=c.grade_id
+           WHERE c.school_id=? AND c.academic_year_id=? ORDER BY g.level_order,c.name`,
+        )
+        .all(schoolId, year.id),
+    }));
     const total = (
       db()
         .prepare('SELECT count(*) AS n FROM academic_years WHERE school_id = ? AND name LIKE ?')
         .get(schoolId, filter) as { n: number }
     ).n;
-    return Response.json({ rows, total }, { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json(
+      {
+        rows,
+        total,
+        options: {
+          academic_year_id: academicYearOptions(schoolId),
+        },
+      },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (error) {
     return failure(error);
   }
@@ -88,14 +234,93 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
 
       let details: unknown;
       if (method === 'DELETE') {
+        if (previous?.is_active)
+          throw new HttpError(
+            409,
+            'Tahun ajaran aktif tidak dapat dihapus. Aktifkan tahun ajaran lain terlebih dahulu.',
+          );
         db().prepare('DELETE FROM academic_years WHERE id = ? AND school_id = ?').run(id, schoolId);
         details = { name: previous?.name };
       } else {
-        const data = academicYearSchema.parse(input);
+        const copy = method === 'POST' ? copySchema.parse(input) : copySchema.parse({});
+        let normalizedInput = input;
+        if (method === 'POST' && copy.copy_from_academic_year_id) {
+          const sourceYear = db()
+            .prepare('SELECT * FROM academic_years WHERE id=? AND school_id=?')
+            .get(copy.copy_from_academic_year_id, schoolId) as AcademicYearRow | undefined;
+          if (!sourceYear) throw new HttpError(400, 'Tahun ajaran sumber tidak valid.');
+
+          if (copy.copy_semesters && (!input.semesters || input.semesters.length === 0)) {
+            const targetStart = isoDate.parse(input.start_date);
+            const targetEnd = isoDate.parse(input.end_date);
+            const sourceSemesters = db()
+              .prepare(
+                'SELECT name,period,start_date,end_date FROM semesters WHERE academic_year_id=? ORDER BY period',
+              )
+              .all(sourceYear.id) as Array<{
+              name: string;
+              period: number;
+              start_date: string;
+              end_date: string;
+            }>;
+            normalizedInput = {
+              ...normalizedInput,
+              semesters: sourceSemesters.map((semester) => ({
+                ...semester,
+                start_date: shiftDate(
+                  semester.start_date,
+                  sourceYear.start_date,
+                  targetStart,
+                  targetEnd,
+                ),
+                end_date: shiftDate(
+                  semester.end_date,
+                  sourceYear.start_date,
+                  targetStart,
+                  targetEnd,
+                ),
+                is_active: false,
+              })),
+            };
+          }
+          if (copy.copy_classrooms && (!input.classrooms || input.classrooms.length === 0)) {
+            const sourceClassrooms = db()
+              .prepare(
+                `SELECT grade_id,name,capacity,is_active FROM classes
+                 WHERE school_id=? AND academic_year_id=? ORDER BY name`,
+              )
+              .all(schoolId, sourceYear.id) as Array<{
+              grade_id: string;
+              name: string;
+              capacity: number;
+              is_active: number;
+            }>;
+            normalizedInput = {
+              ...normalizedInput,
+              classrooms: sourceClassrooms.map((classroom) => ({
+                ...classroom,
+                is_active: Boolean(classroom.is_active),
+              })),
+            };
+          }
+        }
+        const data = academicYearSchema.parse(normalizedInput);
+        if (method === 'PATCH' && previous?.is_active && !data.is_active)
+          throw new HttpError(
+            400,
+            'Tahun ajaran aktif tidak dapat dinonaktifkan langsung. Aktifkan tahun ajaran pengganti.',
+          );
         if (data.is_active) {
           db()
             .prepare(
               "UPDATE academic_years SET is_active = 0, updated_at = datetime('now') WHERE school_id = ? AND id <> ? AND is_active = 1",
+            )
+            .run(schoolId, id);
+          db()
+            .prepare(
+              `UPDATE semesters SET is_active=0,updated_at=datetime('now')
+               WHERE academic_year_id IN (SELECT id FROM academic_years WHERE school_id=? AND id<>?)
+                 AND is_active=1`,
             )
             .run(schoolId, id);
         }
@@ -113,6 +338,192 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
                WHERE id = ? AND school_id = ?`,
             )
             .run(data.name, data.start_date, data.end_date, Number(data.is_active), id, schoolId);
+        }
+
+        const syncSemesters = Object.prototype.hasOwnProperty.call(normalizedInput, 'semesters');
+        const syncClassrooms = Object.prototype.hasOwnProperty.call(normalizedInput, 'classrooms');
+        const semesterIds = new Set(data.semesters.flatMap((semester) => semester.id || []));
+        const classroomIds = new Set(data.classrooms.flatMap((classroom) => classroom.id || []));
+        const existingSemesters = db()
+          .prepare('SELECT id FROM semesters WHERE academic_year_id=?')
+          .all(id) as { id: string }[];
+        const existingClassrooms = db()
+          .prepare('SELECT id FROM classes WHERE school_id=? AND academic_year_id=?')
+          .all(schoolId, id) as { id: string }[];
+
+        for (const existing of existingSemesters)
+          if (syncSemesters && !semesterIds.has(existing.id))
+            db().prepare('DELETE FROM semesters WHERE id=?').run(existing.id);
+        for (const existing of existingClassrooms)
+          if (syncClassrooms && !classroomIds.has(existing.id))
+            db()
+              .prepare('DELETE FROM classes WHERE id=? AND school_id=?')
+              .run(existing.id, schoolId);
+
+        for (const semester of syncSemesters ? data.semesters : []) {
+          const semesterId = semester.id || randomUUID();
+          if (semester.id && !existingSemesters.some((existing) => existing.id === semester.id))
+            throw new HttpError(400, 'Semester tidak berada pada tahun ajaran ini.');
+          if (semester.is_active)
+            db()
+              .prepare(
+                `UPDATE semesters SET is_active=0,updated_at=datetime('now')
+                 WHERE id<>? AND academic_year_id IN
+                   (SELECT id FROM academic_years WHERE school_id=?)`,
+              )
+              .run(semesterId, schoolId);
+          if (semester.id)
+            db()
+              .prepare(
+                `UPDATE semesters SET name=?,period=?,start_date=?,end_date=?,is_active=?,
+                 updated_at=datetime('now') WHERE id=? AND academic_year_id=?`,
+              )
+              .run(
+                semester.name,
+                semester.period,
+                semester.start_date,
+                semester.end_date,
+                Number(semester.is_active),
+                semesterId,
+                id,
+              );
+          else
+            db()
+              .prepare(
+                `INSERT INTO semesters(id,academic_year_id,name,period,start_date,end_date,is_active)
+                 VALUES(?,?,?,?,?,?,?)`,
+              )
+              .run(
+                semesterId,
+                id,
+                semester.name,
+                semester.period,
+                semester.start_date,
+                semester.end_date,
+                Number(semester.is_active),
+              );
+        }
+
+        for (const classroom of syncClassrooms ? data.classrooms : []) {
+          const classroomId = classroom.id || randomUUID();
+          if (classroom.id && !existingClassrooms.some((existing) => existing.id === classroom.id))
+            throw new HttpError(400, 'Rombel tidak berada pada tahun ajaran ini.');
+          if (
+            !db()
+              .prepare('SELECT id FROM grades WHERE id=? AND school_id=?')
+              .get(classroom.grade_id, schoolId)
+          )
+            throw new HttpError(400, 'Tingkat / kelas tidak valid.');
+          if (classroom.id)
+            db()
+              .prepare(
+                `UPDATE classes SET grade_id=?,name=?,capacity=?,is_active=?,updated_at=datetime('now')
+                 WHERE id=? AND school_id=? AND academic_year_id=?`,
+              )
+              .run(
+                classroom.grade_id,
+                classroom.name,
+                classroom.capacity,
+                Number(classroom.is_active),
+                classroomId,
+                schoolId,
+                id,
+              );
+          else
+            db()
+              .prepare(
+                `INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,capacity,is_active)
+                 VALUES(?,?,?,?,?,?,?)`,
+              )
+              .run(
+                classroomId,
+                schoolId,
+                id,
+                classroom.grade_id,
+                classroom.name,
+                classroom.capacity,
+                Number(classroom.is_active),
+              );
+        }
+
+        if (method === 'POST' && copy.copy_from_academic_year_id) {
+          const classroomMap = db()
+            .prepare(
+              `SELECT source.id AS source_id,target.id AS target_id
+               FROM classes source JOIN classes target
+                 ON target.school_id=source.school_id AND target.academic_year_id=?
+                AND target.grade_id=source.grade_id AND lower(target.name)=lower(source.name)
+               WHERE source.school_id=? AND source.academic_year_id=?`,
+            )
+            .all(id, schoolId, copy.copy_from_academic_year_id) as Array<{
+            source_id: string;
+            target_id: string;
+          }>;
+          const targetBySource = new Map(
+            classroomMap.map((classroom) => [classroom.source_id, classroom.target_id]),
+          );
+          const targetSemesters = db()
+            .prepare('SELECT id,period FROM semesters WHERE academic_year_id=?')
+            .all(id) as Array<{ id: string; period: number }>;
+          const semesterByPeriod = new Map(
+            targetSemesters.map((semester) => [semester.period, semester.id]),
+          );
+
+          if (copy.copy_teaching_assignments) {
+            const assignments = db()
+              .prepare(
+                `SELECT ta.teacher_id,ta.subject_id,ta.class_id,s.period
+                 FROM teaching_assignments ta
+                 LEFT JOIN semesters s ON s.id=ta.semester_id
+                 WHERE ta.academic_year_id=?`,
+              )
+              .all(copy.copy_from_academic_year_id) as Array<{
+              teacher_id: string;
+              subject_id: string;
+              class_id: string;
+              period: number | null;
+            }>;
+            const insert = db().prepare(
+              `INSERT OR IGNORE INTO teaching_assignments
+               (id,teacher_id,subject_id,class_id,academic_year_id,semester_id)
+               VALUES(?,?,?,?,?,?)`,
+            );
+            for (const assignment of assignments) {
+              const targetClassId = targetBySource.get(assignment.class_id);
+              if (!targetClassId) continue;
+              const semesterId =
+                assignment.period == null ? null : semesterByPeriod.get(assignment.period);
+              if (assignment.period != null && !semesterId) continue;
+              insert.run(
+                randomUUID(),
+                assignment.teacher_id,
+                assignment.subject_id,
+                targetClassId,
+                id,
+                semesterId ?? null,
+              );
+            }
+          }
+
+          if (copy.copy_homeroom_assignments) {
+            const assignments = db()
+              .prepare(
+                `SELECT teacher_id,class_id FROM homeroom_assignments
+                 WHERE academic_year_id=?`,
+              )
+              .all(copy.copy_from_academic_year_id) as Array<{
+              teacher_id: string;
+              class_id: string;
+            }>;
+            const insert = db().prepare(
+              `INSERT OR IGNORE INTO homeroom_assignments
+               (id,teacher_id,class_id,academic_year_id) VALUES(?,?,?,?)`,
+            );
+            for (const assignment of assignments) {
+              const targetClassId = targetBySource.get(assignment.class_id);
+              if (targetClassId) insert.run(randomUUID(), assignment.teacher_id, targetClassId, id);
+            }
+          }
         }
         details = data;
       }

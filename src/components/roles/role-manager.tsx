@@ -194,6 +194,7 @@ export function RoleManager({
         <form onSubmit={save}>
           <TextInput
             label="Nama"
+            placeholder="Contoh: Operator akademik"
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
             required
@@ -203,6 +204,7 @@ export function RoleManager({
           />
           <Textarea
             label="Deskripsi"
+            placeholder="Jelaskan tanggung jawab role ini"
             value={form.description}
             onChange={(event) => setForm({ ...form, description: event.currentTarget.value })}
             maxLength={500}
@@ -210,6 +212,7 @@ export function RoleManager({
           />
           <MultiSelect
             label="Permission"
+            placeholder="Pilih permission"
             description="Pilih akses baca dan tulis yang diperlukan."
             data={permissions.filter((permission) => userPermissions.includes(permission))}
             value={form.permissions}

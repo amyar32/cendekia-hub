@@ -143,6 +143,7 @@ export function SchoolSettings({
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
             <TextInput
               label="Nama sekolah"
+              placeholder="Contoh: SMA Cendekia Utama"
               value={form.name}
               onChange={(event) => setField('name', event.currentTarget.value)}
               required
@@ -152,6 +153,7 @@ export function SchoolSettings({
             />
             <TextInput
               label="Kode sekolah"
+              placeholder="Contoh: SCU"
               value={form.code}
               onChange={(event) => setField('code', event.currentTarget.value)}
               maxLength={50}
@@ -159,6 +161,7 @@ export function SchoolSettings({
             />
             <TextInput
               label="Email"
+              placeholder="admin@sekolah.sch.id"
               type="email"
               value={form.email}
               onChange={(event) => setField('email', event.currentTarget.value)}
@@ -167,6 +170,7 @@ export function SchoolSettings({
             />
             <TextInput
               label="Telepon"
+              placeholder="Contoh: 0215550101"
               type="tel"
               value={form.phone}
               onChange={(event) => setField('phone', event.currentTarget.value)}
@@ -175,6 +179,7 @@ export function SchoolSettings({
             />
             <TextInput
               label="NPSN"
+              placeholder="8 digit NPSN"
               description="Nomor Pokok Sekolah Nasional, terdiri dari 8 digit."
               value={form.npsn}
               onChange={(event) => setField('npsn', event.currentTarget.value)}
@@ -185,6 +190,7 @@ export function SchoolSettings({
             />
             <Select
               label="Zona waktu"
+              placeholder="Pilih zona waktu"
               description="Pilih zona waktu operasional sekolah."
               data={timezoneOptions}
               value={form.timezone}
@@ -196,6 +202,7 @@ export function SchoolSettings({
           </SimpleGrid>
           <Textarea
             label="Alamat"
+            placeholder="Masukkan alamat lengkap sekolah"
             value={form.address}
             onChange={(event) => setField('address', event.currentTarget.value)}
             maxLength={1000}

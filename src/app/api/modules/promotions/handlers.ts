@@ -1,0 +1,550 @@
+import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import {
+  activeAcademicYear,
+  currentSchoolId,
+  gradeOptions,
+  requireGrade,
+} from '@/app/api/modules/_shared/academic-context';
+import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
+import { audit, db } from '@/lib/db';
+import { failure } from '@/lib/http';
+
+const actionSchema = z.object({
+  student_id: z.string().uuid('Murid tidak valid.'),
+  outcome: z.enum(['promoted', 'retained', 'graduated', 'withdrawn']),
+  target_class_id: z.union([z.literal(''), z.string().uuid('Rombel tujuan tidak valid.')]),
+});
+const schema = z.object({
+  source_academic_year_id: z.string().uuid('Tahun ajaran asal tidak valid.'),
+  target_academic_year_id: z.string().uuid('Tahun ajaran tujuan tidak valid.').optional(),
+  activate_target: z.boolean().default(false),
+  actions: z.array(actionSchema),
+});
+
+const createClassSchema = z.object({
+  target_academic_year_id: z.string().uuid('Tahun ajaran tujuan tidak valid.'),
+  grade_id: z.string().uuid('Tingkat / kelas tidak valid.'),
+  name: z.string().trim().min(1, 'Nama rombel wajib diisi.').max(50),
+  capacity: z.coerce.number().int().min(0, 'Kapasitas tidak boleh negatif.').max(1000),
+});
+
+type AcademicYearRow = {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_active: number;
+};
+
+function academicYear(schoolId: string, id: string) {
+  const year = db()
+    .prepare(
+      `SELECT id,name,start_date,end_date,is_active FROM academic_years
+       WHERE id=? AND school_id=?`,
+    )
+    .get(id, schoolId) as AcademicYearRow | undefined;
+  if (!year) throw new HttpError(400, 'Tahun ajaran tidak valid.');
+  return year;
+}
+
+export async function GET(request: Request) {
+  try {
+    await requireUser('promotions.read');
+    const schoolId = currentSchoolId();
+    const activeYear = activeAcademicYear(schoolId);
+    const url = new URL(request.url);
+    const transitionMode = url.searchParams.get('mode') === 'transition';
+    const requestedSource = url.searchParams.get('source_academic_year_id');
+    const requestedTarget = url.searchParams.get('target_academic_year_id');
+    const previousYears = db()
+      .prepare(
+        `SELECT id AS value,name AS label FROM academic_years
+         WHERE school_id=? AND start_date < ? ORDER BY start_date DESC`,
+      )
+      .all(schoolId, activeYear.start_date) as { value: string; label: string }[];
+    const draftYears = db()
+      .prepare(
+        `SELECT id AS value,name || ' · Draft' AS label FROM academic_years
+         WHERE school_id=? AND is_active=0 AND start_date>? ORDER BY start_date`,
+      )
+      .all(schoolId, activeYear.start_date) as { value: string; label: string }[];
+
+    const sourceYearId = transitionMode
+      ? requestedSource || activeYear.id
+      : requestedSource || previousYears[0]?.value || '';
+    const targetYear = requestedTarget
+      ? academicYear(schoolId, requestedTarget)
+      : transitionMode
+        ? null
+        : academicYear(schoolId, activeYear.id);
+    const sourceYear = sourceYearId ? academicYear(schoolId, sourceYearId) : null;
+    if (sourceYear && targetYear && sourceYear.start_date >= targetYear.start_date)
+      throw new HttpError(400, 'Tahun ajaran tujuan harus berada setelah tahun ajaran asal.');
+
+    const sourceClasses = sourceYear
+      ? db()
+          .prepare(
+            `SELECT c.id,c.name,c.grade_id,g.name AS grade_name,g.level_order,
+                    count(cm.id) AS student_count
+             FROM classes c JOIN grades g ON g.id=c.grade_id
+             LEFT JOIN class_memberships cm ON cm.class_id=c.id AND cm.status='active'
+             WHERE c.school_id=? AND c.academic_year_id=?
+             GROUP BY c.id ORDER BY g.level_order,c.name`,
+          )
+          .all(schoolId, sourceYear.id)
+      : [];
+    const students = sourceYear
+      ? db()
+          .prepare(
+            `SELECT s.id,s.nis,s.name,cm.class_id AS source_class_id,c.name AS source_class_name,
+                    g.level_order AS source_level_order
+             FROM class_memberships cm JOIN students s ON s.id=cm.student_id
+             JOIN classes c ON c.id=cm.class_id JOIN grades g ON g.id=c.grade_id
+             WHERE s.school_id=? AND cm.academic_year_id=? AND cm.status='active'
+             ORDER BY g.level_order,c.name,s.name`,
+          )
+          .all(schoolId, sourceYear.id)
+      : [];
+    const targetClasses = targetYear
+      ? db()
+          .prepare(
+            `SELECT c.id AS value,c.name || ' — ' || g.name AS label,c.name,c.grade_id,
+                    c.capacity,count(cm.id) AS occupied,g.name AS grade_name,g.level_order
+             FROM classes c JOIN grades g ON g.id=c.grade_id
+             LEFT JOIN class_memberships cm ON cm.class_id=c.id AND cm.status='active'
+             WHERE c.school_id=? AND c.academic_year_id=? AND c.is_active=1
+             GROUP BY c.id ORDER BY g.level_order,c.name`,
+          )
+          .all(schoolId, targetYear.id)
+      : [];
+    const lastBatch =
+      sourceYear && targetYear
+        ? db()
+            .prepare(
+              `SELECT id,created_at FROM promotion_batches
+             WHERE school_id=? AND source_academic_year_id=? AND target_academic_year_id=?
+               AND status='completed' ORDER BY created_at DESC LIMIT 1`,
+            )
+            .get(schoolId, sourceYear.id, targetYear.id)
+        : undefined;
+
+    return Response.json(
+      {
+        active_academic_year: {
+          value: activeYear.id,
+          label: activeYear.name,
+          start_date: activeYear.start_date,
+          end_date: activeYear.end_date,
+        },
+        target_academic_year: targetYear
+          ? {
+              value: targetYear.id,
+              label: targetYear.name,
+              start_date: targetYear.start_date,
+              end_date: targetYear.end_date,
+              is_active: targetYear.is_active,
+            }
+          : null,
+        source_academic_year_id: sourceYearId,
+        source_years: transitionMode
+          ? [{ value: activeYear.id, label: `${activeYear.name} (Aktif)` }]
+          : previousYears,
+        draft_years: draftYears,
+        source_classes: sourceClasses,
+        target_classes: targetClasses,
+        students,
+        grade_options: gradeOptions(schoolId),
+        last_batch: lastBatch || null,
+        max_grade_level: (
+          db()
+            .prepare(
+              'SELECT max(level_order) AS level FROM grades WHERE school_id=? AND is_active=1',
+            )
+            .get(schoolId) as { level: number | null }
+        ).level,
+      },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    checkOrigin(request);
+    const actor = await requireUser('promotions.write');
+    const schoolId = currentSchoolId();
+    const input = createClassSchema.parse(await request.json());
+    const sourceYear = activeAcademicYear(schoolId);
+    const targetYear = academicYear(schoolId, input.target_academic_year_id);
+    if (targetYear.is_active || targetYear.start_date <= sourceYear.start_date)
+      throw new HttpError(400, 'Rombel baru hanya dapat ditambahkan pada draft tahun ajaran berikutnya.');
+    requireGrade(schoolId, input.grade_id);
+
+    const id = randomUUID();
+    db()
+      .prepare(
+        `INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,capacity,is_active)
+         VALUES(?,?,?,?,?,?,1)`,
+      )
+      .run(id, schoolId, targetYear.id, input.grade_id, input.name, input.capacity);
+    audit(actor.email, 'create', 'classes', id, { ...input, via: 'annual-transition' });
+    return Response.json({ ok: true, id }, { status: 201 });
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    checkOrigin(request);
+    const actor = await requireUser('promotions.write');
+    const schoolId = currentSchoolId();
+    const input = schema.parse(await request.json());
+    if (!input.activate_target && input.actions.length === 0)
+      throw new HttpError(400, 'Pilih minimal satu murid.');
+    const sourceYear = academicYear(schoolId, input.source_academic_year_id);
+    const targetYear = input.target_academic_year_id
+      ? academicYear(schoolId, input.target_academic_year_id)
+      : academicYear(schoolId, activeAcademicYear(schoolId).id);
+    if (sourceYear.start_date >= targetYear.start_date)
+      throw new HttpError(400, 'Tahun ajaran tujuan harus berada setelah tahun ajaran asal.');
+    if (input.activate_target) {
+      if (!sourceYear.is_active)
+        throw new HttpError(
+          409,
+          'Tahun ajaran asal bukan lagi tahun ajaran aktif. Muat ulang proses.',
+        );
+      if (targetYear.is_active) throw new HttpError(409, 'Tahun ajaran tujuan sudah aktif.');
+      const semesterCount = (
+        db()
+          .prepare('SELECT count(*) AS total FROM semesters WHERE academic_year_id=?')
+          .get(targetYear.id) as { total: number }
+      ).total;
+      if (semesterCount !== 2)
+        throw new HttpError(409, 'Tahun ajaran tujuan harus memiliki tepat dua semester.');
+    }
+    if (new Set(input.actions.map((action) => action.student_id)).size !== input.actions.length)
+      throw new HttpError(400, 'Satu murid tidak boleh diproses lebih dari sekali.');
+
+    const summary = { promoted: 0, retained: 0, graduated: 0, withdrawn: 0 };
+    const batchId = randomUUID();
+    db().transaction(() => {
+      const targets = new Map(
+        (
+          db()
+            .prepare(
+              `SELECT c.id,c.capacity,g.level_order,count(cm.id) AS occupied FROM classes c
+               JOIN grades g ON g.id=c.grade_id
+               LEFT JOIN class_memberships cm ON cm.class_id=c.id AND cm.status='active'
+               WHERE c.school_id=? AND c.academic_year_id=? AND c.is_active=1 GROUP BY c.id`,
+            )
+            .all(schoolId, targetYear.id) as {
+            id: string;
+            capacity: number;
+            occupied: number;
+            level_order: number;
+          }[]
+        ).map((row) => [row.id, row]),
+      );
+      if (input.activate_target && targets.size === 0)
+        throw new HttpError(409, 'Tahun ajaran tujuan belum memiliki rombel aktif.');
+      const maxLevel = (
+        db()
+          .prepare('SELECT max(level_order) AS level FROM grades WHERE school_id=? AND is_active=1')
+          .get(schoolId) as { level: number | null }
+      ).level;
+      const additions = new Map<string, number>();
+      const storedActions: Array<z.infer<typeof actionSchema> & { source_membership_id: string }> =
+        [];
+      for (const action of input.actions) {
+        const membership = db()
+          .prepare(
+            `SELECT cm.id,g.level_order FROM class_memberships cm
+             JOIN students s ON s.id=cm.student_id JOIN classes c ON c.id=cm.class_id
+             JOIN grades g ON g.id=c.grade_id
+             WHERE cm.student_id=? AND s.school_id=? AND cm.academic_year_id=? AND cm.status='active'`,
+          )
+          .get(action.student_id, schoolId, sourceYear.id) as
+          { id: string; level_order: number } | undefined;
+        if (!membership)
+          throw new HttpError(400, 'Ada murid yang tidak lagi aktif pada tahun ajaran asal.');
+        const needsClass = action.outcome === 'promoted' || action.outcome === 'retained';
+        if (needsClass && !action.target_class_id)
+          throw new HttpError(
+            400,
+            'Rombel tujuan wajib dipilih untuk murid yang naik/tinggal kelas.',
+          );
+        if (!needsClass && action.target_class_id)
+          throw new HttpError(400, 'Murid lulus atau keluar tidak boleh memiliki rombel tujuan.');
+        if (needsClass) {
+          const target = targets.get(action.target_class_id);
+          if (!target) throw new HttpError(400, 'Rombel tujuan tidak valid.');
+          if (
+            input.activate_target &&
+            action.outcome === 'promoted' &&
+            target.level_order !== membership.level_order + 1
+          )
+            throw new HttpError(
+              400,
+              'Rombel murid yang naik harus berada tepat satu tingkat di atasnya.',
+            );
+          if (
+            input.activate_target &&
+            action.outcome === 'retained' &&
+            target.level_order !== membership.level_order
+          )
+            throw new HttpError(
+              400,
+              'Rombel murid yang tinggal kelas harus berada pada tingkat yang sama.',
+            );
+          additions.set(action.target_class_id, (additions.get(action.target_class_id) || 0) + 1);
+        }
+        if (
+          input.activate_target &&
+          action.outcome === 'graduated' &&
+          membership.level_order !== maxLevel
+        )
+          throw new HttpError(
+            400,
+            'Status lulus hanya dapat diberikan kepada murid tingkat terakhir.',
+          );
+        storedActions.push({ ...action, source_membership_id: membership.id });
+      }
+      if (input.activate_target) {
+        const sourceStudentCount = (
+          db()
+            .prepare(
+              "SELECT count(*) AS total FROM class_memberships WHERE academic_year_id=? AND status='active'",
+            )
+            .get(sourceYear.id) as { total: number }
+        ).total;
+        if (storedActions.length !== sourceStudentCount)
+          throw new HttpError(
+            409,
+            'Semua murid aktif harus ditinjau sebelum tahun ajaran baru diaktifkan.',
+          );
+      }
+      for (const [targetId, count] of additions) {
+        const target = targets.get(targetId)!;
+        if (target.capacity > 0 && target.occupied + count > target.capacity)
+          throw new HttpError(409, 'Jumlah murid melebihi kapasitas salah satu rombel tujuan.');
+      }
+      db()
+        .prepare(
+          `INSERT INTO promotion_batches
+           (id,school_id,source_academic_year_id,target_academic_year_id,actions,activates_target,created_by)
+           VALUES(?,?,?,?,?,?,?)`,
+        )
+        .run(
+          batchId,
+          schoolId,
+          sourceYear.id,
+          targetYear.id,
+          JSON.stringify(storedActions),
+          Number(input.activate_target),
+          actor.email,
+        );
+      for (const action of storedActions) {
+        const status = action.outcome === 'withdrawn' ? 'withdrawn' : 'completed';
+        db()
+          .prepare(
+            `UPDATE class_memberships SET status=?,completion_reason=?,end_date=?,updated_at=datetime('now')
+             WHERE id=? AND status='active'`,
+          )
+          .run(status, action.outcome, sourceYear.end_date, action.source_membership_id);
+        if (action.outcome === 'promoted' || action.outcome === 'retained') {
+          db()
+            .prepare(
+              `INSERT INTO class_memberships
+               (id,student_id,class_id,academic_year_id,start_date,status,promotion_batch_id)
+               VALUES(?,?,?,?,?,'active',?)`,
+            )
+            .run(
+              randomUUID(),
+              action.student_id,
+              action.target_class_id,
+              targetYear.id,
+              targetYear.start_date,
+              batchId,
+            );
+          db()
+            .prepare("UPDATE students SET is_active=1,updated_at=datetime('now') WHERE id=?")
+            .run(action.student_id);
+        } else {
+          db()
+            .prepare("UPDATE students SET is_active=0,updated_at=datetime('now') WHERE id=?")
+            .run(action.student_id);
+        }
+        summary[action.outcome]++;
+      }
+      if (input.activate_target) {
+        db()
+          .prepare(
+            "UPDATE academic_years SET is_active=0,updated_at=datetime('now') WHERE school_id=?",
+          )
+          .run(schoolId);
+        db()
+          .prepare("UPDATE academic_years SET is_active=1,updated_at=datetime('now') WHERE id=?")
+          .run(targetYear.id);
+        db()
+          .prepare(
+            `UPDATE semesters SET is_active=0,updated_at=datetime('now')
+             WHERE academic_year_id IN (SELECT id FROM academic_years WHERE school_id=?)`,
+          )
+          .run(schoolId);
+        db()
+          .prepare(
+            `UPDATE semesters SET is_active=1,updated_at=datetime('now')
+             WHERE id=(SELECT id FROM semesters WHERE academic_year_id=? ORDER BY period LIMIT 1)`,
+          )
+          .run(targetYear.id);
+      }
+      audit(
+        actor.email,
+        input.activate_target ? 'transition' : 'promote',
+        'class_memberships',
+        batchId,
+        {
+          source_academic_year_id: sourceYear.id,
+          target_academic_year_id: targetYear.id,
+          summary,
+        },
+      );
+    })();
+    return Response.json({ ok: true, id: batchId, summary });
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    checkOrigin(request);
+    const actor = await requireUser('promotions.write');
+    const schoolId = currentSchoolId();
+    const id = z
+      .string()
+      .uuid('Batch kenaikan tidak valid.')
+      .parse((await request.json()).id);
+    db().transaction(() => {
+      const batch = db()
+        .prepare(
+          "SELECT * FROM promotion_batches WHERE id=? AND school_id=? AND status='completed'",
+        )
+        .get(id, schoolId) as
+        | {
+            id: string;
+            source_academic_year_id: string;
+            target_academic_year_id: string;
+            actions: string;
+            activates_target: number;
+          }
+        | undefined;
+      if (!batch) throw new HttpError(404, 'Proses kenaikan aktif tidak ditemukan.');
+      const changedTarget = db()
+        .prepare(
+          `SELECT count(*) AS total FROM class_memberships
+           WHERE promotion_batch_id=? AND status<>'active'`,
+        )
+        .get(id) as { total: number };
+      if (changedTarget.total)
+        throw new HttpError(
+          409,
+          'Proses tidak dapat dibatalkan karena penempatan tahun baru sudah berubah.',
+        );
+      if (batch.activates_target) {
+        const unrelatedTarget = (
+          db()
+            .prepare(
+              `SELECT count(*) AS total FROM class_memberships
+               WHERE academic_year_id=? AND status='active'
+                 AND (promotion_batch_id IS NULL OR promotion_batch_id<>?)`,
+            )
+            .get(batch.target_academic_year_id, id) as { total: number }
+        ).total;
+        if (unrelatedTarget)
+          throw new HttpError(
+            409,
+            'Proses tidak dapat dibatalkan karena tahun baru sudah memiliki perubahan lanjutan.',
+          );
+      }
+      const actions = JSON.parse(batch.actions) as Array<
+        z.infer<typeof actionSchema> & { source_membership_id?: string }
+      >;
+      db().prepare('DELETE FROM class_memberships WHERE promotion_batch_id=?').run(id);
+      for (const action of actions) {
+        const anotherActive = db()
+          .prepare("SELECT id FROM class_memberships WHERE student_id=? AND status='active'")
+          .get(action.student_id);
+        if (anotherActive)
+          throw new HttpError(
+            409,
+            'Murid sudah memiliki penempatan baru sehingga proses tidak dapat dibatalkan.',
+          );
+        const restored = action.source_membership_id
+          ? db()
+              .prepare(
+                `UPDATE class_memberships SET status='active',completion_reason='',end_date=NULL,
+                 updated_at=datetime('now') WHERE id=? AND completion_reason=?`,
+              )
+              .run(action.source_membership_id, action.outcome)
+          : db()
+              .prepare(
+                `UPDATE class_memberships SET status='active',completion_reason='',end_date=NULL,
+                 updated_at=datetime('now')
+                 WHERE student_id=? AND academic_year_id=? AND completion_reason=?`,
+              )
+              .run(action.student_id, batch.source_academic_year_id, action.outcome);
+        if (!restored.changes)
+          throw new HttpError(409, 'Riwayat asal telah berubah dan tidak dapat dipulihkan.');
+        db()
+          .prepare("UPDATE students SET is_active=1,updated_at=datetime('now') WHERE id=?")
+          .run(action.student_id);
+      }
+      if (batch.activates_target) {
+        const currentActive = activeAcademicYear(schoolId);
+        if (currentActive.id !== batch.target_academic_year_id)
+          throw new HttpError(
+            409,
+            'Tahun ajaran aktif sudah berubah sehingga proses tidak dapat dibatalkan.',
+          );
+        db()
+          .prepare(
+            "UPDATE academic_years SET is_active=0,updated_at=datetime('now') WHERE school_id=?",
+          )
+          .run(schoolId);
+        db()
+          .prepare("UPDATE academic_years SET is_active=1,updated_at=datetime('now') WHERE id=?")
+          .run(batch.source_academic_year_id);
+        db()
+          .prepare(
+            `UPDATE semesters SET is_active=0,updated_at=datetime('now')
+             WHERE academic_year_id IN (SELECT id FROM academic_years WHERE school_id=?)`,
+          )
+          .run(schoolId);
+        db()
+          .prepare(
+            `UPDATE semesters SET is_active=1,updated_at=datetime('now')
+             WHERE id=(SELECT id FROM semesters WHERE academic_year_id=? ORDER BY period DESC LIMIT 1)`,
+          )
+          .run(batch.source_academic_year_id);
+      }
+      db()
+        .prepare(
+          "UPDATE promotion_batches SET status='undone',undone_at=datetime('now') WHERE id=?",
+        )
+        .run(id);
+      audit(actor.email, 'undo', 'class_memberships', id, {
+        source_academic_year_id: batch.source_academic_year_id,
+        target_academic_year_id: batch.target_academic_year_id,
+        student_count: actions.length,
+      });
+    })();
+    return Response.json({ ok: true });
+  } catch (error) {
+    return failure(error);
+  }
+}

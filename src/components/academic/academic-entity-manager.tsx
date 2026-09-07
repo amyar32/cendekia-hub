@@ -79,6 +79,12 @@ export type AcademicEntityConfig = {
   defaults: Record<string, Value>;
   eyebrow?: string;
   hasStatus?: boolean;
+  academicYearFilter?: boolean;
+  filters?: Array<{
+    key: string;
+    label: string;
+    optionsKey?: string;
+  }>;
 };
 
 const dateFormatter = new Intl.DateTimeFormat('id-ID', {
@@ -98,7 +104,13 @@ export function AcademicEntityManager({
   config: AcademicEntityConfig;
   writable: boolean;
 }) {
-  const list = useModuleList<AcademicRow>(config.endpoint);
+  const [academicYearId, setAcademicYearId] = useState('');
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const list = useModuleList<AcademicRow>(config.endpoint, {
+    ...(config.academicYearFilter && academicYearId ? { academic_year_id: academicYearId } : {}),
+    ...filters,
+  });
+  const selectedAcademicYearId = academicYearId || list.selected?.academic_year_id || '';
   const [editing, setEditing] = useState<AcademicRow | null | undefined>(undefined);
   const [removing, setRemoving] = useState<AcademicRow | null>(null);
   const [form, setForm] = useState<Record<string, Value>>(config.defaults);
@@ -106,6 +118,8 @@ export function AcademicEntityManager({
 
   function openEditor(row: AcademicRow | null) {
     const values = { ...config.defaults };
+    if (!row && config.academicYearFilter && 'academic_year_id' in values)
+      values.academic_year_id = selectedAcademicYearId;
     if (row)
       for (const field of config.fields) {
         const value = row[field.key] ?? config.defaults[field.key];
@@ -126,6 +140,9 @@ export function AcademicEntityManager({
     try {
       await moduleMutation(config.endpoint, editing ? 'PATCH' : 'POST', {
         ...form,
+        ...(config.academicYearFilter && !editing
+          ? { academic_year_id: selectedAcademicYearId }
+          : {}),
         id: editing?.id,
       });
       setEditing(undefined);
@@ -223,6 +240,45 @@ export function AcademicEntityManager({
         addLabel={`Tambah ${config.singular.toLowerCase()}`}
         onAdd={writable ? () => openEditor(null) : undefined}
         note={config.note}
+        toolbarLeading={
+          config.academicYearFilter ? (
+            <>
+              <Select
+                aria-label="Filter tahun ajaran"
+                placeholder="Pilih tahun ajaran"
+                data={list.options?.academic_year_id || []}
+                value={selectedAcademicYearId || null}
+                onChange={(value) => {
+                  setAcademicYearId(value || '');
+                  setFilters({});
+                  list.setPage(1);
+                }}
+                allowDeselect={false}
+                searchable
+                w={210}
+              />
+              {config.filters?.map((filter) => (
+                <Select
+                  key={filter.key}
+                  aria-label={`Filter ${filter.label.toLowerCase()}`}
+                  placeholder={filter.label}
+                  data={list.options?.[filter.optionsKey || filter.key] || []}
+                  value={filters[filter.key] || null}
+                  onChange={(value) => {
+                    setFilters((current) => ({
+                      ...current,
+                      [filter.key]: value || '',
+                    }));
+                    list.setPage(1);
+                  }}
+                  clearable
+                  searchable
+                  w={190}
+                />
+              ))}
+            </>
+          ) : undefined
+        }
       >
         <Table.ScrollContainer minWidth={760}>
           <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
@@ -301,7 +357,7 @@ export function AcademicEntityManager({
               const common = {
                 label: field.label,
                 description: field.description,
-                placeholder: field.placeholder,
+                placeholder: field.placeholder || `Masukkan ${field.label.toLowerCase()}`,
                 required: field.required,
                 value: form[field.key] as never,
               };
@@ -374,6 +430,7 @@ export function AcademicEntityManager({
                     searchable
                     allowDeselect={!field.required}
                     nothingFoundMessage="Data belum tersedia"
+                    disabled={saving}
                     onChange={(value) => setForm({ ...form, [field.key]: value || '' })}
                   />
                 );

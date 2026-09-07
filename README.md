@@ -26,7 +26,8 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **Pengguna:** tambah, edit, nonaktifkan, hapus, dan tentukan role. Perubahan pengguna mencabut sesi pengguna tersebut.
 - **RBAC:** role Administrator, Editor, Viewer; custom role dengan permission baca/tulis per modul. Permission diperiksa ulang dari database pada setiap request. Navigasi juga mengikuti permission.
 - **Audit trail:** login berhasil/gagal, logout, perubahan password, dan setiap mutasi modul. Mutasi data dan audit berada dalam satu transaksi SQLite. Password dan token tidak dicatat. Endpoint hanya baca; trigger database menolak UPDATE/DELETE audit.
-- **Master data kategori:** CRUD, status aktif, pencarian, paginasi, validasi, dan konfirmasi penghapusan.
+- **Akademik:** tahun ajaran, semester, tingkat, rombel, mata pelajaran, guru, penugasan mengajar, dan wali kelas.
+- **Murid:** identitas, wali, dokumen, riwayat rombel, proses kenaikan kelas massal yang dapat dibatalkan, serta laporan historis.
 - **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
 - **Dashboard:** statistik dan aktivitas aktual, sesuai akses pengguna.
@@ -40,13 +41,13 @@ src/
   app/
     login/                    Halaman login
     (cms)/                    Layout terautentikasi
-      page.tsx                Dashboard dan pengambilan datanya
-      users/                  Halaman pengguna
-      roles/                  Halaman role
-      audit/                  Halaman audit trail
-      settings/               Halaman pengaturan akun
-        school/               Halaman pengaturan sekolah
-      academic/subjects/      Halaman mata pelajaran
+      page.tsx                Ringkasan
+      annual-transition/      Pergantian tahun ajaran
+      master-data/            Murid, guru, tingkat, dan mata pelajaran
+      academic/               Tahun ajaran, semester, rombel, dan penugasan
+      reports/                Laporan akademik
+      administration/         Pengguna, role, dan audit trail
+      settings/               Pengaturan sekolah dan akun
     api/auth/                 Login, logout, perubahan password
     api/modules/              Route, handler, validasi, dan aturan bisnis per modul
   components/
@@ -78,6 +79,9 @@ Gunakan `subjects` sebagai contoh implementasi modul sederhana:
 
 Registry menghubungkan navigasi dan routing; modul baru tetap membutuhkan skema, handler, serta UI. Boilerplate ini bukan loader plugin dinamis.
 
+Folder halaman mengikuti struktur URL dan bagian navigasi. Contohnya data murid berada di
+`master-data/students/` dan dapat diakses melalui `/master-data/students`.
+
 ## Validasi
 
 ```bash
@@ -88,7 +92,7 @@ npm run build
 npm test
 ```
 
-Tes integrasi membutuhkan build terlebih dahulu. Tes menjalankan server produksi di port 3317, memakai database sementara, lalu membersihkannya. Cakupan: autentikasi, CRUD kategori, pembatasan role, penolakan origin asing, pencabutan sesi, perubahan password, pembatasan login, perubahan permission langsung, pencegahan eskalasi akses, dan proteksi audit pada database.
+Tes integrasi membutuhkan build terlebih dahulu. Tes menjalankan server produksi di port 3317, memakai database sementara, lalu membersihkannya. Cakupan: autentikasi, CRUD modul, konteks tahun ajaran, kenaikan kelas, laporan historis, pembatasan role, penolakan origin asing, pencabutan sesi, perubahan password, pencegahan eskalasi akses, dan proteksi audit pada database.
 
 ## Menjalankan produksi
 

@@ -38,6 +38,9 @@ db().transaction(() => {
         'homeroom-assignments.write',
         'students.read',
         'students.write',
+        'promotions.read',
+        'promotions.write',
+        'academic-reports.read',
       ]),
     );
   db()
@@ -57,6 +60,8 @@ db().transaction(() => {
         'teaching-assignments.read',
         'homeroom-assignments.read',
         'students.read',
+        'promotions.read',
+        'academic-reports.read',
       ]),
     );
   if (!db().prepare('SELECT id FROM users WHERE email = ?').get(email)) {

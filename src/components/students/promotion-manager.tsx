@@ -1,0 +1,1134 @@
+'use client';
+
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  Collapse,
+  Group,
+  Loader,
+  Modal,
+  NumberInput,
+  Pagination,
+  Paper,
+  Select,
+  SimpleGrid,
+  Stack,
+  Stepper,
+  Table,
+  Text,
+  TextInput,
+  ThemeIcon,
+  Title,
+} from '@mantine/core';
+import { DateInput } from '@mantine/dates';
+import { notifications } from '@mantine/notifications';
+import {
+  IconAlertTriangle,
+  IconArrowLeft,
+  IconArrowRight,
+  IconCalendarEvent,
+  IconCheck,
+  IconChevronDown,
+  IconChevronUp,
+  IconCopy,
+  IconFilter,
+  IconPlus,
+  IconReportAnalytics,
+  IconSchool,
+  IconSearch,
+  IconUsersGroup,
+} from '@tabler/icons-react';
+import 'dayjs/locale/id';
+import { PageHeading } from '@/components/cms/page-heading/page-heading';
+import { publishAcademicContext } from '@/lib/academic-context-client';
+import styles from './promotion-manager.module.css';
+
+type Option = { value: string; label: string };
+type AcademicYearOption = Option & { start_date: string; end_date: string; is_active?: number };
+type SourceClass = {
+  id: string;
+  name: string;
+  grade_id: string;
+  grade_name: string;
+  level_order: number;
+  student_count: number;
+};
+type TargetClass = Option & {
+  name: string;
+  grade_id: string;
+  grade_name: string;
+  level_order: number;
+  capacity: number;
+  occupied: number;
+};
+type GradeOption = Option & { level_order?: number };
+type Student = {
+  id: string;
+  nis: string;
+  name: string;
+  source_class_id: string;
+  source_class_name: string;
+  source_level_order: number;
+};
+type Outcome = 'promoted' | 'retained' | 'graduated' | 'withdrawn';
+type Action = { student_id: string; outcome: Outcome; target_class_id: string };
+type PromotionData = {
+  active_academic_year: AcademicYearOption;
+  target_academic_year: AcademicYearOption | null;
+  source_academic_year_id: string;
+  source_years: Option[];
+  draft_years: Option[];
+  source_classes: SourceClass[];
+  target_classes: TargetClass[];
+  grade_options: GradeOption[];
+  students: Student[];
+  max_grade_level: number | null;
+};
+type YearForm = { name: string; start_date: string; end_date: string };
+type ClassForm = { name: string; grade_id: string; capacity: number | '' };
+const EXCEPTION_PAGE_SIZE = 20;
+
+const outcomeLabels: Record<Outcome, string> = {
+  promoted: 'Naik kelas',
+  retained: 'Tinggal kelas',
+  graduated: 'Lulus',
+  withdrawn: 'Pindah / keluar',
+};
+
+function shiftYear(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCFullYear(date.getUTCFullYear() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function suggestedYear(source: AcademicYearOption): YearForm {
+  const years = source.label.match(/(\d{4})\D+(\d{4})/);
+  return {
+    name: years ? `${Number(years[1]) + 1}/${Number(years[2]) + 1}` : '',
+    start_date: shiftYear(source.start_date),
+    end_date: shiftYear(source.end_date),
+  };
+}
+
+function classSignature(value: string) {
+  return value
+    .toLocaleLowerCase('id-ID')
+    .replace(/\d+/g, '')
+    .replace(/\b(kelas|rombel)\b/g, '')
+    .replace(/[^a-z]/g, '');
+}
+
+function findMatchingClass(sourceName: string, level: number, targetClasses: TargetClass[]) {
+  const candidates = targetClasses.filter((item) => item.level_order === level);
+  const signature = classSignature(sourceName);
+  return (
+    candidates.find((item) => classSignature(item.name) === signature) ||
+    candidates.find(
+      (item) => item.name.toLocaleLowerCase('id-ID') === sourceName.toLocaleLowerCase('id-ID'),
+    ) ||
+    candidates[0]
+  );
+}
+
+export function PromotionManager({ writable }: { writable: boolean }) {
+  const [activeStep, setActiveStep] = useState(0);
+  const [data, setData] = useState<PromotionData | null>(null);
+  const [yearForm, setYearForm] = useState<YearForm>({ name: '', start_date: '', end_date: '' });
+  const [existingDraft, setExistingDraft] = useState('');
+  const [copyTeaching, setCopyTeaching] = useState(true);
+  const [copyHomeroom, setCopyHomeroom] = useState(true);
+  const [mappings, setMappings] = useState<Record<string, string>>({});
+  const [actions, setActions] = useState<Record<string, Action>>({});
+  const [showExceptions, setShowExceptions] = useState(false);
+  const [exceptionQuery, setExceptionQuery] = useState('');
+  const [exceptionClass, setExceptionClass] = useState<string | null>(null);
+  const [exceptionView, setExceptionView] = useState<'all' | 'changed'>('all');
+  const [exceptionPage, setExceptionPage] = useState(1);
+  const [newClassOpened, setNewClassOpened] = useState(false);
+  const [classForm, setClassForm] = useState<ClassForm>({ name: '', grade_id: '', capacity: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [finalSummary, setFinalSummary] = useState<Record<string, number>>({});
+
+  const initialiseActions = useCallback((result: PromotionData) => {
+    const nextMappings: Record<string, string> = {};
+    for (const sourceClass of result.source_classes) {
+      if (sourceClass.level_order >= (result.max_grade_level || Number.MAX_SAFE_INTEGER)) continue;
+      const target = findMatchingClass(
+        sourceClass.name,
+        sourceClass.level_order + 1,
+        result.target_classes,
+      );
+      if (target) nextMappings[sourceClass.id] = target.value;
+    }
+    setMappings(nextMappings);
+    setActions(
+      Object.fromEntries(
+        result.students.map((student) => {
+          const graduated = student.source_level_order === result.max_grade_level;
+          return [
+            student.id,
+            {
+              student_id: student.id,
+              outcome: graduated ? 'graduated' : 'promoted',
+              target_class_id: graduated ? '' : nextMappings[student.source_class_id] || '',
+            } satisfies Action,
+          ];
+        }),
+      ),
+    );
+  }, []);
+
+  const load = useCallback(
+    async (targetYearId = '', preserveProgress = false) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ mode: 'transition' });
+        if (targetYearId) params.set('target_academic_year_id', targetYearId);
+        const response = await fetch(`/api/modules/promotions?${params}`);
+        const result = (await response.json()) as PromotionData & { error?: string };
+        if (!response.ok) throw new Error(result.error);
+        setData(result);
+        if (!targetYearId) setYearForm(suggestedYear(result.active_academic_year));
+        else if (!preserveProgress) initialiseActions(result);
+      } catch (error) {
+        notifications.show({
+          color: 'red',
+          title: 'Persiapan gagal dimuat',
+          message: error instanceof Error ? error.message : 'Koneksi gagal.',
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [initialiseActions],
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => load(), 0);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  const summary = useMemo(
+    () =>
+      Object.values(actions).reduce<Record<string, number>>((totals, action) => {
+        totals[action.outcome] = (totals[action.outcome] || 0) + 1;
+        return totals;
+      }, {}),
+    [actions],
+  );
+
+  const missingTargets = useMemo(
+    () =>
+      Object.values(actions).filter(
+        (action) =>
+          (action.outcome === 'promoted' || action.outcome === 'retained') &&
+          !action.target_class_id,
+      ).length,
+    [actions],
+  );
+
+  const capacityIssues = useMemo(() => {
+    if (!data) return [];
+    const totals = new Map<string, number>();
+    for (const action of Object.values(actions))
+      if (action.target_class_id)
+        totals.set(action.target_class_id, (totals.get(action.target_class_id) || 0) + 1);
+    return data.target_classes.filter(
+      (target) =>
+        target.capacity > 0 && target.occupied + (totals.get(target.value) || 0) > target.capacity,
+    );
+  }, [actions, data]);
+
+  const isException = useCallback(
+    (student: Student, action: Action) => {
+      const graduated = student.source_level_order === data?.max_grade_level;
+      return (
+        action.outcome !== (graduated ? 'graduated' : 'promoted') ||
+        action.target_class_id !== (graduated ? '' : mappings[student.source_class_id] || '')
+      );
+    },
+    [data?.max_grade_level, mappings],
+  );
+  const filteredStudents = useMemo(() => {
+    if (!data) return [];
+    const query = exceptionQuery.trim().toLocaleLowerCase('id-ID');
+    return data.students.filter((student) => {
+      const action = actions[student.id];
+      return (
+        Boolean(action) &&
+        (!query || `${student.nis} ${student.name}`.toLocaleLowerCase('id-ID').includes(query)) &&
+        (!exceptionClass || student.source_class_id === exceptionClass) &&
+        (exceptionView === 'all' || isException(student, action))
+      );
+    });
+  }, [actions, data, exceptionClass, exceptionQuery, exceptionView, isException]);
+  const exceptionPages = Math.max(1, Math.ceil(filteredStudents.length / EXCEPTION_PAGE_SIZE));
+  const visibleStudents = filteredStudents.slice(
+    (exceptionPage - 1) * EXCEPTION_PAGE_SIZE,
+    exceptionPage * EXCEPTION_PAGE_SIZE,
+  );
+  useEffect(() => setExceptionPage(1), [exceptionClass, exceptionQuery, exceptionView]);
+
+  function mapClass(sourceClassId: string, targetClassId: string) {
+    setMappings((current) => ({ ...current, [sourceClassId]: targetClassId }));
+    setActions((current) => {
+      const next = { ...current };
+      for (const student of data?.students || [])
+        if (student.source_class_id === sourceClassId && next[student.id]?.outcome === 'promoted')
+          next[student.id] = { ...next[student.id], target_class_id: targetClassId };
+      return next;
+    });
+  }
+
+  function changeOutcome(student: Student, outcome: Outcome) {
+    let targetClassId = '';
+    if (outcome === 'promoted') targetClassId = mappings[student.source_class_id] || '';
+    if (outcome === 'retained')
+      targetClassId =
+        findMatchingClass(
+          student.source_class_name,
+          student.source_level_order,
+          data!.target_classes,
+        )?.value || '';
+    setActions((current) => ({
+      ...current,
+      [student.id]: { student_id: student.id, outcome, target_class_id: targetClassId },
+    }));
+  }
+
+  async function createDraft() {
+    if (!yearForm.name || !yearForm.start_date || !yearForm.end_date) {
+      notifications.show({
+        color: 'red',
+        title: 'Data belum lengkap',
+        message: 'Lengkapi nama dan periode tahun ajaran.',
+      });
+      return;
+    }
+    if (yearForm.start_date >= yearForm.end_date) {
+      notifications.show({
+        color: 'red',
+        title: 'Periode tidak valid',
+        message: 'Tanggal selesai harus setelah tanggal mulai.',
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch('/api/modules/academic-years', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...yearForm,
+          is_active: false,
+          copy_from_academic_year_id: data!.active_academic_year.value,
+          copy_semesters: true,
+          copy_classrooms: true,
+          copy_teaching_assignments: copyTeaching,
+          copy_homeroom_assignments: copyHomeroom,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setExistingDraft(result.id);
+      await load(result.id);
+      setActiveStep(2);
+      notifications.show({
+        color: 'green',
+        title: 'Draft tahun ajaran siap',
+        message: 'Semester, rombel, dan data akademik pilihan sudah disalin.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Draft gagal dibuat',
+        message: error instanceof Error ? error.message : 'Koneksi gagal.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resumeDraft() {
+    if (!existingDraft) return;
+    await load(existingDraft);
+    setActiveStep(2);
+  }
+
+  async function finishTransition() {
+    if (!data?.target_academic_year) return;
+    setSaving(true);
+    try {
+      const response = await fetch('/api/modules/promotions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_academic_year_id: data.source_academic_year_id,
+          target_academic_year_id: data.target_academic_year.value,
+          activate_target: true,
+          actions: Object.values(actions),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      publishAcademicContext({
+        academic_year: data.target_academic_year.label,
+        semester: null,
+      });
+      setFinalSummary(result.summary);
+      setCompleted(true);
+      notifications.show({
+        color: 'green',
+        title: 'Pergantian tahun ajaran selesai',
+        message: `${data.target_academic_year.label} sekarang menjadi tahun ajaran aktif.`,
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Finalisasi gagal',
+        message: error instanceof Error ? error.message : 'Koneksi gagal.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createClass() {
+    if (!data?.target_academic_year) return;
+    if (!classForm.name || !classForm.grade_id || classForm.capacity === '') {
+      notifications.show({
+        color: 'red',
+        title: 'Data belum lengkap',
+        message: 'Isi tingkat, nama, dan kapasitas rombel.',
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch('/api/modules/promotions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...classForm,
+          target_academic_year_id: data.target_academic_year.value,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setNewClassOpened(false);
+      setClassForm({ name: '', grade_id: '', capacity: '' });
+      await load(data.target_academic_year.value, true);
+      notifications.show({
+        color: 'green',
+        title: 'Rombel ditambahkan',
+        message: 'Rombel baru siap dipakai untuk pemetaan.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Rombel gagal ditambahkan',
+        message: error instanceof Error ? error.message : 'Koneksi gagal.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading && !data)
+    return (
+      <Stack align="center" py={100}>
+        <Loader size="sm" />
+        <Text c="dimmed" size="sm">
+          Menyiapkan pergantian tahun ajaran...
+        </Text>
+      </Stack>
+    );
+
+  if (!writable)
+    return (
+      <>
+        <PageHeading
+          eyebrow="PROSES TAHUNAN"
+          title="Pergantian Tahun Ajaran"
+          description="Siapkan tahun baru dan proses hasil akademik seluruh murid dalam satu alur."
+        />
+        <Alert color="orange" icon={<IconAlertTriangle size={18} />}>
+          Anda memerlukan izin menulis Tahun Ajaran dan Pergantian Tahun Ajaran untuk menjalankan
+          proses ini.
+        </Alert>
+      </>
+    );
+
+  if (completed)
+    return (
+      <Stack gap="xl">
+        <Paper withBorder className={styles.successPanel}>
+          <ThemeIcon size={64} radius="xl" color="green" variant="light">
+            <IconCheck size={34} />
+          </ThemeIcon>
+          <Stack gap={6} align="center">
+            <Title order={2}>Tahun ajaran baru sudah aktif</Title>
+            <Text c="dimmed" ta="center">
+              Pergantian dari {data?.active_academic_year.label} ke{' '}
+              {data?.target_academic_year?.label} berhasil diselesaikan.
+            </Text>
+          </Stack>
+          <Group justify="center">
+            <Badge color="blue" size="lg">
+              Naik {finalSummary.promoted || 0}
+            </Badge>
+            <Badge color="orange" size="lg">
+              Tinggal {finalSummary.retained || 0}
+            </Badge>
+            <Badge color="grape" size="lg">
+              Lulus {finalSummary.graduated || 0}
+            </Badge>
+            <Badge color="gray" size="lg">
+              Keluar {finalSummary.withdrawn || 0}
+            </Badge>
+          </Group>
+          <Group justify="center">
+            <Button
+              component={Link}
+              href="/reports/academic"
+              leftSection={<IconReportAnalytics size={18} />}
+            >
+              Lihat laporan hasil
+            </Button>
+            <Button component={Link} href="/" variant="default">
+              Kembali ke ringkasan
+            </Button>
+          </Group>
+        </Paper>
+      </Stack>
+    );
+
+  return (
+    <>
+      <PageHeading
+        eyebrow="PROSES TAHUNAN"
+        title="Pergantian Tahun Ajaran"
+        description="Selesaikan persiapan tahun baru dan hasil akademik murid melalui langkah terpandu."
+      />
+
+      <Paper withBorder className={styles.wizardShell}>
+        <Box className={styles.stepperWrap}>
+          <Stepper active={activeStep} size="sm" allowNextStepsSelect={false}>
+            <Stepper.Step label="Tahun baru" description="Periode" />
+            <Stepper.Step label="Salin struktur" description="Data akademik" />
+            <Stepper.Step label="Pemetaan" description="Rombel tujuan" />
+            <Stepper.Step label="Pengecualian" description="Per murid" />
+            <Stepper.Step label="Tinjau" description="Finalisasi" />
+          </Stepper>
+        </Box>
+
+        <Box className={styles.content}>
+          {activeStep === 0 && data && (
+            <Stack gap="xl">
+              <Stack gap={5}>
+                <Title order={3}>Tentukan tahun ajaran baru</Title>
+                <Text c="dimmed" size="sm">
+                  Tahun aktif {data.active_academic_year.label} tetap berjalan sampai langkah
+                  terakhir dikonfirmasi.
+                </Text>
+              </Stack>
+              {data.draft_years.length > 0 && (
+                <Alert color="gray" icon={<IconCalendarEvent size={18} />} className={styles.infoAlert}>
+                  <Group align="flex-end" justify="space-between">
+                    <Select
+                      label="Lanjutkan draft yang sudah ada"
+                      placeholder="Pilih draft"
+                      data={data.draft_years}
+                      value={existingDraft}
+                      onChange={(value) => setExistingDraft(value || '')}
+                      w={{ base: '100%', sm: 320 }}
+                    />
+                    <Button
+                      variant="light"
+                      disabled={!existingDraft}
+                      loading={loading}
+                      onClick={resumeDraft}
+                    >
+                      Lanjutkan draft
+                    </Button>
+                  </Group>
+                </Alert>
+              )}
+              <SimpleGrid cols={{ base: 1, md: 3 }} className={styles.formGrid}>
+                <TextInput
+                  label="Nama tahun ajaran"
+                  placeholder="Contoh: 2027/2028"
+                  value={yearForm.name}
+                  onChange={(event) =>
+                    setYearForm({ ...yearForm, name: event.currentTarget.value })
+                  }
+                  required
+                />
+                <DateInput
+                  label="Tanggal mulai"
+                  value={yearForm.start_date || null}
+                  onChange={(value) => setYearForm({ ...yearForm, start_date: value || '' })}
+                  valueFormat="D MMMM YYYY"
+                  locale="id"
+                  required
+                />
+                <DateInput
+                  label="Tanggal selesai"
+                  value={yearForm.end_date || null}
+                  onChange={(value) => setYearForm({ ...yearForm, end_date: value || '' })}
+                  valueFormat="D MMMM YYYY"
+                  locale="id"
+                  required
+                />
+              </SimpleGrid>
+              <WizardActions onNext={() => setActiveStep(1)} nextLabel="Lanjutkan ke struktur" />
+            </Stack>
+          )}
+
+          {activeStep === 1 && data && (
+            <Stack gap="xl">
+              <Stack gap={5}>
+                <Title order={3}>Salin struktur dari {data.active_academic_year.label}</Title>
+                <Text c="dimmed" size="sm">
+                  Data sumber tetap aman. Sistem membuat salinan untuk {yearForm.name}.
+                </Text>
+              </Stack>
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <CopyCard
+                  icon={<IconCalendarEvent size={22} />}
+                  title="Semester"
+                  detail="Dua periode semester"
+                  checked
+                  disabled
+                />
+                <CopyCard
+                  icon={<IconUsersGroup size={22} />}
+                  title="Rombel"
+                  detail={`${data.source_classes.length} rombel beserta kapasitas`}
+                  checked
+                  disabled
+                />
+                <CopyCard
+                  icon={<IconSchool size={22} />}
+                  title="Penugasan mengajar"
+                  detail="Guru dan mata pelajaran"
+                  checked={copyTeaching}
+                  onChange={setCopyTeaching}
+                />
+                <CopyCard
+                  icon={<IconSchool size={22} />}
+                  title="Wali kelas"
+                  detail="Dapat disesuaikan setelah proses"
+                  checked={copyHomeroom}
+                  onChange={setCopyHomeroom}
+                />
+              </SimpleGrid>
+              <WizardActions
+                onBack={() => setActiveStep(0)}
+                onNext={createDraft}
+                nextLabel="Buat draft & salin data"
+                loading={saving || loading}
+                nextIcon={<IconCopy size={17} />}
+              />
+            </Stack>
+          )}
+
+          {activeStep === 2 && data?.target_academic_year && (
+            <Stack gap="xl">
+              <Group justify="space-between" align="flex-end">
+                <Stack gap={5}>
+                  <Title order={3}>Periksa pemetaan rombel</Title>
+                  <Text c="dimmed" size="sm">
+                    Sistem merekomendasikan rombel pada tingkat berikutnya. Anda hanya perlu
+                    memperbaiki baris yang belum cocok.
+                  </Text>
+                </Stack>
+                <Button
+                  variant="light"
+                  leftSection={<IconPlus size={17} />}
+                  onClick={() => setNewClassOpened(true)}
+                >
+                  Tambah rombel baru
+                </Button>
+              </Group>
+              <Alert
+                color="gray"
+                icon={<IconUsersGroup size={18} />}
+                className={styles.mappingHint}
+              >
+                Butuh pembagian baru? Tambahkan rombel di sini; rombel tersebut langsung muncul
+                sebagai pilihan tujuan.
+              </Alert>
+              <Table.ScrollContainer minWidth={720}>
+                <Table verticalSpacing="md" highlightOnHover>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>ROMBEL ASAL</Table.Th>
+                      <Table.Th>MURID</Table.Th>
+                      <Table.Th>HASIL DEFAULT</Table.Th>
+                      <Table.Th>ROMBEL TUJUAN</Table.Th>
+                      <Table.Th>STATUS</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {data.source_classes.map((sourceClass) => {
+                      const graduating = sourceClass.level_order === data.max_grade_level;
+                      const targetOptions = data.target_classes
+                        .filter((item) => item.level_order === sourceClass.level_order + 1)
+                        .map((item) => ({
+                          value: item.value,
+                          label: `${item.label} · ${item.occupied}/${item.capacity || '∞'}`,
+                        }));
+                      const ready = graduating || Boolean(mappings[sourceClass.id]);
+                      return (
+                        <Table.Tr key={sourceClass.id}>
+                          <Table.Td>
+                            <Text fw={650} size="sm">
+                              {sourceClass.name}
+                            </Text>
+                            <Text c="dimmed" size="xs">
+                              {sourceClass.grade_name}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>{sourceClass.student_count}</Table.Td>
+                          <Table.Td>
+                            <Badge variant="light" color={graduating ? 'grape' : 'blue'}>
+                              {graduating ? 'Lulus' : 'Naik kelas'}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            {graduating ? (
+                              <Text c="dimmed" size="sm">
+                                Tidak memerlukan rombel
+                              </Text>
+                            ) : (
+                              <Select
+                                searchable
+                                placeholder="Pilih rombel tingkat berikutnya"
+                                data={targetOptions}
+                                value={mappings[sourceClass.id] || ''}
+                                onChange={(value) => mapClass(sourceClass.id, value || '')}
+                              />
+                            )}
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge variant="dot" color={ready ? 'green' : 'orange'}>
+                              {ready ? 'Siap' : 'Perlu dipilih'}
+                            </Badge>
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
+              </Table.ScrollContainer>
+              <WizardActions
+                onBack={() => setActiveStep(0)}
+                onNext={() => setActiveStep(3)}
+                nextLabel="Lanjutkan ke pengecualian"
+                disabled={missingTargets > 0}
+              />
+            </Stack>
+          )}
+
+          {activeStep === 3 && data && (
+            <Stack gap="xl">
+              <Stack gap={5}>
+                <Title order={3}>Atur pengecualian murid</Title>
+                <Text c="dimmed" size="sm">
+                  Semua murid mengikuti pemetaan rombel secara default. Buka daftar hanya jika ada
+                  hasil yang perlu diubah.
+                </Text>
+              </Stack>
+              <SimpleGrid cols={{ base: 2, sm: 4 }}>
+                <SummaryCard color="blue" value={summary.promoted || 0} label="Naik kelas" />
+                <SummaryCard color="orange" value={summary.retained || 0} label="Tinggal kelas" />
+                <SummaryCard color="grape" value={summary.graduated || 0} label="Lulus" />
+                <SummaryCard color="gray" value={summary.withdrawn || 0} label="Pindah / keluar" />
+              </SimpleGrid>
+              <Paper withBorder p="md" className={styles.exceptionIntro}>
+                <Group justify="space-between" align="center">
+                  <Stack gap={2}>
+                    <Text fw={650}>Daftar murid ({data.students.length})</Text>
+                    <Text c="dimmed" size="xs">
+                      Cari murid atau tampilkan hanya baris yang sudah diubah.
+                    </Text>
+                  </Stack>
+                  <Button
+                    variant={showExceptions ? 'default' : 'light'}
+                    onClick={() => setShowExceptions((value) => !value)}
+                    rightSection={
+                      showExceptions ? <IconChevronUp size={17} /> : <IconChevronDown size={17} />
+                    }
+                  >
+                    {showExceptions ? 'Tutup daftar' : 'Atur pengecualian'}
+                  </Button>
+                </Group>
+              </Paper>
+              <Collapse in={showExceptions}>
+                <Stack gap="md" className={styles.exceptionList}>
+                  <SimpleGrid cols={{ base: 1, sm: 3 }} className={styles.filterGrid}>
+                    <TextInput
+                      leftSection={<IconSearch size={16} />}
+                      placeholder="Cari NIS atau nama murid"
+                      value={exceptionQuery}
+                      onChange={(event) => setExceptionQuery(event.currentTarget.value)}
+                    />
+                    <Select
+                      leftSection={<IconFilter size={16} />}
+                      placeholder="Semua rombel asal"
+                      clearable
+                      data={data.source_classes.map((item) => ({
+                        value: item.id,
+                        label: `${item.name} · ${item.student_count} murid`,
+                      }))}
+                      value={exceptionClass}
+                      onChange={setExceptionClass}
+                    />
+                    <Select
+                      data={[
+                        { value: 'all', label: 'Tampilkan semua murid' },
+                        { value: 'changed', label: 'Hanya yang diubah' },
+                      ]}
+                      value={exceptionView}
+                      onChange={(value) => setExceptionView(value as 'all' | 'changed')}
+                    />
+                  </SimpleGrid>
+                  <Group justify="space-between">
+                    <Text size="xs" c="dimmed">
+                      Menampilkan{' '}
+                      {visibleStudents.length ? (exceptionPage - 1) * EXCEPTION_PAGE_SIZE + 1 : 0}–
+                      {Math.min(exceptionPage * EXCEPTION_PAGE_SIZE, filteredStudents.length)} dari{' '}
+                      {filteredStudents.length} murid
+                    </Text>
+                    <Badge variant="light" color="orange">
+                      {
+                        data.students.filter(
+                          (student) =>
+                            actions[student.id] && isException(student, actions[student.id]),
+                        ).length
+                      }{' '}
+                      perubahan
+                    </Badge>
+                  </Group>
+                  <Table.ScrollContainer minWidth={760}>
+                    <Table verticalSpacing="sm" highlightOnHover>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>NIS</Table.Th>
+                          <Table.Th>NAMA</Table.Th>
+                          <Table.Th>ROMBEL ASAL</Table.Th>
+                          <Table.Th>HASIL</Table.Th>
+                          <Table.Th>ROMBEL TUJUAN</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {visibleStudents.map((student) => {
+                          const action = actions[student.id];
+                          if (!action) return null;
+                          const targetLevel =
+                            action.outcome === 'retained'
+                              ? student.source_level_order
+                              : student.source_level_order + 1;
+                          const targetOptions = data.target_classes.filter(
+                            (item) => item.level_order === targetLevel,
+                          );
+                          return (
+                            <Table.Tr key={student.id}>
+                              <Table.Td>{student.nis}</Table.Td>
+                              <Table.Td>
+                                <Text fw={600} size="sm">
+                                  {student.name}
+                                </Text>
+                              </Table.Td>
+                              <Table.Td>{student.source_class_name}</Table.Td>
+                              <Table.Td>
+                                <Select
+                                  data={(Object.keys(outcomeLabels) as Outcome[]).map((value) => ({
+                                    value,
+                                    label: outcomeLabels[value],
+                                    disabled:
+                                      value === 'graduated' &&
+                                      student.source_level_order !== data.max_grade_level,
+                                  }))}
+                                  value={action.outcome}
+                                  onChange={(value) => changeOutcome(student, value as Outcome)}
+                                />
+                              </Table.Td>
+                              <Table.Td>
+                                <Select
+                                  searchable
+                                  placeholder="Pilih rombel"
+                                  data={targetOptions}
+                                  value={action.target_class_id}
+                                  disabled={
+                                    action.outcome === 'graduated' || action.outcome === 'withdrawn'
+                                  }
+                                  onChange={(value) =>
+                                    setActions((current) => ({
+                                      ...current,
+                                      [student.id]: {
+                                        ...current[student.id],
+                                        target_class_id: value || '',
+                                      },
+                                    }))
+                                  }
+                                />
+                              </Table.Td>
+                            </Table.Tr>
+                          );
+                        })}
+                      </Table.Tbody>
+                    </Table>
+                  </Table.ScrollContainer>
+                  {exceptionPages > 1 && (
+                    <Group justify="center">
+                      <Pagination
+                        total={exceptionPages}
+                        value={exceptionPage}
+                        onChange={setExceptionPage}
+                        size="sm"
+                      />
+                    </Group>
+                  )}
+                </Stack>
+              </Collapse>
+              {missingTargets > 0 && (
+                <Alert color="orange" icon={<IconAlertTriangle size={18} />}>
+                  {missingTargets} murid masih belum memiliki rombel tujuan.
+                </Alert>
+              )}
+              <WizardActions
+                onBack={() => setActiveStep(2)}
+                onNext={() => setActiveStep(4)}
+                nextLabel="Tinjau hasil akhir"
+                disabled={missingTargets > 0}
+              />
+            </Stack>
+          )}
+
+          {activeStep === 4 && data?.target_academic_year && (
+            <Stack gap="xl">
+              <Stack gap={5}>
+                <Title order={3}>Tinjau dan selesaikan</Title>
+                <Text c="dimmed" size="sm">
+                  Pastikan ringkasan berikut sudah benar sebelum tahun ajaran baru diaktifkan.
+                </Text>
+              </Stack>
+              <Paper withBorder p="lg" className={styles.transitionCard}>
+                <Group justify="center" gap="lg">
+                  <Stack gap={2} align="center">
+                    <Text c="dimmed" size="xs">
+                      TAHUN ASAL
+                    </Text>
+                    <Text fw={700}>{data.active_academic_year.label}</Text>
+                  </Stack>
+                  <ThemeIcon variant="light" radius="xl">
+                    <IconArrowRight size={18} />
+                  </ThemeIcon>
+                  <Stack gap={2} align="center">
+                    <Text c="dimmed" size="xs">
+                      TAHUN BARU
+                    </Text>
+                    <Text fw={700}>{data.target_academic_year.label}</Text>
+                  </Stack>
+                </Group>
+              </Paper>
+              <SimpleGrid cols={{ base: 2, sm: 4 }}>
+                <SummaryCard color="blue" value={summary.promoted || 0} label="Naik kelas" />
+                <SummaryCard color="orange" value={summary.retained || 0} label="Tinggal kelas" />
+                <SummaryCard color="grape" value={summary.graduated || 0} label="Lulus" />
+                <SummaryCard color="gray" value={summary.withdrawn || 0} label="Pindah / keluar" />
+              </SimpleGrid>
+              {capacityIssues.length > 0 ? (
+                <Alert
+                  color="red"
+                  icon={<IconAlertTriangle size={18} />}
+                  title="Kapasitas rombel perlu diperbaiki"
+                >
+                  {capacityIssues.map((item) => item.label).join(', ')} melebihi kapasitas yang
+                  ditentukan.
+                </Alert>
+              ) : (
+                <Alert
+                  color="green"
+                  icon={<IconCheck size={18} />}
+                  title="Semua pemeriksaan selesai"
+                >
+                  Dua semester siap, {data.target_classes.length} rombel tersedia, dan tidak ada
+                  rombel yang melebihi kapasitas.
+                </Alert>
+              )}
+              <Alert color="gray" icon={<IconCalendarEvent size={18} />} className={styles.infoAlert}>
+                Setelah dikonfirmasi, {data.target_academic_year.label} akan menjadi tahun ajaran
+                aktif dan riwayat lama tetap tersimpan.
+              </Alert>
+              <WizardActions
+                onBack={() => setActiveStep(3)}
+                onNext={finishTransition}
+                nextLabel={`Aktifkan ${data.target_academic_year.label} & proses murid`}
+                loading={saving}
+                disabled={missingTargets > 0 || capacityIssues.length > 0}
+                nextIcon={<IconCheck size={17} />}
+              />
+            </Stack>
+          )}
+        </Box>
+      </Paper>
+      <Modal
+        opened={newClassOpened}
+        onClose={() => setNewClassOpened(false)}
+        title="Tambah rombel baru"
+        centered
+      >
+        <Stack>
+          <Text c="dimmed" size="sm">
+            Rombel dibuat pada {data?.target_academic_year?.label} dan langsung tersedia untuk
+            pemetaan.
+          </Text>
+          <Select
+            label="Tingkat / kelas"
+            placeholder="Pilih tingkat"
+            data={data?.grade_options || []}
+            value={classForm.grade_id}
+            onChange={(value) => setClassForm((current) => ({ ...current, grade_id: value || '' }))}
+            required
+          />
+          <TextInput
+            label="Nama rombel"
+            placeholder="Contoh: 7C"
+            value={classForm.name}
+            onChange={(event) => {
+              const name = event.currentTarget.value;
+              setClassForm((current) => ({ ...current, name }));
+            }}
+            required
+          />
+          <NumberInput
+            label="Kapasitas"
+            placeholder="Contoh: 32"
+            min={0}
+            max={1000}
+            value={classForm.capacity}
+            onChange={(value) =>
+              setClassForm((current) => ({
+                ...current,
+                capacity: typeof value === 'number' ? value : '',
+              }))
+            }
+            required
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setNewClassOpened(false)}>
+              Batal
+            </Button>
+            <Button leftSection={<IconPlus size={17} />} loading={saving} onClick={createClass}>
+              Tambah rombel
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
+  );
+}
+
+function WizardActions({
+  onBack,
+  onNext,
+  nextLabel,
+  loading,
+  disabled,
+  nextIcon,
+}: {
+  onBack?: () => void;
+  onNext: () => void;
+  nextLabel: string;
+  loading?: boolean;
+  disabled?: boolean;
+  nextIcon?: React.ReactNode;
+}) {
+  return (
+    <Group justify="space-between" className={styles.actions}>
+      {onBack ? (
+        <Button
+          variant="default"
+          onClick={onBack}
+          disabled={loading}
+          leftSection={<IconArrowLeft size={17} />}
+        >
+          Kembali
+        </Button>
+      ) : (
+        <span />
+      )}
+      <Button
+        onClick={onNext}
+        loading={loading}
+        disabled={disabled}
+        rightSection={nextIcon || <IconArrowRight size={17} />}
+      >
+        {nextLabel}
+      </Button>
+    </Group>
+  );
+}
+
+function CopyCard({
+  icon,
+  title,
+  detail,
+  checked,
+  disabled,
+  onChange,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange?: (value: boolean) => void;
+}) {
+  return (
+    <Paper withBorder p="md" className={styles.copyCard}>
+      <Group wrap="nowrap">
+        <ThemeIcon variant="light" size={42} radius="md">
+          {icon}
+        </ThemeIcon>
+        <Stack gap={2} style={{ flex: 1 }}>
+          <Text fw={650} size="sm">
+            {title}
+          </Text>
+          <Text c="dimmed" size="xs">
+            {detail}
+          </Text>
+        </Stack>
+        <Checkbox
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onChange?.(event.currentTarget.checked)}
+          aria-label={`Salin ${title}`}
+        />
+      </Group>
+    </Paper>
+  );
+}
+
+function SummaryCard({ color, value, label }: { color: string; value: number; label: string }) {
+  return (
+    <Paper withBorder p="md" className={styles.summaryCard}>
+      <Text fz={26} fw={750} c={color}>
+        {value}
+      </Text>
+      <Text c="dimmed" size="xs">
+        {label}
+      </Text>
+    </Paper>
+  );
+}

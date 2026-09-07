@@ -6,8 +6,11 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
+  Divider,
   Group,
   Modal,
+  Select,
   SimpleGrid,
   Stack,
   Switch,
@@ -18,12 +21,29 @@ import {
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { IconCalendarEvent, IconCheck, IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconCalendarEvent, IconCheck, IconCopy, IconPencil, IconTrash } from '@tabler/icons-react';
 import 'dayjs/locale/id';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
+import { publishAcademicContext } from '@/lib/academic-context-client';
 import classes from './academic-year-manager.module.css';
 
+type SemesterForm = {
+  id?: string;
+  name: string;
+  period: number;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+};
+type ClassroomForm = {
+  id?: string;
+  grade_id: string;
+  grade_name?: string;
+  name: string;
+  capacity: number | string;
+  is_active: boolean;
+};
 type AcademicYear = {
   id: string;
   school_id: string;
@@ -31,25 +51,36 @@ type AcademicYear = {
   start_date: string;
   end_date: string;
   is_active: number;
+  semesters: Array<Omit<SemesterForm, 'is_active'> & { is_active: number }>;
+  classrooms: Array<Omit<ClassroomForm, 'is_active'> & { is_active: number }>;
 };
-
 type AcademicYearForm = {
   name: string;
   start_date: string;
   end_date: string;
   is_active: boolean;
+  copy_from_academic_year_id: string;
+  copy_semesters: boolean;
+  copy_classrooms: boolean;
+  copy_teaching_assignments: boolean;
+  copy_homeroom_assignments: boolean;
 };
 
-const emptyForm: AcademicYearForm = {
+const emptyForm = (): AcademicYearForm => ({
   name: '',
   start_date: '',
   end_date: '',
   is_active: false,
-};
+  copy_from_academic_year_id: '',
+  copy_semesters: true,
+  copy_classrooms: true,
+  copy_teaching_assignments: true,
+  copy_homeroom_assignments: true,
+});
 const endpoint = '/api/modules/academic-years';
 const dateFormatter = new Intl.DateTimeFormat('id-ID', {
   day: 'numeric',
-  month: 'long',
+  month: 'short',
   year: 'numeric',
   timeZone: 'UTC',
 });
@@ -70,20 +101,32 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
             start_date: year.start_date,
             end_date: year.end_date,
             is_active: Boolean(year.is_active),
+            copy_from_academic_year_id: '',
+            copy_semesters: false,
+            copy_classrooms: false,
+            copy_teaching_assignments: false,
+            copy_homeroom_assignments: false,
           }
-        : emptyForm,
+        : emptyForm(),
     );
     setEditing(year);
+  }
+
+  function selectCopySource(value: string | null) {
+    setForm((current) => ({ ...current, copy_from_academic_year_id: value || '' }));
   }
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
     try {
-      await moduleMutation(endpoint, editing ? 'PATCH' : 'POST', {
-        ...form,
-        id: editing?.id,
-      });
+      await moduleMutation(endpoint, editing ? 'PATCH' : 'POST', { ...form, id: editing?.id });
+      if (form.is_active) {
+        publishAcademicContext({
+          academic_year: form.name,
+          semester: editing?.is_active ? undefined : null,
+        });
+      }
       setEditing(undefined);
       list.reload();
       notifications.show({
@@ -131,7 +174,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
       <ModuleListLayout
         eyebrow="AKADEMIK"
         title="Tahun Ajaran"
-        description="Kelola periode tahun ajaran dan tentukan periode yang sedang aktif."
+        description="Kelola periode tahun ajaran dan salin data akademik dari tahun sebelumnya."
         total={list.total}
         page={list.page}
         onPageChange={list.setPage}
@@ -143,15 +186,16 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
         onReload={list.reload}
         addLabel="Tambah tahun ajaran"
         onAdd={writable ? () => openEditor(null) : undefined}
-        note="Hanya satu tahun ajaran yang dapat aktif pada satu waktu."
+        note="Semester dan rombel dikelola dari menu Data Akademik."
       >
-        <Table.ScrollContainer minWidth={760}>
+        <Table.ScrollContainer minWidth={850}>
           <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>NAMA</Table.Th>
-                <Table.Th>TANGGAL MULAI</Table.Th>
-                <Table.Th>TANGGAL SELESAI</Table.Th>
+                <Table.Th>PERIODE</Table.Th>
+                <Table.Th>SEMESTER</Table.Th>
+                <Table.Th>ROMBEL</Table.Th>
                 <Table.Th>STATUS</Table.Th>
                 <Table.Th ta="right">AKSI</Table.Th>
               </Table.Tr>
@@ -164,8 +208,13 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                       {year.name}
                     </Text>
                   </Table.Td>
-                  <Table.Td>{formatDate(year.start_date)}</Table.Td>
-                  <Table.Td>{formatDate(year.end_date)}</Table.Td>
+                  <Table.Td>
+                    <Text size="xs">
+                      {formatDate(year.start_date)} – {formatDate(year.end_date)}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>{year.semesters.length}</Table.Td>
+                  <Table.Td>{year.classrooms.length}</Table.Td>
                   <Table.Td>
                     <Badge variant="dot" color={year.is_active ? 'green' : 'gray'}>
                       {year.is_active ? 'Aktif' : 'Nonaktif'}
@@ -212,40 +261,33 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
         title={
           <Group gap="sm" wrap="nowrap">
             <ThemeIcon variant="light" size={38} radius="md">
-              <IconCalendarEvent size={20} stroke={1.8} />
+              <IconCalendarEvent size={20} />
             </ThemeIcon>
             <Box>
-              <Text fw={700} lh={1.25}>
-                {editing ? 'Edit' : 'Tambah'} tahun ajaran
-              </Text>
-              <Text c="dimmed" size="xs" fw={400} mt={2}>
-                Atur nama, periode, dan status tahun ajaran.
+              <Text fw={700}>{editing ? 'Edit' : 'Tambah'} tahun ajaran</Text>
+              <Text c="dimmed" size="xs">
+                Lengkapi periode tahun ajaran sebelum menyimpan.
               </Text>
             </Box>
           </Group>
         }
         centered
-        size="lg"
+        size="xl"
       >
         <form onSubmit={save}>
-          <Stack gap="lg">
-            <TextInput
-              label="Nama tahun ajaran"
-              description="Gunakan nama yang mudah dikenali oleh pengelola sekolah."
-              placeholder="Contoh: 2026/2027"
-              value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
-              required
-              minLength={4}
-              maxLength={50}
-            />
-            <Box>
-              <Text size="sm" fw={600} mb={4}>
-                Periode tahun ajaran
-              </Text>
-              <Text size="xs" c="dimmed" mb="sm">
-                Pilih tanggal mulai dan selesai melalui kalender.
-              </Text>
+          <Stack gap="xl">
+            <Stack gap="md">
+              <Text fw={700}>Informasi tahun ajaran</Text>
+              <TextInput
+                label="Nama tahun ajaran"
+                description="Gunakan nama yang mudah dikenali."
+                placeholder="Contoh: 2026/2027"
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
+                required
+                minLength={4}
+                maxLength={50}
+              />
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <DateInput
                   label="Tanggal mulai"
@@ -255,7 +297,6 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                   onChange={(value) => setForm({ ...form, start_date: value || '' })}
                   valueFormat="D MMMM YYYY"
                   locale="id"
-                  leftSection={<IconCalendarEvent size={17} stroke={1.6} />}
                   popoverProps={{ withinPortal: true }}
                   required
                 />
@@ -267,20 +308,81 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                   onChange={(value) => setForm({ ...form, end_date: value || '' })}
                   valueFormat="D MMMM YYYY"
                   locale="id"
-                  leftSection={<IconCalendarEvent size={17} stroke={1.6} />}
                   popoverProps={{ withinPortal: true }}
                   required
                 />
               </SimpleGrid>
-            </Box>
-            <Box className={classes.statusCard}>
-              <Switch
-                label="Jadikan tahun ajaran aktif"
-                description="Tahun ajaran lain yang aktif akan dinonaktifkan otomatis."
-                checked={form.is_active}
-                onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
-              />
-            </Box>
+              <Box className={classes.statusCard}>
+                <Switch
+                  label="Jadikan tahun ajaran aktif"
+                  description="Tahun ajaran lain yang aktif akan dinonaktifkan otomatis."
+                  checked={form.is_active}
+                  onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
+                />
+              </Box>
+            </Stack>
+
+            {!editing && list.rows.length > 0 && (
+              <>
+                <Divider />
+                <Stack gap="md">
+                  <Box>
+                    <Group gap="xs">
+                      <IconCopy size={19} />
+                      <Text fw={700}>Salin dari tahun ajaran sebelumnya</Text>
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                      Pilihan yang dicentang akan langsung disalin ketika tahun ajaran disimpan.
+                    </Text>
+                  </Box>
+                  <Select
+                    label="Tahun ajaran sumber"
+                    placeholder="Pilih tahun ajaran"
+                    data={list.options?.academic_year_id || []}
+                    value={form.copy_from_academic_year_id || null}
+                    onChange={selectCopySource}
+                    searchable
+                    clearable
+                  />
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Checkbox
+                      label="Salin semester"
+                      checked={form.copy_semesters}
+                      onChange={(event) =>
+                        setForm({ ...form, copy_semesters: event.currentTarget.checked })
+                      }
+                    />
+                    <Checkbox
+                      label="Salin rombel"
+                      checked={form.copy_classrooms}
+                      onChange={(event) =>
+                        setForm({ ...form, copy_classrooms: event.currentTarget.checked })
+                      }
+                    />
+                    <Checkbox
+                      label="Salin penugasan mengajar"
+                      checked={form.copy_teaching_assignments}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          copy_teaching_assignments: event.currentTarget.checked,
+                        })
+                      }
+                    />
+                    <Checkbox
+                      label="Salin wali kelas"
+                      checked={form.copy_homeroom_assignments}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          copy_homeroom_assignments: event.currentTarget.checked,
+                        })
+                      }
+                    />
+                  </SimpleGrid>
+                </Stack>
+              </>
+            )}
           </Stack>
           <Group className={classes.actions} justify="flex-end" mt="xl">
             <Button variant="default" disabled={saving} onClick={() => setEditing(undefined)}>
@@ -304,7 +406,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
           <Text component="span" inherit fw={700}>
             {removing?.name}
           </Text>
-          . Data yang sudah memiliki relasi tidak dapat dihapus.
+          . Semester dan rombel yang masih digunakan oleh data lain tidak dapat dihapus.
         </Text>
         <Group justify="flex-end" mt="lg">
           <Button variant="default" disabled={saving} onClick={() => setRemoving(null)}>

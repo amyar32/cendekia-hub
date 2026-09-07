@@ -36,6 +36,7 @@ type Props = {
   onAdd?: () => void;
   emptyMessage?: string;
   note: string;
+  toolbarLeading?: ReactNode;
   children: ReactNode;
 };
 
@@ -69,7 +70,8 @@ export function ModuleListLayout(props: Props) {
               {props.emptyMessage || 'Kelola dan temukan data workspace Anda.'}
             </Text>
           </Stack>
-          <Group gap="xs">
+          <Group gap="xs" wrap="wrap" justify="flex-end">
+            {props.toolbarLeading}
             <TextInput
               aria-label="Cari data"
               placeholder="Cari data..."

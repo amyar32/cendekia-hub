@@ -24,7 +24,7 @@ const cards = [
     icon: IconUsers,
     color: 'blue',
     note: 'Anggota workspace',
-    path: '/users',
+    path: '/administration/users',
   },
   {
     key: 'roles',
@@ -32,7 +32,7 @@ const cards = [
     icon: IconShieldCheck,
     color: 'grape',
     note: 'Konfigurasi hak akses',
-    path: '/roles',
+    path: '/administration/roles',
   },
   {
     key: 'teachers',
@@ -40,7 +40,7 @@ const cards = [
     icon: IconChalkboardTeacher,
     color: 'brand',
     note: 'Data tersimpan',
-    path: '/teachers',
+    path: '/master-data/teachers',
   },
   {
     key: 'students',
@@ -48,7 +48,7 @@ const cards = [
     icon: IconUsers,
     color: 'cyan',
     note: 'Data tersimpan',
-    path: '/students',
+    path: '/master-data/students',
   },
   {
     key: 'audit',
@@ -56,7 +56,7 @@ const cards = [
     icon: IconHistory,
     color: 'orange',
     note: 'Riwayat audit trail',
-    path: '/audit',
+    path: '/administration/audit',
   },
 ] as const;
 export function Dashboard({
@@ -99,7 +99,11 @@ export function Dashboard({
             Mulai dari data yang rapi hingga akses tim yang terkendali.
           </Text>
           {can(user.permissions, 'teachers.read') && (
-            <Button component={Link} href="/teachers" rightSection={<IconArrowRight size={17} />}>
+            <Button
+              component={Link}
+              href="/master-data/teachers"
+              rightSection={<IconArrowRight size={17} />}
+            >
               Kelola data guru
             </Button>
           )}
@@ -148,7 +152,7 @@ export function Dashboard({
             {can(user.permissions, 'audit.read') && (
               <Button
                 component={Link}
-                href="/audit"
+                href="/administration/audit"
                 size="compact-sm"
                 variant="subtle"
                 rightSection={<IconArrowRight size={14} />}

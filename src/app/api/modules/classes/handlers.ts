@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
+  activeAcademicYear,
   academicYearOptions,
   currentSchoolId,
   gradeOptions,
@@ -23,24 +24,35 @@ export async function GET(request: Request) {
   try {
     await requireUser('classes.read');
     const schoolId = currentSchoolId();
+    const url = new URL(request.url);
     const { filter, offset } = listParams(request);
-    const where = `c.school_id=? AND (c.name LIKE ? OR ay.name LIKE ? OR g.name LIKE ?)`;
+    const selectedYear =
+      (url.searchParams.get('academic_year_id') || '').trim() || activeAcademicYear(schoolId).id;
+    requireAcademicYear(schoolId, selectedYear);
+    const whereParts = ['c.school_id=?', '(c.name LIKE ? OR ay.name LIKE ? OR g.name LIKE ?)'];
+    const params: unknown[] = [schoolId, filter, filter, filter];
+    if (selectedYear) {
+      whereParts.push('c.academic_year_id = ?');
+      params.push(selectedYear);
+    }
+    const where = whereParts.join(' AND ');
     const rows = db()
       .prepare(
         `SELECT c.*,ay.name AS academic_year_name,g.name AS grade_name FROM classes c JOIN academic_years ay ON ay.id=c.academic_year_id JOIN grades g ON g.id=c.grade_id WHERE ${where} ORDER BY ay.is_active DESC,ay.start_date DESC,g.level_order,c.name LIMIT 10 OFFSET ?`,
       )
-      .all(schoolId, filter, filter, filter, offset);
+      .all(...params, offset);
     const total = (
       db()
         .prepare(
           `SELECT count(*) AS n FROM classes c JOIN academic_years ay ON ay.id=c.academic_year_id JOIN grades g ON g.id=c.grade_id WHERE ${where}`,
         )
-        .get(schoolId, filter, filter, filter) as { n: number }
+        .get(...params) as { n: number }
     ).n;
     return Response.json(
       {
         rows,
         total,
+        selected: { academic_year_id: selectedYear },
         options: {
           academic_year_id: academicYearOptions(schoolId),
           grade_id: gradeOptions(schoolId),
@@ -72,7 +84,8 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         db().prepare('DELETE FROM classes WHERE id=? AND school_id=?').run(id, schoolId);
       else {
         const data = schema.parse(input);
-        requireAcademicYear(schoolId, data.academic_year_id);
+        const academicYearId = data.academic_year_id;
+        requireAcademicYear(schoolId, academicYearId);
         requireGrade(schoolId, data.grade_id);
         details = data;
         if (method === 'POST')
@@ -83,7 +96,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
             .run(
               id,
               schoolId,
-              data.academic_year_id,
+              academicYearId,
               data.grade_id,
               data.name,
               data.capacity,
@@ -95,7 +108,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
               `UPDATE classes SET academic_year_id=?,grade_id=?,name=?,capacity=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
             )
             .run(
-              data.academic_year_id,
+              academicYearId,
               data.grade_id,
               data.name,
               data.capacity,

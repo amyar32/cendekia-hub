@@ -12,10 +12,34 @@ export function currentSchoolId() {
 export function academicYearOptions(schoolId: string) {
   return db()
     .prepare(
-      `SELECT id AS value, name AS label FROM academic_years
-       WHERE school_id = ? ORDER BY is_active DESC, start_date DESC`,
+      `SELECT id AS value, name || CASE WHEN is_active=1 THEN ' (Aktif)' ELSE '' END AS label FROM academic_years
+       WHERE school_id = ? ORDER BY start_date DESC, is_active DESC`,
     )
     .all(schoolId) as { value: string; label: string }[];
+}
+
+export type AcademicYearContext = {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+};
+
+export function activeAcademicYear(schoolId: string) {
+  const year = db()
+    .prepare(
+      `SELECT id,name,start_date,end_date FROM academic_years
+       WHERE school_id=? AND is_active=1`,
+    )
+    .get(schoolId) as AcademicYearContext | undefined;
+  if (!year)
+    throw new HttpError(409, 'Aktifkan satu tahun ajaran terlebih dahulu pada modul Tahun Ajaran.');
+  return year;
+}
+
+export function activeAcademicYearOptions(schoolId: string) {
+  const year = activeAcademicYear(schoolId);
+  return [{ value: year.id, label: year.name }];
 }
 
 export function gradeOptions(schoolId: string) {
@@ -54,24 +78,32 @@ export function subjectOptions(schoolId: string) {
     .all(schoolId) as { value: string; label: string }[];
 }
 
-export function classOptions(schoolId: string) {
+export function classOptions(schoolId: string, academicYearId?: string) {
   return db()
     .prepare(
       `SELECT c.id AS value, c.name || ' — ' || ay.name AS label FROM classes c
        JOIN academic_years ay ON ay.id=c.academic_year_id
-       WHERE c.school_id = ? ORDER BY ay.is_active DESC, ay.start_date DESC, c.name`,
+       WHERE c.school_id = ? AND (? IS NULL OR c.academic_year_id=?)
+       ORDER BY ay.is_active DESC, ay.start_date DESC, c.name`,
     )
-    .all(schoolId) as { value: string; label: string }[];
+    .all(schoolId, academicYearId ?? null, academicYearId ?? null) as {
+    value: string;
+    label: string;
+  }[];
 }
 
-export function semesterOptions(schoolId: string) {
+export function semesterOptions(schoolId: string, academicYearId?: string) {
   return db()
     .prepare(
       `SELECT s.id AS value, s.name || ' — ' || ay.name AS label FROM semesters s
        JOIN academic_years ay ON ay.id=s.academic_year_id
-       WHERE ay.school_id = ? ORDER BY ay.is_active DESC, ay.start_date DESC, s.period`,
+       WHERE ay.school_id = ? AND (? IS NULL OR s.academic_year_id=?)
+       ORDER BY ay.is_active DESC, ay.start_date DESC, s.period`,
     )
-    .all(schoolId) as { value: string; label: string }[];
+    .all(schoolId, academicYearId ?? null, academicYearId ?? null) as {
+    value: string;
+    label: string;
+  }[];
 }
 
 export function requireTeacher(schoolId: string, teacherId: string) {

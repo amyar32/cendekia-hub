@@ -216,6 +216,11 @@ export function StudentManager({ writable }: { writable: boolean }) {
   }
 
   const disabled = saving || !writable;
+  const placementLocked = Boolean(
+    editing &&
+    form.placement.class_id &&
+    !list.options?.class_id?.some((option) => option.value === form.placement.class_id),
+  );
   return (
     <>
       <ModuleListLayout
@@ -420,12 +425,16 @@ export function StudentManager({ writable }: { writable: boolean }) {
               <Select
                 label="Rombel aktif"
                 placeholder="Pilih rombel aktif"
-                description="Tahun ajaran mengikuti rombel yang dipilih."
+                description={
+                  placementLocked
+                    ? 'Penempatan historis dikunci. Gunakan Proses Kenaikan Kelas untuk tahun ajaran baru.'
+                    : 'Pilihan hanya menampilkan rombel pada tahun ajaran aktif.'
+                }
                 searchable
                 clearable
                 data={list.options?.class_id || []}
                 value={form.placement.class_id}
-                disabled={disabled}
+                disabled={disabled || placementLocked}
                 onChange={(value) =>
                   setForm({ ...form, placement: { ...form.placement, class_id: value || '' } })
                 }
@@ -437,10 +446,11 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 locale="id"
                 valueFormat="D MMMM YYYY"
                 value={form.placement.start_date}
-                disabled={disabled || !form.placement.class_id}
+                disabled={disabled || placementLocked || !form.placement.class_id}
                 onChange={(value) =>
                   setForm({ ...form, placement: { ...form.placement, start_date: value || '' } })
                 }
+                description="Pilih tanggal mulai penempatan murid di rombel aktif."
               />
             </SimpleGrid>
 

@@ -195,6 +195,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   res = await api('/api/modules/academic-years');
   const academicYears = await res.json();
   assert.equal(academicYears.total, 2);
+  assert.equal(academicYears.rows[0].id, secondAcademicYear.id);
   assert.equal(
     academicYears.rows.find((row: { id: string }) => row.id === firstAcademicYear.id).is_active,
     0,
@@ -256,6 +257,18 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   });
   assert.equal(res.status, 201);
   const semester = await res.json();
+  assert.equal(
+    (
+      await api('/api/modules/semesters', 'POST', {
+        academic_year_id: secondAcademicYear.id,
+        name: 'Semester Bertabrakan',
+        period: 2,
+        start_date: '2026-12-15',
+        end_date: '2027-06-15',
+      })
+    ).status,
+    400,
+  );
   res = await api('/api/modules/grades', 'POST', {
     name: 'Kelas 7',
     level_order: 7,
@@ -372,7 +385,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     teacher_id: teacher.id,
     subject_id: subject.id,
     class_id: classroom.id,
-    academic_year_id: secondAcademicYear.id,
     semester_id: semester.id,
   });
   assert.equal(res.status, 201);
@@ -380,12 +392,34 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   res = await api('/api/modules/homeroom-assignments', 'POST', {
     teacher_id: teacher.id,
     class_id: classroom.id,
-    academic_year_id: secondAcademicYear.id,
   });
   assert.equal(res.status, 201);
   const homeroomAssignment = await res.json();
   res = await api('/api/modules/teaching-assignments?q=Matematika');
   assert.equal((await res.json()).total, 1);
+  res = await api('/api/modules/teaching-assignments', 'POST', {
+    teacher_id: teacher.id,
+    subject_id: subject.id,
+    class_id: classroom.id,
+    semester_id: 'all',
+  });
+  assert.equal(res.status, 201);
+  const annualTeachingAssignment = await res.json();
+  res = await api('/api/modules/teaching-assignments?q=Matematika');
+  const teachingAssignments = await res.json();
+  assert.equal(teachingAssignments.total, 2);
+  assert.ok(
+    teachingAssignments.rows.some(
+      (row: { semester_name: string }) => row.semester_name === 'Semua Semester',
+    ),
+  );
+  res = await api(
+    `/api/modules/teaching-assignments?class_id=${classroom.id}&subject_id=${subject.id}`,
+  );
+  const filteredTeachingAssignments = await res.json();
+  assert.equal(filteredTeachingAssignments.total, 2);
+  assert.equal(filteredTeachingAssignments.selected.class_id, classroom.id);
+  assert.equal(filteredTeachingAssignments.selected.subject_id, subject.id);
   res = await api('/api/modules/homeroom-assignments?q=7A');
   assert.equal((await res.json()).rows[0].teacher_name, 'Budi Santoso');
   assert.equal((await api('/api/modules/teachers', 'DELETE', { id: teacher.id })).status, 409);
@@ -393,6 +427,14 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     (
       await api('/api/modules/teaching-assignments', 'DELETE', {
         id: teachingAssignment.id,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await api('/api/modules/teaching-assignments', 'DELETE', {
+        id: annualTeachingAssignment.id,
       })
     ).status,
     200,
@@ -714,4 +756,274 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
       .status,
     429,
   );
+});
+
+test('academic year context, bulk promotion, and historical reports', async () => {
+  let res = await api(
+    '/api/auth/login',
+    'POST',
+    { email: 'admin@test.local', password: 'new-admin-password-123' },
+    '',
+  );
+  assert.equal(res.status, 200);
+  adminCookie = res.headers.get('set-cookie')!.split(';')[0];
+
+  const years = await (await api('/api/modules/academic-years')).json();
+  const sourceYear = years.rows.find((row: { is_active: number }) => row.is_active === 1);
+  const classes = await (await api('/api/modules/classes')).json();
+  const sourceClass = classes.rows.find(
+    (row: { academic_year_id: string }) => row.academic_year_id === sourceYear.id,
+  );
+  assert.ok(sourceClass);
+
+  res = await api('/api/modules/students', 'POST', {
+    nis: 'S-002',
+    nisn: '',
+    name: 'Bima Cendekia',
+    gender: 'male',
+    birth_date: '',
+    birth_place: '',
+    address: '',
+    phone: '',
+    email: '',
+    enrollment_date: sourceYear.start_date,
+    is_active: true,
+    guardians: [],
+    documents: [],
+    placement: { class_id: sourceClass.id, start_date: sourceYear.start_date },
+  });
+  assert.equal(res.status, 201);
+  const student = await res.json();
+
+  res = await api('/api/modules/academic-years', 'POST', {
+    name: '2027/2028',
+    start_date: '2027-07-01',
+    end_date: '2028-06-30',
+    is_active: true,
+    semesters: [
+      {
+        name: 'Semester Ganjil',
+        period: 1,
+        start_date: '2027-07-01',
+        end_date: '2027-12-31',
+        is_active: true,
+      },
+      {
+        name: 'Semester Genap',
+        period: 2,
+        start_date: '2028-01-01',
+        end_date: '2028-06-30',
+        is_active: false,
+      },
+    ],
+    classrooms: [
+      {
+        grade_id: sourceClass.grade_id,
+        name: 'Rombel Tambahan',
+        capacity: 30,
+        is_active: true,
+      },
+    ],
+  });
+  assert.equal(res.status, 201);
+  const targetYear = await res.json();
+  const aggregateYears = await (await api('/api/modules/academic-years')).json();
+  const aggregateTarget = aggregateYears.rows.find(
+    (row: { id: string }) => row.id === targetYear.id,
+  );
+  assert.equal(aggregateTarget.semesters.length, 2);
+  assert.equal(aggregateTarget.classrooms[0].name, 'Rombel Tambahan');
+  res = await api('/api/modules/promotions/prepare-classes', 'POST', {
+    source_academic_year_id: sourceYear.id,
+  });
+  assert.equal(res.status, 200);
+  assert.ok((await res.json()).created > 0);
+
+  res = await api(`/api/modules/promotions?source_academic_year_id=${sourceYear.id}`);
+  assert.equal(res.status, 200);
+  const preview = await res.json();
+  assert.equal(preview.target_academic_year.value, targetYear.id);
+  assert.ok(preview.students.some((row: { id: string }) => row.id === student.id));
+  const targetClass = preview.target_classes.find((row: { label: string }) =>
+    row.label.startsWith(`${sourceClass.name} —`),
+  );
+  assert.ok(targetClass);
+
+  res = await api('/api/modules/promotions', 'POST', {
+    source_academic_year_id: sourceYear.id,
+    actions: [{ student_id: student.id, outcome: 'promoted', target_class_id: targetClass.value }],
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).summary.promoted, 1);
+
+  res = await api(`/api/modules/academic-reports?academic_year_id=${sourceYear.id}`);
+  assert.equal(res.status, 200);
+  const historicalReport = await res.json();
+  assert.equal(
+    historicalReport.rows.find((row: { nis: string }) => row.nis === 'S-002').status_label,
+    'Naik kelas',
+  );
+  res = await api(`/api/modules/academic-reports?academic_year_id=${targetYear.id}`);
+  const currentReport = await res.json();
+  assert.equal(
+    currentReport.rows.find((row: { nis: string }) => row.nis === 'S-002').class_name,
+    sourceClass.name,
+  );
+
+  res = await api(`/api/modules/promotions?source_academic_year_id=${sourceYear.id}`);
+  const completedProcess = await res.json();
+  assert.ok(completedProcess.last_batch?.id);
+  res = await api('/api/modules/promotions', 'DELETE', { id: completedProcess.last_batch.id });
+  assert.equal(res.status, 200);
+  res = await api(`/api/modules/academic-reports?academic_year_id=${sourceYear.id}`);
+  const restoredReport = await res.json();
+  assert.equal(
+    restoredReport.rows.find((row: { nis: string }) => row.nis === 'S-002').status_label,
+    'Aktif',
+  );
+});
+
+test('academic year template copies semesters, classes, teaching assignments, and homeroom', async () => {
+  const years = await (await api('/api/modules/academic-years')).json();
+  const sourceYear = years.rows.find((row: { is_active: number }) => row.is_active === 1);
+  const classes = await (
+    await api(`/api/modules/classes?academic_year_id=${sourceYear.id}`)
+  ).json();
+  const sourceClass = classes.rows[0];
+  const teachers = await (await api('/api/modules/teachers')).json();
+  const subjects = await (await api('/api/modules/subjects')).json();
+  assert.ok(sourceClass && teachers.rows[0] && subjects.rows[0]);
+
+  let res = await api('/api/modules/teaching-assignments', 'POST', {
+    academic_year_id: sourceYear.id,
+    teacher_id: teachers.rows[0].id,
+    subject_id: subjects.rows[0].id,
+    class_id: sourceClass.id,
+    semester_id: 'all',
+  });
+  assert.equal(res.status, 201);
+  res = await api('/api/modules/homeroom-assignments', 'POST', {
+    academic_year_id: sourceYear.id,
+    teacher_id: teachers.rows[0].id,
+    class_id: sourceClass.id,
+  });
+  assert.equal(res.status, 201);
+
+  res = await api('/api/modules/academic-years', 'POST', {
+    name: '2028/2029',
+    start_date: '2028-07-01',
+    end_date: '2029-06-30',
+    is_active: true,
+    copy_from_academic_year_id: sourceYear.id,
+    copy_semesters: true,
+    copy_classrooms: true,
+    copy_teaching_assignments: true,
+    copy_homeroom_assignments: true,
+  });
+  assert.equal(res.status, 201);
+  const copiedYear = await res.json();
+
+  const copiedSemesters = await (
+    await api(`/api/modules/semesters?academic_year_id=${copiedYear.id}`)
+  ).json();
+  const copiedClasses = await (
+    await api(`/api/modules/classes?academic_year_id=${copiedYear.id}`)
+  ).json();
+  const copiedTeaching = await (
+    await api(`/api/modules/teaching-assignments?academic_year_id=${copiedYear.id}`)
+  ).json();
+  const copiedHomeroom = await (
+    await api(`/api/modules/homeroom-assignments?academic_year_id=${copiedYear.id}`)
+  ).json();
+  assert.equal(copiedSemesters.total, 2);
+  assert.equal(copiedClasses.total, classes.total);
+  assert.ok(copiedTeaching.total >= 1);
+  assert.ok(copiedHomeroom.total >= 1);
+  assert.equal(copiedTeaching.selected.academic_year_id, copiedYear.id);
+  assert.equal(copiedHomeroom.selected.academic_year_id, copiedYear.id);
+});
+
+test('guided annual transition keeps the source active until finalization and can be undone', async () => {
+  let res = await api('/api/modules/promotions?mode=transition');
+  assert.equal(res.status, 200);
+  const setup = await res.json();
+  const sourceYear = setup.active_academic_year;
+  assert.equal(setup.target_academic_year, null);
+
+  const sourceClasses = await (
+    await api(`/api/modules/classes?academic_year_id=${sourceYear.value}`)
+  ).json();
+  const sourceClass = sourceClasses.rows[0];
+  assert.ok(sourceClass);
+  res = await api('/api/modules/students', 'POST', {
+    nis: 'WIZARD-001',
+    nisn: '',
+    name: 'Murid Wizard',
+    gender: 'female',
+    birth_date: '',
+    birth_place: '',
+    address: '',
+    phone: '',
+    email: '',
+    enrollment_date: sourceYear.start_date,
+    is_active: true,
+    guardians: [],
+    documents: [],
+    placement: { class_id: sourceClass.id, start_date: sourceYear.start_date },
+  });
+  assert.equal(res.status, 201);
+  const student = await res.json();
+
+  res = await api('/api/modules/academic-years', 'POST', {
+    name: '2029/2030',
+    start_date: '2029-07-01',
+    end_date: '2030-06-30',
+    is_active: false,
+    copy_from_academic_year_id: sourceYear.value,
+    copy_semesters: true,
+    copy_classrooms: true,
+    copy_teaching_assignments: true,
+    copy_homeroom_assignments: true,
+  });
+  assert.equal(res.status, 201);
+  const draft = await res.json();
+
+  const beforeFinalization = await (await api('/api/modules/academic-years')).json();
+  assert.equal(
+    beforeFinalization.rows.find((row: { id: string }) => row.id === sourceYear.value).is_active,
+    1,
+  );
+  assert.equal(
+    beforeFinalization.rows.find((row: { id: string }) => row.id === draft.id).is_active,
+    0,
+  );
+
+  res = await api(`/api/modules/promotions?mode=transition&target_academic_year_id=${draft.id}`);
+  assert.equal(res.status, 200);
+  const preview = await res.json();
+  assert.ok(preview.target_classes.length > 0);
+  assert.ok(preview.students.some((row: { id: string }) => row.id === student.id));
+
+  res = await api('/api/modules/promotions', 'POST', {
+    source_academic_year_id: sourceYear.value,
+    target_academic_year_id: draft.id,
+    activate_target: true,
+    actions: [{ student_id: student.id, outcome: 'graduated', target_class_id: '' }],
+  });
+  assert.equal(res.status, 200);
+  const completed = await res.json();
+  const afterFinalization = await (await api('/api/modules/academic-years')).json();
+  assert.equal(
+    afterFinalization.rows.find((row: { id: string }) => row.id === draft.id).is_active,
+    1,
+  );
+
+  res = await api('/api/modules/promotions', 'DELETE', { id: completed.id });
+  assert.equal(res.status, 200);
+  const afterUndo = await (await api('/api/modules/academic-years')).json();
+  assert.equal(
+    afterUndo.rows.find((row: { id: string }) => row.id === sourceYear.value).is_active,
+    1,
+  );
+  assert.equal(afterUndo.rows.find((row: { id: string }) => row.id === draft.id).is_active, 0);
 });

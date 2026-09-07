@@ -85,31 +85,35 @@ const teacher: AcademicEntityConfig = {
 
 const teachingAssignment: AcademicEntityConfig = {
   endpoint: '/api/modules/teaching-assignments',
-  title: 'Mapel & Penugasan Mengajar',
+  title: 'Penugasan Mapel',
   singular: 'Penugasan mengajar',
-  eyebrow: 'GURU',
+  eyebrow: 'DATA AKADEMIK',
+  academicYearFilter: true,
+  filters: [
+    { key: 'class_id', label: 'Semua rombel' },
+    { key: 'subject_id', label: 'Semua mata pelajaran' },
+  ],
   description:
     'Tentukan mapel yang diampu guru sekaligus rombel dan periode akademik tempatnya mengajar.',
   note: 'Setiap penugasan langsung menetapkan mapel yang diampu. Rombel dan semester harus berada pada tahun ajaran yang dipilih.',
   hasStatus: false,
-  defaults: { teacher_id: '', subject_id: '', class_id: '', academic_year_id: '', semester_id: '' },
+  defaults: { teacher_id: '', subject_id: '', class_id: '', semester_id: 'all' },
   fields: [
     { key: 'teacher_id', label: 'Guru', kind: 'select', required: true },
     { key: 'subject_id', label: 'Mata pelajaran', kind: 'select', required: true },
     { key: 'class_id', label: 'Rombel', kind: 'select', required: true },
-    { key: 'academic_year_id', label: 'Tahun ajaran', kind: 'select', required: true },
     {
       key: 'semester_id',
       label: 'Semester',
       kind: 'select',
-      placeholder: 'Semua semester (opsional)',
+      placeholder: 'Pilih semester',
+      description: 'Pilih Semua semester jika penugasan berlaku selama satu tahun ajaran.',
     },
   ],
   columns: [
     { key: 'teacher_name', label: 'GURU' },
     { key: 'subject_name', label: 'MATA PELAJARAN' },
     { key: 'class_name', label: 'ROMBEL' },
-    { key: 'academic_year_name', label: 'TAHUN AJARAN' },
     { key: 'semester_name', label: 'SEMESTER' },
   ],
 };
@@ -118,22 +122,21 @@ const homeroomAssignment: AcademicEntityConfig = {
   endpoint: '/api/modules/homeroom-assignments',
   title: 'Wali Kelas',
   singular: 'Penugasan wali kelas',
-  eyebrow: 'GURU',
+  eyebrow: 'DATA AKADEMIK',
+  academicYearFilter: true,
   description:
     'Tentukan guru yang menjadi wali kelas untuk setiap rombel pada tahun ajaran tertentu.',
   note: 'Satu guru hanya dapat menjadi wali satu rombel, dan satu rombel hanya memiliki satu wali pada tahun ajaran yang sama.',
   hasStatus: false,
-  defaults: { teacher_id: '', class_id: '', academic_year_id: '' },
+  defaults: { teacher_id: '', class_id: '' },
   fields: [
     { key: 'teacher_id', label: 'Guru', kind: 'select', required: true },
     { key: 'class_id', label: 'Rombel', kind: 'select', required: true },
-    { key: 'academic_year_id', label: 'Tahun ajaran', kind: 'select', required: true },
   ],
   columns: [
     { key: 'teacher_name', label: 'WALI KELAS' },
     { key: 'employee_code', label: 'KODE GURU', kind: 'code' },
     { key: 'class_name', label: 'ROMBEL' },
-    { key: 'academic_year_name', label: 'TAHUN AJARAN' },
   ],
 };
 

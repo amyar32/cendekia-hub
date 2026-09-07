@@ -25,6 +25,9 @@ export const permissions = [
   'homeroom-assignments.write',
   'students.read',
   'students.write',
+  'promotions.read',
+  'promotions.write',
+  'academic-reports.read',
 ] as const;
 export type Permission = (typeof permissions)[number];
 export type ModuleKey =
@@ -34,13 +37,15 @@ export type ModuleKey =
   | 'school'
   | 'academic-years'
   | 'semesters'
-  | 'grades'
   | 'classes'
+  | 'grades'
   | 'subjects'
   | 'teachers'
   | 'teaching-assignments'
   | 'homeroom-assignments'
-  | 'students';
+  | 'students'
+  | 'promotions'
+  | 'academic-reports';
 export type CmsModule = {
   key: ModuleKey;
   label: string;
@@ -54,96 +59,112 @@ export const modules: CmsModule[] = [
   {
     key: 'academic-years',
     label: 'Tahun Ajaran',
-    description: 'Kelola periode tahun ajaran dan tentukan periode yang sedang aktif.',
+    description: 'Kelola periode tahun ajaran dan salin data akademik tahun sebelumnya.',
     path: '/academic/academic-years',
     permission: 'academic-years.read',
     group: 'Akademik',
   },
   {
-    key: 'semesters',
-    label: 'Semester',
-    description: 'Kelola semester dan periode dalam setiap tahun ajaran.',
-    path: '/academic/semesters',
-    permission: 'semesters.read',
-    group: 'Akademik',
-  },
-  {
-    key: 'grades',
-    label: 'Tingkat / Kelas',
-    description: 'Kelola jenjang tingkat kelas yang berlaku di sekolah.',
-    path: '/academic/grades',
-    permission: 'grades.read',
-    group: 'Akademik',
-  },
-  {
-    key: 'classes',
-    label: 'Rombel',
-    description: 'Kelola rombongan belajar per tahun ajaran dan tingkat.',
-    path: '/academic/classes',
-    permission: 'classes.read',
-    group: 'Akademik',
-  },
-  {
-    key: 'subjects',
-    label: 'Mata Pelajaran',
-    description: 'Kelola kode, kategori, dan identitas mata pelajaran.',
-    path: '/academic/subjects',
-    permission: 'subjects.read',
-    group: 'Akademik',
-  },
-  {
-    key: 'teachers',
-    label: 'Data Guru',
-    description: 'Kelola identitas dan status kepegawaian guru.',
-    path: '/teachers',
-    permission: 'teachers.read',
-    group: 'Guru',
-  },
-  {
     key: 'teaching-assignments',
-    label: 'Mapel & Penugasan',
+    label: 'Penugasan Mengajar',
     description: 'Kelola mapel yang diampu guru beserta rombel dan periode mengajarnya.',
-    path: '/teachers/teaching-assignments',
+    path: '/academic/teaching-assignments',
     permission: 'teaching-assignments.read',
-    group: 'Guru',
+    group: 'Akademik',
   },
   {
     key: 'homeroom-assignments',
     label: 'Wali Kelas',
     description: 'Tentukan guru wali kelas untuk setiap rombel dan tahun ajaran.',
-    path: '/teachers/homeroom-assignments',
+    path: '/academic/homeroom-assignments',
     permission: 'homeroom-assignments.read',
-    group: 'Guru',
+    group: 'Akademik',
+  },
+  {
+    key: 'promotions',
+    label: 'Pergantian Tahun Ajaran',
+    description: 'Siapkan tahun baru, petakan rombel, dan proses hasil akademik murid.',
+    path: '/annual-transition',
+    permission: 'promotions.read',
+    group: 'Utama',
+  },
+  {
+    key: 'semesters',
+    label: 'Semester',
+    description: 'Kelola semester berdasarkan tahun ajaran.',
+    path: '/academic/semesters',
+    permission: 'semesters.read',
+    group: 'Akademik',
+  },
+  {
+    key: 'classes',
+    label: 'Rombel',
+    description: 'Kelola rombongan belajar berdasarkan tahun ajaran.',
+    path: '/academic/classes',
+    permission: 'classes.read',
+    group: 'Akademik',
+  },
+  {
+    key: 'teachers',
+    label: 'Guru',
+    description: 'Kelola identitas dan status kepegawaian guru.',
+    path: '/master-data/teachers',
+    permission: 'teachers.read',
+    group: 'Data Sekolah',
   },
   {
     key: 'students',
-    label: 'Data Murid',
+    label: 'Murid',
     description: 'Kelola identitas, wali, dokumen, penempatan, dan riwayat kelas murid.',
-    path: '/students',
+    path: '/master-data/students',
     permission: 'students.read',
-    group: 'Murid',
+    group: 'Data Sekolah',
+  },
+  {
+    key: 'subjects',
+    label: 'Mata Pelajaran',
+    description: 'Kelola kode, kategori, dan identitas mata pelajaran.',
+    path: '/master-data/subjects',
+    permission: 'subjects.read',
+    group: 'Data Sekolah',
+  },
+  {
+    key: 'grades',
+    label: 'Tingkat',
+    description: 'Kelola jenjang tingkat kelas yang berlaku di sekolah.',
+    path: '/master-data/grades',
+    permission: 'grades.read',
+    group: 'Data Sekolah',
+  },
+  {
+    key: 'academic-reports',
+    label: 'Laporan Akademik',
+    description: 'Lihat penempatan dan riwayat murid berdasarkan tahun ajaran.',
+    path: '/reports/academic',
+    permission: 'academic-reports.read',
+    group: 'Laporan',
   },
   {
     key: 'school',
-    label: 'Pengaturan Sekolah',
+    label: 'Sekolah',
     description: 'Kelola identitas dan informasi kontak sekolah.',
     path: '/settings/school',
     permission: 'school.read',
-    group: 'Preferensi',
+    group: 'Pengaturan',
   },
   {
     key: 'users',
     label: 'Pengguna',
     description: 'Kelola anggota dan akses ke workspace.',
-    path: '/users',
+    path: '/administration/users',
     permission: 'users.read',
     group: 'Administrasi',
   },
   {
     key: 'roles',
-    label: 'Role & Permission',
+    label: 'Role & Izin',
     description: 'Tentukan apa yang dapat diakses oleh setiap role.',
-    path: '/roles',
+    path: '/administration/roles',
     permission: 'roles.read',
     group: 'Administrasi',
   },
@@ -151,7 +172,7 @@ export const modules: CmsModule[] = [
     key: 'audit',
     label: 'Audit Trail',
     description: 'Telusuri aktivitas dan perubahan di workspace.',
-    path: '/audit',
+    path: '/administration/audit',
     permission: 'audit.read',
     group: 'Administrasi',
   },

@@ -1,0 +1,33 @@
+.panel {
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--app-color-border);
+}
+
+.summaryBar {
+  padding-left: 2px;
+}
+
+.tablePanel {
+  overflow: hidden;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 72px 20px;
+}
+
+@media (max-width: 780px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
+  }
+}

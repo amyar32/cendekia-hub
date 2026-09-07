@@ -25,7 +25,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 13px 9px;
+  padding: 12px;
   background: var(--app-color-subtle);
   margin: 33px 0 11px;
 }
@@ -37,7 +37,7 @@
 }
 
 .navLabel {
-  margin: 27px 12px 12px;
+  margin: 22px 12px 10px;
 }
 
 .navMenu {

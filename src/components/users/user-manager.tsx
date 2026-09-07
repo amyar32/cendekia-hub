@@ -216,6 +216,7 @@ export function UserManager({
         <form onSubmit={save}>
           <TextInput
             label="Nama"
+            placeholder="Masukkan nama lengkap"
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
             required
@@ -225,6 +226,7 @@ export function UserManager({
           />
           <TextInput
             label="Email"
+            placeholder="nama@sekolah.sch.id"
             type="email"
             value={form.email}
             onChange={(event) => setForm({ ...form, email: event.currentTarget.value })}
@@ -242,6 +244,7 @@ export function UserManager({
           />
           <PasswordInput
             label={editing ? 'Kata sandi baru (opsional)' : 'Kata sandi'}
+            placeholder={editing ? 'Kosongkan jika tidak diubah' : 'Masukkan kata sandi'}
             description="Minimal 12 karakter."
             autoComplete="new-password"
             value={form.password}

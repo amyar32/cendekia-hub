@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
+  activeAcademicYear,
   classOptions,
   currentSchoolId,
   requireClass,
@@ -87,7 +88,16 @@ function attachRelations(rows: StudentRow[]) {
   const histories = db()
     .prepare(
       `SELECT cm.*,c.name AS class_name,ay.name AS academic_year_name,
-     CASE cm.status WHEN 'active' THEN 'Aktif' WHEN 'completed' THEN 'Selesai' WHEN 'transferred' THEN 'Pindah' ELSE 'Keluar' END AS status_label
+     CASE
+       WHEN cm.completion_reason='promoted' THEN 'Naik kelas'
+       WHEN cm.completion_reason='retained' THEN 'Tinggal kelas'
+       WHEN cm.completion_reason='graduated' THEN 'Lulus'
+       WHEN cm.completion_reason='withdrawn' THEN 'Pindah / keluar'
+       WHEN cm.status='active' THEN 'Aktif'
+       WHEN cm.status='completed' THEN 'Selesai'
+       WHEN cm.status='transferred' THEN 'Pindah'
+       ELSE 'Keluar'
+     END AS status_label
      FROM class_memberships cm JOIN classes c ON c.id=cm.class_id
      JOIN academic_years ay ON ay.id=cm.academic_year_id
      WHERE cm.student_id IN (${placeholders}) ORDER BY ay.start_date DESC,cm.start_date DESC`,
@@ -118,6 +128,7 @@ export async function GET(request: Request) {
   try {
     await requireUser('students.read');
     const schoolId = currentSchoolId();
+    const activeYear = activeAcademicYear(schoolId);
     const { filter, offset } = listParams(request);
     const where = `s.school_id=? AND (s.nis LIKE ? OR s.nisn LIKE ? OR s.name LIKE ? OR s.email LIKE ?)`;
     const rows = db()
@@ -132,7 +143,11 @@ export async function GET(request: Request) {
         .get(schoolId, filter, filter, filter, filter) as { n: number }
     ).n;
     return Response.json(
-      { rows: attachRelations(rows), total, options: { class_id: classOptions(schoolId) } },
+      {
+        rows: attachRelations(rows),
+        total,
+        options: { class_id: classOptions(schoolId, activeYear.id) },
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {
@@ -244,6 +259,18 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         start_date: string;
       }[];
       const current = activeMemberships[0];
+      if (
+        classroom &&
+        current &&
+        current.class_id !== classroom.id &&
+        current.academic_year_id !== classroom.academic_year_id
+      )
+        throw new HttpError(
+          400,
+          'Perpindahan lintas tahun ajaran harus dilakukan melalui Proses Kenaikan Kelas.',
+        );
+      if (classroom && !current && classroom.academic_year_id !== activeAcademicYear(schoolId).id)
+        throw new HttpError(400, 'Penempatan baru harus menggunakan tahun ajaran aktif.');
       if (!data.is_active || !classroom) {
         db()
           .prepare(
@@ -267,7 +294,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
             );
           db()
             .prepare(
-              "UPDATE class_memberships SET status=?,end_date=?,updated_at=datetime('now') WHERE id=?",
+              "UPDATE class_memberships SET status=?,completion_reason='transfer',end_date=?,updated_at=datetime('now') WHERE id=?",
             )
             .run(
               membership.academic_year_id === classroom.academic_year_id

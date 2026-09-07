@@ -8,9 +8,11 @@ export type ModuleListResponse<Row> = {
   total: number;
   roles?: { id: string; name: string }[];
   options?: Record<string, { value: string; label: string }[]>;
+  selected?: Record<string, string>;
 };
 
-export function useModuleList<Row>(endpoint: string) {
+export function useModuleList<Row>(endpoint: string, params: Record<string, string> = {}) {
+  const serializedParams = JSON.stringify(params);
   const [data, setData] = useState<ModuleListResponse<Row>>({ rows: [], total: 0 });
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
@@ -31,7 +33,9 @@ export function useModuleList<Row>(endpoint: string) {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${endpoint}?page=${page}&q=${encodeURIComponent(search)}`, {
+    const extraParams = JSON.parse(serializedParams) as Record<string, string>;
+    const searchParams = new URLSearchParams({ page: String(page), q: search, ...extraParams });
+    fetch(`${endpoint}?${searchParams}`, {
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -54,7 +58,7 @@ export function useModuleList<Row>(endpoint: string) {
       });
 
     return () => controller.abort();
-  }, [endpoint, page, search, revision]);
+  }, [endpoint, page, search, revision, serializedParams]);
 
   return {
     ...data,

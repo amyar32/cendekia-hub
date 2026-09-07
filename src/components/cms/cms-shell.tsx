@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Anchor,
   AppShell,
@@ -37,9 +37,15 @@ import {
   IconSchoolBell,
   IconUsersGroup,
   IconHome2,
+  IconArrowUp,
+  IconReportAnalytics,
 } from '@tabler/icons-react';
-import { modules, can } from '@/config/modules';
+import { modules, can, moduleByKey, type ModuleKey } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
+import {
+  subscribeAcademicContext,
+  type AcademicContextUpdate,
+} from '@/lib/academic-context-client';
 import styles from './cms-shell.module.css';
 const icons = {
   users: IconUsers,
@@ -48,18 +54,58 @@ const icons = {
   school: IconSchool,
   'academic-years': IconCalendarEvent,
   semesters: IconSchoolBell,
-  grades: IconHierarchy,
   classes: IconUsersGroup,
+  grades: IconHierarchy,
   subjects: IconBooks,
   teachers: IconUsers,
   'teaching-assignments': IconSchoolBell,
   'homeroom-assignments': IconHome2,
   students: IconUsersGroup,
+  promotions: IconArrowUp,
+  'academic-reports': IconReportAnalytics,
 };
-export function CmsShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
+const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
+  { label: 'Data Sekolah', keys: ['students', 'teachers', 'grades', 'subjects'] },
+  {
+    label: 'Akademik',
+    keys: [
+      'academic-years',
+      'semesters',
+      'classes',
+      'teaching-assignments',
+      'homeroom-assignments',
+    ],
+  },
+  { label: 'Laporan', keys: ['academic-reports'] },
+  { label: 'Administrasi', keys: ['users', 'roles', 'audit'] },
+  { label: 'Pengaturan', keys: ['school'] },
+];
+
+export function CmsShell({
+  user,
+  academicContext,
+  children,
+}: {
+  user: SessionUser;
+  academicContext?: { academic_year: string | null; semester: string | null };
+  children: React.ReactNode;
+}) {
   const path = usePathname();
   const router = useRouter();
   const [opened, setOpened] = useState(false);
+  const [currentAcademicContext, setCurrentAcademicContext] = useState(academicContext);
+
+  useEffect(
+    () =>
+      subscribeAcademicContext((update: AcademicContextUpdate) => {
+        setCurrentAcademicContext((current) => ({
+          academic_year:
+            update.academic_year === undefined ? (current?.academic_year ?? null) : update.academic_year,
+          semester: update.semester === undefined ? (current?.semester ?? null) : update.semester,
+        }));
+      }),
+    [],
+  );
   async function logout() {
     try {
       const res = await fetch('/api/auth/logout', { method: 'POST' });
@@ -103,22 +149,24 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
           </Text>
         </Text>
         <Paper className={styles.workspaceCard} withBorder>
-          <ThemeIcon className={styles.workspaceAvatar} variant="default" size={34} radius={7}>
-            C
+          <ThemeIcon className={styles.workspaceAvatar} variant="light" size={38} radius={8}>
+            <IconCalendarEvent size={20} />
           </ThemeIcon>
           <Stack gap={2}>
+            <Text variant="eyebrow" fz={8}>
+              TAHUN AKTIF
+            </Text>
             <Text fw={700} size="xs">
-              Workspace utama
+              {currentAcademicContext?.academic_year || 'Belum ditentukan'}
             </Text>
-            <Text variant="caption" fz={9}>
-              Content management system
-            </Text>
+            {currentAcademicContext?.semester && (
+              <Text variant="caption">{currentAcademicContext.semester}</Text>
+            )}
           </Stack>
-          <IconChevronDown size={15} />
         </Paper>
         <nav className={styles.navMenu} onClick={() => setOpened(false)}>
           <Text className={styles.navLabel} variant="eyebrow">
-            WORKSPACE
+            UTAMA
           </Text>
           {can(user.permissions, 'dashboard.read') && (
             <NavLink
@@ -129,134 +177,59 @@ export function CmsShell({ user, children }: { user: SessionUser; children: Reac
               label="Ringkasan"
             />
           )}
-          {modules.some(
-            (module) => module.group === 'Akademik' && can(user.permissions, module.permission),
-          ) && (
-            <div>
-              <Text className={styles.navLabel} variant="eyebrow">
-                AKADEMIK
-              </Text>
-              {modules
-                .filter(
-                  (module) =>
-                    module.group === 'Akademik' && can(user.permissions, module.permission),
-                )
-                .map((module) => {
-                  const Icon = icons[module.key];
-                  return (
-                    <NavLink
-                      component={Link}
-                      key={module.key}
-                      href={module.path}
-                      active={path === module.path}
-                      leftSection={<Icon size={20} />}
-                      label={module.label}
-                    />
-                  );
-                })}
-            </div>
-          )}
-          {modules.some(
-            (module) => module.group === 'Guru' && can(user.permissions, module.permission),
-          ) && (
-            <div>
-              <Text className={styles.navLabel} variant="eyebrow">
-                GURU
-              </Text>
-              {modules
-                .filter(
-                  (module) => module.group === 'Guru' && can(user.permissions, module.permission),
-                )
-                .map((module) => {
-                  const Icon = icons[module.key];
-                  return (
-                    <NavLink
-                      component={Link}
-                      key={module.key}
-                      href={module.path}
-                      active={path === module.path}
-                      leftSection={<Icon size={18} />}
-                      label={module.label}
-                    />
-                  );
-                })}
-            </div>
-          )}
-          {modules.some(
-            (module) => module.group === 'Murid' && can(user.permissions, module.permission),
-          ) && (
-            <div>
-              <Text className={styles.navLabel} variant="eyebrow">
-                MURID
-              </Text>
-              {modules
-                .filter(
-                  (module) => module.group === 'Murid' && can(user.permissions, module.permission),
-                )
-                .map((module) => {
-                  const Icon = icons[module.key];
-                  return (
-                    <NavLink
-                      component={Link}
-                      key={module.key}
-                      href={module.path}
-                      active={path === module.path}
-                      leftSection={<Icon size={20} />}
-                      label={module.label}
-                    />
-                  );
-                })}
-            </div>
-          )}
-          {['Administrasi'].map((group) => (
-            <div key={group}>
-              {modules.some((m) => m.group === group && can(user.permissions, m.permission)) && (
-                <Text className={styles.navLabel} variant="eyebrow">
-                  {group.toUpperCase()}
-                </Text>
-              )}
-              {modules
-                .filter((m) => m.group === group && can(user.permissions, m.permission))
-                .map((m) => {
-                  const Icon = icons[m.key];
-                  return (
-                    <NavLink
-                      component={Link}
-                      key={m.key}
-                      href={m.path}
-                      active={path === m.path}
-                      leftSection={<Icon size={20} />}
-                      label={m.label}
-                    />
-                  );
-                })}
-            </div>
-          ))}
-          <Text className={styles.navLabel} variant="eyebrow">
-            PREFERENSI
-          </Text>
           {modules
-            .filter((m) => m.group === 'Preferensi' && can(user.permissions, m.permission))
-            .map((m) => {
-              const Icon = icons[m.key];
+            .filter(
+              (module) => module.group === 'Utama' && can(user.permissions, module.permission),
+            )
+            .map((module) => {
+              const Icon = icons[module.key];
               return (
                 <NavLink
                   component={Link}
-                  key={m.key}
-                  href={m.path}
-                  active={path === m.path}
+                  key={module.key}
+                  href={module.path}
+                  active={path === module.path}
                   leftSection={<Icon size={20} />}
-                  label={m.label}
+                  label={module.label}
                 />
               );
             })}
-          <NavLink
-            component={Link}
-            href="/settings/account"
-            active={path === '/settings/account'}
-            leftSection={<IconSettings size={20} />}
-            label="Pengaturan Akun"
-          />
+          {navigationGroups.map((group) => {
+            const visibleModules = group.keys
+              .map((key) => moduleByKey[key])
+              .filter((module) => can(user.permissions, module.permission));
+            const showAccount = group.label === 'Pengaturan';
+            if (!visibleModules.length && !showAccount) return null;
+            return (
+              <div key={group.label}>
+                <Text className={styles.navLabel} variant="eyebrow">
+                  {group.label.toUpperCase()}
+                </Text>
+                {visibleModules.map((module) => {
+                  const Icon = icons[module.key];
+                  return (
+                    <NavLink
+                      component={Link}
+                      key={module.key}
+                      href={module.path}
+                      active={path === module.path}
+                      leftSection={<Icon size={20} />}
+                      label={module.label}
+                    />
+                  );
+                })}
+                {showAccount && (
+                  <NavLink
+                    component={Link}
+                    href="/settings/account"
+                    active={path === '/settings/account'}
+                    leftSection={<IconSettings size={20} />}
+                    label="Akun"
+                  />
+                )}
+              </div>
+            );
+          })}
         </nav>
         <Group className={styles.sidebarFooter} gap={7} wrap="nowrap">
           <Box className={styles.statusDot} />
