@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActionIcon,
   Alert,
   Badge,
   Box,
@@ -36,6 +37,7 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconCopy,
+  IconPencil,
   IconFilter,
   IconPlus,
   IconReportAnalytics,
@@ -149,6 +151,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
   const [existingDraft, setExistingDraft] = useState('');
   const [copyTeaching, setCopyTeaching] = useState(true);
   const [copyHomeroom, setCopyHomeroom] = useState(true);
+  const [copySchedules, setCopySchedules] = useState(true);
   const [mappings, setMappings] = useState<Record<string, string>>({});
   const [actions, setActions] = useState<Record<string, Action>>({});
   const [showExceptions, setShowExceptions] = useState(false);
@@ -157,6 +160,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
   const [exceptionView, setExceptionView] = useState<'all' | 'changed'>('all');
   const [exceptionPage, setExceptionPage] = useState(1);
   const [newClassOpened, setNewClassOpened] = useState(false);
+  const [editingClass, setEditingClass] = useState<TargetClass | null>(null);
   const [classForm, setClassForm] = useState<ClassForm>({ name: '', grade_id: '', capacity: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -281,8 +285,6 @@ export function PromotionManager({ writable }: { writable: boolean }) {
     (exceptionPage - 1) * EXCEPTION_PAGE_SIZE,
     exceptionPage * EXCEPTION_PAGE_SIZE,
   );
-  useEffect(() => setExceptionPage(1), [exceptionClass, exceptionQuery, exceptionView]);
-
   function mapClass(sourceClassId: string, targetClassId: string) {
     setMappings((current) => ({ ...current, [sourceClassId]: targetClassId }));
     setActions((current) => {
@@ -292,6 +294,16 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           next[student.id] = { ...next[student.id], target_class_id: targetClassId };
       return next;
     });
+  }
+
+  function openClassEditor(target: TargetClass) {
+    setEditingClass(target);
+    setClassForm({
+      name: target.name,
+      grade_id: target.grade_id,
+      capacity: target.capacity,
+    });
+    setNewClassOpened(true);
   }
 
   function changeOutcome(student: Student, outcome: Outcome) {
@@ -340,6 +352,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           copy_classrooms: true,
           copy_teaching_assignments: copyTeaching,
           copy_homeroom_assignments: copyHomeroom,
+          copy_schedules: copySchedules,
         }),
       });
       const result = await response.json();
@@ -420,27 +433,48 @@ export function PromotionManager({ writable }: { writable: boolean }) {
     setSaving(true);
     try {
       const response = await fetch('/api/modules/promotions', {
-        method: 'PUT',
+        method: editingClass ? 'PATCH' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...classForm,
+          id: editingClass?.value,
           target_academic_year_id: data.target_academic_year.value,
         }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
+      if (editingClass && editingClass.grade_id !== classForm.grade_id) {
+        setMappings((current) =>
+          Object.fromEntries(
+            Object.entries(current).filter(([, value]) => value !== editingClass.value),
+          ),
+        );
+        setActions((current) =>
+          Object.fromEntries(
+            Object.entries(current).map(([studentId, action]) => [
+              studentId,
+              action.target_class_id === editingClass.value
+                ? { ...action, target_class_id: '' }
+                : action,
+            ]),
+          ),
+        );
+      }
       setNewClassOpened(false);
+      setEditingClass(null);
       setClassForm({ name: '', grade_id: '', capacity: '' });
       await load(data.target_academic_year.value, true);
       notifications.show({
         color: 'green',
-        title: 'Rombel ditambahkan',
-        message: 'Rombel baru siap dipakai untuk pemetaan.',
+        title: editingClass ? 'Rombel diperbarui' : 'Rombel ditambahkan',
+        message: editingClass
+          ? 'Perubahan rombel sudah disimpan.'
+          : 'Rombel baru siap dipakai untuk pemetaan.',
       });
     } catch (error) {
       notifications.show({
         color: 'red',
-        title: 'Rombel gagal ditambahkan',
+        title: editingClass ? 'Rombel gagal diperbarui' : 'Rombel gagal ditambahkan',
         message: error instanceof Error ? error.message : 'Koneksi gagal.',
       });
     } finally {
@@ -644,7 +678,10 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                   title="Penugasan mengajar"
                   detail="Guru dan mata pelajaran"
                   checked={copyTeaching}
-                  onChange={setCopyTeaching}
+                  onChange={(value) => {
+                    setCopyTeaching(value);
+                    if (!value) setCopySchedules(false);
+                  }}
                 />
                 <CopyCard
                   icon={<IconSchool size={22} />}
@@ -652,6 +689,14 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                   detail="Dapat disesuaikan setelah proses"
                   checked={copyHomeroom}
                   onChange={setCopyHomeroom}
+                />
+                <CopyCard
+                  icon={<IconCalendarEvent size={22} />}
+                  title="Jadwal pelajaran"
+                  detail="Jadwal mingguan dari tahun sebelumnya"
+                  checked={copySchedules}
+                  disabled={!copyTeaching}
+                  onChange={setCopySchedules}
                 />
               </SimpleGrid>
               <WizardActions
@@ -677,11 +722,51 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 <Button
                   variant="light"
                   leftSection={<IconPlus size={17} />}
-                  onClick={() => setNewClassOpened(true)}
+                  onClick={() => {
+                    setEditingClass(null);
+                    setClassForm({ name: '', grade_id: '', capacity: '' });
+                    setNewClassOpened(true);
+                  }}
                 >
                   Tambah rombel baru
                 </Button>
               </Group>
+              <Paper withBorder p="md">
+                <Stack gap="sm">
+                  <Text fw={650}>Rombel tahun baru</Text>
+                  <Table.ScrollContainer minWidth={520}>
+                    <Table verticalSpacing="sm" highlightOnHover>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>NAMA</Table.Th>
+                          <Table.Th>TINGKAT</Table.Th>
+                          <Table.Th>KAPASITAS</Table.Th>
+                          <Table.Th ta="right">AKSI</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {data.target_classes.map((target) => (
+                          <Table.Tr key={target.value}>
+                            <Table.Td>{target.name}</Table.Td>
+                            <Table.Td>{target.grade_name}</Table.Td>
+                            <Table.Td>{target.capacity || 'Tanpa batas'}</Table.Td>
+                            <Table.Td ta="right">
+                              <ActionIcon
+                                variant="subtle"
+                                color="gray"
+                                aria-label={`Edit ${target.name}`}
+                                onClick={() => openClassEditor(target)}
+                              >
+                                <IconPencil size={17} />
+                              </ActionIcon>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </Table.ScrollContainer>
+                </Stack>
+              </Paper>
               <Table.ScrollContainer minWidth={720}>
                 <Table verticalSpacing="md" highlightOnHover>
                   <Table.Thead>
@@ -795,7 +880,10 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                       leftSection={<IconSearch size={16} />}
                       placeholder="Cari NIS atau nama murid"
                       value={exceptionQuery}
-                      onChange={(event) => setExceptionQuery(event.currentTarget.value)}
+                      onChange={(event) => {
+                        setExceptionQuery(event.currentTarget.value);
+                        setExceptionPage(1);
+                      }}
                     />
                     <Select
                       leftSection={<IconFilter size={16} />}
@@ -806,7 +894,10 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                         label: `${item.name} · ${item.student_count} murid`,
                       }))}
                       value={exceptionClass}
-                      onChange={setExceptionClass}
+                      onChange={(value) => {
+                        setExceptionClass(value);
+                        setExceptionPage(1);
+                      }}
                     />
                     <Select
                       data={[
@@ -814,7 +905,10 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                         { value: 'changed', label: 'Hanya yang diubah' },
                       ]}
                       value={exceptionView}
-                      onChange={(value) => setExceptionView(value as 'all' | 'changed')}
+                      onChange={(value) => {
+                        setExceptionView(value as 'all' | 'changed');
+                        setExceptionPage(1);
+                      }}
                     />
                   </SimpleGrid>
                   <Group justify="space-between">
@@ -1004,14 +1098,18 @@ export function PromotionManager({ writable }: { writable: boolean }) {
       </Paper>
       <Modal
         opened={newClassOpened}
-        onClose={() => setNewClassOpened(false)}
-        title="Tambah rombel baru"
+        onClose={() => {
+          setNewClassOpened(false);
+          setEditingClass(null);
+          setClassForm({ name: '', grade_id: '', capacity: '' });
+        }}
+        title={editingClass ? 'Edit rombel' : 'Tambah rombel baru'}
         centered
       >
         <Stack>
           <Text c="dimmed" size="sm">
-            Rombel dibuat pada {data?.target_academic_year?.label} dan langsung tersedia untuk
-            pemetaan.
+            {editingClass ? 'Rombel yang sudah disalin' : 'Rombel baru'} pada{' '}
+            {data?.target_academic_year?.label} dapat langsung dipakai untuk pemetaan.
           </Text>
           <Select
             label="Tingkat / kelas"
@@ -1046,11 +1144,22 @@ export function PromotionManager({ writable }: { writable: boolean }) {
             required
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setNewClassOpened(false)}>
+            <Button
+              variant="default"
+              onClick={() => {
+                setNewClassOpened(false);
+                setEditingClass(null);
+                setClassForm({ name: '', grade_id: '', capacity: '' });
+              }}
+            >
               Batal
             </Button>
-            <Button leftSection={<IconPlus size={17} />} loading={saving} onClick={createClass}>
-              Tambah rombel
+            <Button
+              leftSection={editingClass ? <IconPencil size={17} /> : <IconPlus size={17} />}
+              loading={saving}
+              onClick={createClass}
+            >
+              {editingClass ? 'Simpan perubahan' : 'Tambah rombel'}
             </Button>
           </Group>
         </Stack>

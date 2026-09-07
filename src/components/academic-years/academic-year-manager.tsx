@@ -64,6 +64,7 @@ type AcademicYearForm = {
   copy_classrooms: boolean;
   copy_teaching_assignments: boolean;
   copy_homeroom_assignments: boolean;
+  copy_schedules: boolean;
 };
 
 const emptyForm = (): AcademicYearForm => ({
@@ -76,6 +77,7 @@ const emptyForm = (): AcademicYearForm => ({
   copy_classrooms: true,
   copy_teaching_assignments: true,
   copy_homeroom_assignments: true,
+  copy_schedules: true,
 });
 const endpoint = '/api/modules/academic-years';
 const dateFormatter = new Intl.DateTimeFormat('id-ID', {
@@ -106,6 +108,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
             copy_classrooms: false,
             copy_teaching_assignments: false,
             copy_homeroom_assignments: false,
+            copy_schedules: false,
           }
         : emptyForm(),
     );
@@ -348,26 +351,38 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                     <Checkbox
                       label="Salin semester"
                       checked={form.copy_semesters}
-                      onChange={(event) =>
-                        setForm({ ...form, copy_semesters: event.currentTarget.checked })
-                      }
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setForm({
+                          ...form,
+                          copy_semesters: checked,
+                          copy_schedules: checked ? form.copy_schedules : false,
+                        });
+                      }}
                     />
                     <Checkbox
                       label="Salin rombel"
                       checked={form.copy_classrooms}
-                      onChange={(event) =>
-                        setForm({ ...form, copy_classrooms: event.currentTarget.checked })
-                      }
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setForm({
+                          ...form,
+                          copy_classrooms: checked,
+                          copy_schedules: checked ? form.copy_schedules : false,
+                        });
+                      }}
                     />
                     <Checkbox
                       label="Salin penugasan mengajar"
                       checked={form.copy_teaching_assignments}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
                         setForm({
                           ...form,
-                          copy_teaching_assignments: event.currentTarget.checked,
-                        })
-                      }
+                          copy_teaching_assignments: checked,
+                          copy_schedules: checked ? form.copy_schedules : false,
+                        });
+                      }}
                     />
                     <Checkbox
                       label="Salin wali kelas"
@@ -377,6 +392,19 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                           ...form,
                           copy_homeroom_assignments: event.currentTarget.checked,
                         })
+                      }
+                    />
+                    <Checkbox
+                      label="Salin jadwal pelajaran"
+                      description="Mengikuti semester, rombel, dan penugasan yang disalin"
+                      checked={form.copy_schedules}
+                      disabled={
+                        !form.copy_semesters ||
+                        !form.copy_classrooms ||
+                        !form.copy_teaching_assignments
+                      }
+                      onChange={(event) =>
+                        setForm({ ...form, copy_schedules: event.currentTarget.checked })
                       }
                     />
                   </SimpleGrid>

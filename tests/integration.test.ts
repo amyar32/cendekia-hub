@@ -1037,7 +1037,7 @@ test('academic year context, bulk promotion, and historical reports', async () =
   );
 });
 
-test('academic year template copies semesters, classes, teaching assignments, and homeroom', async () => {
+test('academic year template copies semesters, classes, teaching assignments, homeroom, and schedules', async () => {
   const years = await (await api('/api/modules/academic-years')).json();
   const sourceYear = years.rows.find((row: { is_active: number }) => row.is_active === 1);
   const classes = await (
@@ -1048,12 +1048,41 @@ test('academic year template copies semesters, classes, teaching assignments, an
   const subjects = await (await api('/api/modules/subjects')).json();
   assert.ok(sourceClass && teachers.rows[0] && subjects.rows[0]);
 
-  let res = await api('/api/modules/teaching-assignments', 'POST', {
+  const sourceSemesters = await (
+    await api(`/api/modules/semesters?academic_year_id=${sourceYear.id}`)
+  ).json();
+  const sourceSemester = sourceSemesters.rows[0];
+  const timeSlots = await (await api('/api/modules/schedule-time-slots')).json();
+  let sourceSlot = timeSlots.rows.find((row: { is_break: number }) => !row.is_break);
+  let res: Response;
+  if (!sourceSlot) {
+    res = await api('/api/modules/schedule-time-slots', 'POST', {
+      name: 'JP Salinan',
+      start_time: '10:00',
+      end_time: '10:40',
+      slot_order: 99,
+      is_break: false,
+      is_active: true,
+    });
+    assert.equal(res.status, 201);
+    sourceSlot = await res.json();
+  }
+  assert.ok(sourceSemester);
+
+  res = await api('/api/modules/teaching-assignments', 'POST', {
     academic_year_id: sourceYear.id,
     teacher_id: teachers.rows[0].id,
     subject_id: subjects.rows[0].id,
     class_id: sourceClass.id,
     semester_id: 'all',
+  });
+  assert.equal(res.status, 201);
+  const sourceAssignment = await res.json();
+  res = await api('/api/modules/schedules', 'POST', {
+    teaching_assignment_id: sourceAssignment.id,
+    semester_id: sourceSemester.id,
+    time_slot_id: sourceSlot.id,
+    weekday: 6,
   });
   assert.equal(res.status, 201);
   res = await api('/api/modules/homeroom-assignments', 'POST', {
@@ -1073,6 +1102,7 @@ test('academic year template copies semesters, classes, teaching assignments, an
     copy_classrooms: true,
     copy_teaching_assignments: true,
     copy_homeroom_assignments: true,
+    copy_schedules: true,
   });
   assert.equal(res.status, 201);
   const copiedYear = await res.json();
@@ -1089,12 +1119,32 @@ test('academic year template copies semesters, classes, teaching assignments, an
   const copiedHomeroom = await (
     await api(`/api/modules/homeroom-assignments?academic_year_id=${copiedYear.id}`)
   ).json();
+  const copiedSchedule = await (
+    await api(
+      `/api/modules/schedules?academic_year_id=${copiedYear.id}&semester_id=${copiedSemesters.rows[0].id}&class_id=${copiedClasses.rows[0].id}`,
+    )
+  ).json();
   assert.equal(copiedSemesters.total, 2);
   assert.equal(copiedClasses.total, classes.total);
   assert.ok(copiedTeaching.total >= 1);
   assert.ok(copiedHomeroom.total >= 1);
+  const automaticallyCopiedSchedule = copiedSchedule.entries.find(
+    (entry: { weekday: number }) => entry.weekday === 6,
+  );
+  assert.ok(automaticallyCopiedSchedule);
   assert.equal(copiedTeaching.selected.academic_year_id, copiedYear.id);
   assert.equal(copiedHomeroom.selected.academic_year_id, copiedYear.id);
+
+  res = await api('/api/modules/schedules', 'DELETE', { id: automaticallyCopiedSchedule.id });
+  assert.equal(res.status, 200);
+  res = await api('/api/modules/schedules/copy', 'POST', {
+    source_semester_id: sourceSemester.id,
+    target_semester_id: copiedSemesters.rows[0].id,
+    source_class_id: sourceClass.id,
+    class_id: copiedClasses.rows[0].id,
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).copied, 1);
 });
 
 test('guided annual transition keeps the source active until finalization and can be undone', async () => {
@@ -1157,6 +1207,24 @@ test('guided annual transition keeps the source active until finalization and ca
   const preview = await res.json();
   assert.ok(preview.target_classes.length > 0);
   assert.ok(preview.students.some((row: { id: string }) => row.id === student.id));
+
+  const editableClass = preview.target_classes[0];
+  res = await api('/api/modules/promotions', 'PATCH', {
+    id: editableClass.value,
+    target_academic_year_id: draft.id,
+    grade_id: editableClass.grade_id,
+    name: `${editableClass.name} Edit`,
+    capacity: editableClass.capacity + 1,
+  });
+  assert.equal(res.status, 200);
+  const editedPreview = await (
+    await api(`/api/modules/promotions?mode=transition&target_academic_year_id=${draft.id}`)
+  ).json();
+  assert.equal(
+    editedPreview.target_classes.find((row: { value: string }) => row.value === editableClass.value)
+      .name,
+    `${editableClass.name} Edit`,
+  );
 
   res = await api('/api/modules/promotions', 'POST', {
     source_academic_year_id: sourceYear.value,

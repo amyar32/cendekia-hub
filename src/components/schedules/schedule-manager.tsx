@@ -39,6 +39,11 @@ import { moduleMutation } from '@/hooks/use-module-list';
 import styles from './schedule-manager.module.css';
 
 type Option = { value: string; label: string };
+type CopyOption = Option & {
+  academic_year_id?: string;
+  name?: string;
+  grade_id?: string;
+};
 type Slot = {
   id: string;
   name: string;
@@ -64,7 +69,7 @@ type ScheduleResponse = {
   slots: Slot[];
   assignments: Option[];
   selected: Record<string, string>;
-  options: Record<string, Option[]>;
+  options: Record<string, CopyOption[]>;
 };
 
 const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -99,6 +104,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
   const [saving, setSaving] = useState(false);
   const [copyOpened, setCopyOpened] = useState(false);
   const [sourceSemesterId, setSourceSemesterId] = useState('');
+  const [sourceClassId, setSourceClassId] = useState('');
 
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
@@ -159,9 +165,26 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
     () => new Map(data?.entries.map((entry) => [`${entry.weekday}:${entry.time_slot_id}`, entry])),
     [data?.entries],
   );
-  const otherSemesters = (data?.options.semester_id || []).filter(
-    (option) => option.value !== semesterId,
+  const copySemesters = data?.options.copy_semester_id || [];
+  const selectedSourceSemester = copySemesters.find((option) => option.value === sourceSemesterId);
+  const sourceClasses = (data?.options.copy_class_id || []).filter(
+    (option) => option.academic_year_id === selectedSourceSemester?.academic_year_id,
   );
+
+  function suggestedSourceClass(sourceSemesterValue: string) {
+    const sourceSemester = copySemesters.find((option) => option.value === sourceSemesterValue);
+    const candidates = (data?.options.copy_class_id || []).filter(
+      (option) => option.academic_year_id === sourceSemester?.academic_year_id,
+    );
+    const target = (data?.options.copy_class_id || []).find((option) => option.value === entityId);
+    return (
+      candidates.find(
+        (option) => option.grade_id === target?.grade_id && option.name === target?.name,
+      )?.value ||
+      candidates[0]?.value ||
+      ''
+    );
+  }
 
   function openCell(weekday: number, timeSlotId: string, entry?: Entry) {
     if (!writable) return;
@@ -218,7 +241,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
   }
 
   async function copySchedule() {
-    if (!sourceSemesterId || !semesterId || !entityId) return;
+    if (!sourceSemesterId || !sourceClassId || !semesterId || !entityId) return;
     setSaving(true);
     try {
       const result = await jsonRequest<{ copied: number; skipped: number }>(
@@ -229,6 +252,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
           body: JSON.stringify({
             source_semester_id: sourceSemesterId,
             target_semester_id: semesterId,
+            source_class_id: sourceClassId,
             class_id: entityId,
           }),
         },
@@ -389,7 +413,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                   allowDeselect={false}
                   searchable
                 />
-                {writable && otherSemesters.length > 0 && (
+                {writable && copySemesters.length > 0 && (
                   <Tooltip
                     label={view === 'teacher' ? 'Salin jadwal tersedia pada mode Per Rombel' : ''}
                     disabled={view === 'class'}
@@ -399,7 +423,9 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                       variant="light"
                       leftSection={<IconCopy size={16} />}
                       onClick={() => {
-                        setSourceSemesterId(otherSemesters[0]?.value || '');
+                        const initialSemester = copySemesters[0]?.value || '';
+                        setSourceSemesterId(initialSemester);
+                        setSourceClassId(suggestedSourceClass(initialSemester));
                         setCopyOpened(true);
                       }}
                       disabled={view === 'teacher' || !entityId || !semesterId}
@@ -692,25 +718,43 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
         opened={copyOpened}
         onClose={() => !saving && setCopyOpened(false)}
         centered
-        title="Salin jadwal antarsemester"
+        title="Salin jadwal"
       >
         <Stack>
           <Text size="sm" c="dimmed">
-            Jadwal yang sudah ada di semester tujuan tidak ditimpa. Entri bentrok atau tanpa
-            penugasan yang sesuai akan dilewati.
+            Pilih semester dan rombel dari tahun ajaran yang sama atau sebelumnya. Jadwal di
+            semester tujuan tidak ditimpa; entri bentrok atau tanpa penugasan yang sesuai akan
+            dilewati.
           </Text>
           <Select
             label="Salin dari semester"
-            data={otherSemesters}
+            data={copySemesters}
             value={sourceSemesterId || null}
-            onChange={(value) => setSourceSemesterId(value || '')}
+            onChange={(value) => {
+              const nextSemester = value || '';
+              setSourceSemesterId(nextSemester);
+              setSourceClassId(suggestedSourceClass(nextSemester));
+            }}
             allowDeselect={false}
+          />
+          <Select
+            label="Rombel asal"
+            data={sourceClasses}
+            value={sourceClassId || null}
+            onChange={(value) => setSourceClassId(value || '')}
+            allowDeselect={false}
+            searchable
           />
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => setCopyOpened(false)} disabled={saving}>
               Batal
             </Button>
-            <Button leftSection={<IconCopy size={16} />} onClick={copySchedule} loading={saving}>
+            <Button
+              leftSection={<IconCopy size={16} />}
+              onClick={copySchedule}
+              loading={saving}
+              disabled={!sourceSemesterId || !sourceClassId}
+            >
               Salin jadwal
             </Button>
           </Group>

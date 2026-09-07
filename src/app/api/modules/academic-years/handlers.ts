@@ -104,15 +104,28 @@ const academicYearSchema = z
     }
   });
 
-const copySchema = z.object({
-  copy_from_academic_year_id: z
-    .union([z.literal(''), z.string().uuid('Tahun ajaran sumber tidak valid.')])
-    .default(''),
-  copy_semesters: z.boolean().default(false),
-  copy_classrooms: z.boolean().default(false),
-  copy_teaching_assignments: z.boolean().default(false),
-  copy_homeroom_assignments: z.boolean().default(false),
-});
+const copySchema = z
+  .object({
+    copy_from_academic_year_id: z
+      .union([z.literal(''), z.string().uuid('Tahun ajaran sumber tidak valid.')])
+      .default(''),
+    copy_semesters: z.boolean().default(false),
+    copy_classrooms: z.boolean().default(false),
+    copy_teaching_assignments: z.boolean().default(false),
+    copy_homeroom_assignments: z.boolean().default(false),
+    copy_schedules: z.boolean().default(false),
+  })
+  .superRefine((data, context) => {
+    if (
+      data.copy_schedules &&
+      (!data.copy_semesters || !data.copy_classrooms || !data.copy_teaching_assignments)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Penyalinan jadwal memerlukan semester, rombel, dan penugasan mengajar.',
+        path: ['copy_schedules'],
+      });
+  });
 
 function shiftDate(value: string, sourceStart: string, targetStart: string, targetEnd: string) {
   const day = 86_400_000;
@@ -502,6 +515,69 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
                 id,
                 semesterId ?? null,
               );
+            }
+          }
+
+          if (copy.copy_schedules) {
+            const schedules = db()
+              .prepare(
+                `SELECT cs.time_slot_id,cs.weekday,source_semester.period,
+                        ta.teacher_id,ta.subject_id,ta.class_id,
+                        assignment_semester.period AS assignment_period
+                 FROM class_schedules cs
+                 JOIN semesters source_semester ON source_semester.id=cs.semester_id
+                 JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
+                 LEFT JOIN semesters assignment_semester ON assignment_semester.id=ta.semester_id
+                 WHERE source_semester.academic_year_id=?`,
+              )
+              .all(copy.copy_from_academic_year_id) as Array<{
+              time_slot_id: string;
+              weekday: number;
+              period: number;
+              teacher_id: string;
+              subject_id: string;
+              class_id: string;
+              assignment_period: number | null;
+            }>;
+            const insertSchedule = db().prepare(
+              `INSERT OR IGNORE INTO class_schedules
+               (id,teaching_assignment_id,semester_id,time_slot_id,weekday)
+               VALUES(?,?,?,?,?)`,
+            );
+            for (const schedule of schedules) {
+              const targetClassId = targetBySource.get(schedule.class_id);
+              const targetSemesterId = semesterByPeriod.get(schedule.period);
+              const targetAssignmentSemesterId =
+                schedule.assignment_period == null
+                  ? null
+                  : semesterByPeriod.get(schedule.assignment_period);
+              if (
+                !targetClassId ||
+                !targetSemesterId ||
+                (schedule.assignment_period != null && !targetAssignmentSemesterId)
+              )
+                continue;
+              const targetAssignment = db()
+                .prepare(
+                  `SELECT id FROM teaching_assignments
+                   WHERE teacher_id=? AND subject_id=? AND class_id=? AND academic_year_id=?
+                     AND semester_id IS ?`,
+                )
+                .get(
+                  schedule.teacher_id,
+                  schedule.subject_id,
+                  targetClassId,
+                  id,
+                  targetAssignmentSemesterId ?? null,
+                ) as { id: string } | undefined;
+              if (targetAssignment)
+                insertSchedule.run(
+                  randomUUID(),
+                  targetAssignment.id,
+                  targetSemesterId,
+                  schedule.time_slot_id,
+                  schedule.weekday,
+                );
             }
           }
 

@@ -89,7 +89,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const academicYearId =
       (url.searchParams.get('academic_year_id') || '').trim() || activeAcademicYear(schoolId).id;
-    requireAcademicYear(schoolId, academicYearId);
+    const selectedAcademicYear = requireAcademicYear(schoolId, academicYearId);
     const availableSemesters = semesterOptions(schoolId, academicYearId);
     const semesterId =
       (url.searchParams.get('semester_id') || '').trim() ||
@@ -172,6 +172,27 @@ export async function GET(request: Request) {
             )
             .all(view, academicYearId, entityId, semesterId)
         : [];
+    const copySemesters = db()
+      .prepare(
+        `SELECT s.id AS value,ay.name || ' · ' || s.name AS label,s.academic_year_id
+         FROM semesters s JOIN academic_years ay ON ay.id=s.academic_year_id
+         WHERE ay.school_id=? AND ay.start_date<=? AND s.id<>?
+         ORDER BY ay.start_date DESC,s.period`,
+      )
+      .all(schoolId, selectedAcademicYear.start_date, semesterId || '') as Array<{
+      value: string;
+      label: string;
+      academic_year_id: string;
+    }>;
+    const copyClasses = db()
+      .prepare(
+        `SELECT c.id AS value,c.name || ' — ' || ay.name AS label,c.name,c.grade_id,
+                c.academic_year_id
+         FROM classes c JOIN academic_years ay ON ay.id=c.academic_year_id
+         WHERE c.school_id=? AND ay.start_date<=? AND c.is_active=1
+         ORDER BY ay.start_date DESC,c.name`,
+      )
+      .all(schoolId, selectedAcademicYear.start_date);
 
     return Response.json(
       {
@@ -189,6 +210,8 @@ export async function GET(request: Request) {
           semester_id: availableSemesters,
           class_id: classOptions(schoolId, academicYearId),
           teacher_id: teacherOptions(schoolId),
+          copy_semester_id: copySemesters,
+          copy_class_id: copyClasses,
         },
       },
       { headers: { 'Cache-Control': 'no-store' } },

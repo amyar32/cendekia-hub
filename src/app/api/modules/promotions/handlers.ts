@@ -28,6 +28,9 @@ const createClassSchema = z.object({
   name: z.string().trim().min(1, 'Nama rombel wajib diisi.').max(50),
   capacity: z.coerce.number().int().min(0, 'Kapasitas tidak boleh negatif.').max(1000),
 });
+const updateClassSchema = createClassSchema.extend({
+  id: z.string().uuid('Rombel tidak valid.'),
+});
 
 type AcademicYearRow = {
   id: string;
@@ -180,7 +183,10 @@ export async function PUT(request: Request) {
     const sourceYear = activeAcademicYear(schoolId);
     const targetYear = academicYear(schoolId, input.target_academic_year_id);
     if (targetYear.is_active || targetYear.start_date <= sourceYear.start_date)
-      throw new HttpError(400, 'Rombel baru hanya dapat ditambahkan pada draft tahun ajaran berikutnya.');
+      throw new HttpError(
+        400,
+        'Rombel baru hanya dapat ditambahkan pada draft tahun ajaran berikutnya.',
+      );
     requireGrade(schoolId, input.grade_id);
 
     const id = randomUUID();
@@ -192,6 +198,38 @@ export async function PUT(request: Request) {
       .run(id, schoolId, targetYear.id, input.grade_id, input.name, input.capacity);
     audit(actor.email, 'create', 'classes', id, { ...input, via: 'annual-transition' });
     return Response.json({ ok: true, id }, { status: 201 });
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    checkOrigin(request);
+    const actor = await requireUser('promotions.write');
+    const schoolId = currentSchoolId();
+    const input = updateClassSchema.parse(await request.json());
+    const sourceYear = activeAcademicYear(schoolId);
+    const targetYear = academicYear(schoolId, input.target_academic_year_id);
+    if (targetYear.is_active || targetYear.start_date <= sourceYear.start_date)
+      throw new HttpError(400, 'Rombel hanya dapat diedit pada draft tahun ajaran berikutnya.');
+    requireGrade(schoolId, input.grade_id);
+    const classroom = db()
+      .prepare('SELECT id FROM classes WHERE id=? AND school_id=? AND academic_year_id=?')
+      .get(input.id, schoolId, targetYear.id);
+    if (!classroom) throw new HttpError(404, 'Rombel tidak ditemukan pada draft ini.');
+
+    db()
+      .prepare(
+        `UPDATE classes SET grade_id=?,name=?,capacity=?,updated_at=datetime('now')
+         WHERE id=? AND school_id=? AND academic_year_id=?`,
+      )
+      .run(input.grade_id, input.name, input.capacity, input.id, schoolId, targetYear.id);
+    audit(actor.email, 'update', 'classes', input.id, {
+      ...input,
+      via: 'annual-transition',
+    });
+    return Response.json({ ok: true, id: input.id });
   } catch (error) {
     return failure(error);
   }

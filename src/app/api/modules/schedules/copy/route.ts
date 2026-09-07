@@ -12,17 +12,15 @@ import { failure } from '@/lib/http';
 const schema = z.object({
   source_semester_id: z.string().uuid('Semester asal tidak valid.'),
   target_semester_id: z.string().uuid('Semester tujuan tidak valid.'),
+  source_class_id: z.string().uuid('Rombel asal tidak valid.').optional(),
   class_id: z.string().uuid('Rombel tidak valid.'),
 });
 
 type SourceRow = {
-  teaching_assignment_id: string;
   time_slot_id: string;
   weekday: number;
   teacher_id: string;
   subject_id: string;
-  academic_year_id: string;
-  assignment_semester_id: string | null;
 };
 
 export async function POST(request: Request) {
@@ -35,48 +33,53 @@ export async function POST(request: Request) {
       throw new HttpError(400, 'Semester asal dan tujuan harus berbeda.');
     const sourceSemester = requireSemester(schoolId, data.source_semester_id);
     const targetSemester = requireSemester(schoolId, data.target_semester_id);
-    const classroom = requireClass(schoolId, data.class_id);
-    if (
-      sourceSemester.academic_year_id !== targetSemester.academic_year_id ||
-      classroom.academic_year_id !== sourceSemester.academic_year_id
-    )
-      throw new HttpError(400, 'Semester dan rombel harus berada pada tahun ajaran yang sama.');
+    const targetClassroom = requireClass(schoolId, data.class_id);
+    const sourceClassroom = requireClass(schoolId, data.source_class_id || data.class_id);
+    if (targetClassroom.academic_year_id !== targetSemester.academic_year_id)
+      throw new HttpError(400, 'Rombel tujuan tidak berada pada tahun ajaran semester tujuan.');
+    if (sourceClassroom.academic_year_id !== sourceSemester.academic_year_id)
+      throw new HttpError(400, 'Rombel asal tidak berada pada tahun ajaran semester asal.');
+    const sourceYear = db()
+      .prepare('SELECT start_date FROM academic_years WHERE id=?')
+      .get(sourceSemester.academic_year_id) as { start_date: string };
+    const targetYear = db()
+      .prepare('SELECT start_date FROM academic_years WHERE id=?')
+      .get(targetSemester.academic_year_id) as { start_date: string };
+    if (sourceYear.start_date > targetYear.start_date)
+      throw new HttpError(
+        400,
+        'Jadwal hanya dapat disalin dari tahun ajaran yang sama atau sebelumnya.',
+      );
 
     const result = db().transaction(() => {
       const sourceRows = db()
         .prepare(
-          `SELECT cs.teaching_assignment_id,cs.time_slot_id,cs.weekday,
-                  ta.teacher_id,ta.subject_id,ta.academic_year_id,
-                  ta.semester_id AS assignment_semester_id
+          `SELECT cs.time_slot_id,cs.weekday,ta.teacher_id,ta.subject_id
            FROM class_schedules cs
            JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
            WHERE cs.semester_id=? AND ta.class_id=?`,
         )
-        .all(data.source_semester_id, data.class_id) as SourceRow[];
+        .all(data.source_semester_id, sourceClassroom.id) as SourceRow[];
       let copied = 0;
       let skipped = 0;
       for (const row of sourceRows) {
-        let targetAssignmentId = row.teaching_assignment_id;
-        if (row.assignment_semester_id) {
-          const targetAssignment = db()
-            .prepare(
-              `SELECT id FROM teaching_assignments
-               WHERE teacher_id=? AND subject_id=? AND class_id=? AND academic_year_id=?
-                 AND (semester_id=? OR semester_id IS NULL)
-               ORDER BY semester_id IS NULL LIMIT 1`,
-            )
-            .get(
-              row.teacher_id,
-              row.subject_id,
-              data.class_id,
-              row.academic_year_id,
-              data.target_semester_id,
-            ) as { id: string } | undefined;
-          if (!targetAssignment) {
-            skipped++;
-            continue;
-          }
-          targetAssignmentId = targetAssignment.id;
+        const targetAssignment = db()
+          .prepare(
+            `SELECT id FROM teaching_assignments
+             WHERE teacher_id=? AND subject_id=? AND class_id=? AND academic_year_id=?
+               AND (semester_id=? OR semester_id IS NULL)
+             ORDER BY semester_id IS NULL LIMIT 1`,
+          )
+          .get(
+            row.teacher_id,
+            row.subject_id,
+            data.class_id,
+            targetSemester.academic_year_id,
+            data.target_semester_id,
+          ) as { id: string } | undefined;
+        if (!targetAssignment) {
+          skipped++;
+          continue;
         }
         const conflict = db()
           .prepare(
@@ -103,7 +106,7 @@ export async function POST(request: Request) {
           )
           .run(
             randomUUID(),
-            targetAssignmentId,
+            targetAssignment.id,
             data.target_semester_id,
             row.time_slot_id,
             row.weekday,
