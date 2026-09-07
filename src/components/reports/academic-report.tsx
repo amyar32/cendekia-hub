@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Button,
+  Divider,
   Group,
   Loader,
   Paper,
@@ -16,7 +17,15 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconDatabaseOff, IconRefresh, IconSearch } from '@tabler/icons-react';
+import {
+  IconDatabaseOff,
+  IconFileSpreadsheet,
+  IconFileTypePdf,
+  IconRefresh,
+  IconSearch,
+  IconUsers,
+  IconX,
+} from '@tabler/icons-react';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import styles from './academic-report.module.css';
 
@@ -40,6 +49,46 @@ type ReportData = {
   options: { academic_year_id: Option[]; class_id: Option[]; status: Option[] };
 };
 
+const statusColors: Record<string, string> = {
+  active: 'green',
+  promoted: 'blue',
+  retained: 'orange',
+  graduated: 'grape',
+  withdrawn: 'red',
+};
+
+const reportColumns = [
+  'NIS',
+  'NISN',
+  'Nama murid',
+  'Tingkat',
+  'Rombel',
+  'Mulai',
+  'Selesai',
+  'Status',
+];
+
+function formatReportDate(value?: string) {
+  if (!value) return '—';
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(parsed);
+}
+
+function exportRows(rows: ReportRow[]) {
+  return rows.map((row) => [
+    row.nis || '—',
+    row.nisn || '—',
+    row.name,
+    row.grade_name,
+    row.class_name,
+    formatReportDate(row.start_date),
+    formatReportDate(row.end_date),
+    row.status_label,
+  ]);
+}
+
 export function AcademicReport() {
   const [data, setData] = useState<ReportData | null>(null);
   const [year, setYear] = useState('');
@@ -47,6 +96,7 @@ export function AcademicReport() {
   const [status, setStatus] = useState('');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -76,6 +126,115 @@ export function AcademicReport() {
     return () => clearTimeout(timer);
   }, [load]);
 
+  const selectedYear = useMemo(
+    () =>
+      data?.options.academic_year_id.find(
+        (option) => option.value === data.selected.academic_year_id,
+      )?.label,
+    [data],
+  );
+  const selectedClass = useMemo(
+    () => data?.options.class_id.find((option) => option.value === classId)?.label,
+    [classId, data],
+  );
+  const reportTitle = `Laporan Akademik${selectedYear ? ` — ${selectedYear}` : ''}${selectedClass ? ` — ${selectedClass}` : ''}`;
+  const hasFilters = Boolean(classId || status || query);
+
+  const downloadExcel = async () => {
+    if (!data?.rows.length) return;
+    setExporting('excel');
+    try {
+      const { Workbook } = await import('exceljs');
+      const workbook = new Workbook();
+      const worksheet = workbook.addWorksheet('Laporan Akademik');
+      worksheet.mergeCells(1, 1, 1, reportColumns.length);
+      worksheet.getCell('A1').value = reportTitle;
+      worksheet.getCell('A1').font = { bold: true, size: 14 };
+      worksheet.getCell('A2').value =
+        `Diekspor: ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`;
+      const header = worksheet.addRow(reportColumns);
+      header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1971C2' } };
+      exportRows(data.rows).forEach((row) => worksheet.addRow(row));
+      worksheet.columns = [14, 18, 30, 16, 20, 15, 15, 18].map((width) => ({ width }));
+      worksheet.views = [{ state: 'frozen', ySplit: 3 }];
+      const bytes = await workbook.xlsx.writeBuffer();
+      const url = URL.createObjectURL(
+        new Blob([bytes], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+      );
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `laporan-akademik-${data.selected.academic_year_id}.xlsx`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      notifications.show({
+        color: 'green',
+        title: 'Excel siap',
+        message: 'Laporan berhasil diunduh.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Ekspor gagal',
+        message: error instanceof Error ? error.message : 'Tidak dapat membuat Excel.',
+      });
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const downloadPdf = async () => {
+    if (!data?.rows.length) return;
+    setExporting('pdf');
+    try {
+      const [{ jsPDF }, autoTableModule] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const autoTable = autoTableModule.default;
+      pdf.setFontSize(15);
+      pdf.text(reportTitle, 14, 16);
+      pdf.setFontSize(9);
+      pdf.setTextColor(90);
+      pdf.text(
+        `Total murid: ${data.summary.total || 0}  |  Dicetak ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`,
+        14,
+        22,
+      );
+      autoTable(pdf, {
+        head: [reportColumns],
+        body: exportRows(data.rows),
+        startY: 28,
+        theme: 'grid',
+        styles: { fontSize: 7.5, cellPadding: 2 },
+        headStyles: { fillColor: [25, 113, 194] },
+        columnStyles: { 0: { cellWidth: 19 }, 1: { cellWidth: 25 }, 2: { cellWidth: 43 } },
+        didDrawPage: ({ pageNumber }) => {
+          pdf.setFontSize(7);
+          pdf.setTextColor(110);
+          pdf.text(`Halaman ${pageNumber}`, 282, 204, { align: 'right' });
+        },
+      });
+      pdf.save(`laporan-akademik-${data.selected.academic_year_id}.pdf`);
+      notifications.show({
+        color: 'green',
+        title: 'PDF siap',
+        message: 'Laporan berhasil diunduh.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Ekspor gagal',
+        message: error instanceof Error ? error.message : 'Tidak dapat membuat PDF.',
+      });
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <Stack gap="lg">
       <PageHeading
@@ -91,6 +250,20 @@ export function AcademicReport() {
             <Text variant="caption">Sesuaikan hasil berdasarkan periode, rombel, dan status.</Text>
           </Stack>
           <Group gap="xs">
+            {hasFilters && (
+              <Button
+                variant="subtle"
+                color="gray"
+                leftSection={<IconX size={16} />}
+                onClick={() => {
+                  setClassId('');
+                  setStatus('');
+                  setQuery('');
+                }}
+              >
+                Reset filter
+              </Button>
+            )}
             <Button
               variant="default"
               leftSection={<IconRefresh size={16} />}
@@ -144,31 +317,66 @@ export function AcademicReport() {
         </Stack>
       </Paper>
 
-      <Group gap="sm" className={styles.summaryBar}>
-        <Badge size="lg" variant="light">
-          Total {data?.summary.total || 0}
-        </Badge>
-        <Badge size="lg" variant="light" color="green">
-          Aktif {data?.summary.active || 0}
-        </Badge>
-        <Badge size="lg" variant="light" color="blue">
-          Naik {data?.summary.promoted || 0}
-        </Badge>
-        <Badge size="lg" variant="light" color="orange">
-          Tinggal {data?.summary.retained || 0}
-        </Badge>
-        <Badge size="lg" variant="light" color="grape">
-          Lulus {data?.summary.graduated || 0}
-        </Badge>
-      </Group>
+      <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} className={styles.summaryGrid}>
+        {[
+          ['Total murid', 'total', 'dark'],
+          ['Aktif', 'active', 'green'],
+          ['Naik kelas', 'promoted', 'blue'],
+          ['Tinggal kelas', 'retained', 'orange'],
+          ['Lulus', 'graduated', 'grape'],
+          ['Pindah / keluar', 'withdrawn', 'red'],
+        ].map(([label, key, color]) => (
+          <Paper key={key} className={styles.summaryCard} withBorder>
+            <Text size="xs" c="dimmed" fw={600}>
+              {label}
+            </Text>
+            <Text size="xl" fw={800} c={color}>
+              {data?.summary[key] || 0}
+            </Text>
+          </Paper>
+        ))}
+      </SimpleGrid>
 
       <Paper component="section" className={styles.tablePanel} withBorder>
-        {loading ? (
+        <div className={styles.tableHeader}>
+          <Group gap="sm">
+            <span className={styles.tableIcon}>
+              <IconUsers size={18} />
+            </span>
+            <div>
+              <Title order={3}>Daftar murid</Title>
+              <Text size="sm" c="dimmed">
+                {reportTitle}
+              </Text>
+            </div>
+          </Group>
+          <Group gap="xs">
+            <Button
+              variant="default"
+              leftSection={<IconFileSpreadsheet size={16} />}
+              onClick={downloadExcel}
+              loading={exporting === 'excel'}
+              disabled={!data?.rows.length}
+            >
+              Excel
+            </Button>
+            <Button
+              leftSection={<IconFileTypePdf size={16} />}
+              onClick={downloadPdf}
+              loading={exporting === 'pdf'}
+              disabled={!data?.rows.length}
+            >
+              PDF
+            </Button>
+          </Group>
+        </div>
+        <Divider />
+        {loading && !data ? (
           <Stack className={styles.emptyState} align="center" gap="md">
             <Loader size="sm" />
             <Text variant="description">Memuat laporan...</Text>
           </Stack>
-        ) : data && data.rows.length === 0 ? (
+        ) : !data || data.rows.length === 0 ? (
           <Stack className={styles.emptyState} align="center" gap="md">
             <div
               style={{
@@ -190,6 +398,7 @@ export function AcademicReport() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>NIS</Table.Th>
+                  <Table.Th>NISN</Table.Th>
                   <Table.Th>Nama</Table.Th>
                   <Table.Th>Tingkat</Table.Th>
                   <Table.Th>Rombel</Table.Th>
@@ -202,6 +411,7 @@ export function AcademicReport() {
                 {data?.rows.map((row) => (
                   <Table.Tr key={row.id}>
                     <Table.Td>{row.nis}</Table.Td>
+                    <Table.Td>{row.nisn || '—'}</Table.Td>
                     <Table.Td>
                       <Text fw={600} size="sm">
                         {row.name}
@@ -209,10 +419,12 @@ export function AcademicReport() {
                     </Table.Td>
                     <Table.Td>{row.grade_name}</Table.Td>
                     <Table.Td>{row.class_name}</Table.Td>
-                    <Table.Td>{row.start_date}</Table.Td>
-                    <Table.Td>{row.end_date || '—'}</Table.Td>
+                    <Table.Td>{formatReportDate(row.start_date)}</Table.Td>
+                    <Table.Td>{formatReportDate(row.end_date)}</Table.Td>
                     <Table.Td>
-                      <Badge variant="light">{row.status_label}</Badge>
+                      <Badge variant="light" color={statusColors[row.academic_status] || 'gray'}>
+                        {row.status_label}
+                      </Badge>
                     </Table.Td>
                   </Table.Tr>
                 ))}

@@ -14,6 +14,10 @@
   );
 }
 
+.mobileStepStatus {
+  display: none;
+}
+
 .content {
   padding: 28px;
   background: linear-gradient(
@@ -99,11 +103,35 @@
 @media (max-width: 780px) {
   .stepperWrap {
     padding: 18px;
-    overflow-x: auto;
+    overflow: hidden;
   }
 
-  .stepperWrap > div {
-    min-width: 690px;
+  .stepper {
+    --stepper-icon-size: 28px;
+  }
+
+  .stepperSteps {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .stepperStep {
+    flex: 0 0 auto;
+  }
+
+  .stepperSeparator {
+    min-width: 8px;
+    margin-inline: 6px;
+  }
+
+  .stepperStepBody {
+    display: none;
+  }
+
+  .mobileStepStatus {
+    display: block;
+    margin-top: 14px;
+    text-align: center;
   }
 
   .content {

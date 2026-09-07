@@ -15,8 +15,36 @@
   padding-left: 2px;
 }
 
+.summaryGrid {
+  --simple-grid-spacing: 12px;
+}
+
+.summaryCard {
+  min-height: 82px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--mantine-color-body), var(--app-color-brand-soft));
+}
+
 .tablePanel {
   overflow: hidden;
+}
+
+.tableHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+}
+
+.tableIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--app-color-brand);
+  background: var(--app-color-brand-soft);
 }
 
 .emptyState {
@@ -29,5 +57,11 @@
     flex-direction: column;
     align-items: flex-start;
     padding: 20px;
+  }
+
+  .tableHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px 20px;
   }
 }

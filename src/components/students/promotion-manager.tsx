@@ -92,6 +92,13 @@ type PromotionData = {
 type YearForm = { name: string; start_date: string; end_date: string };
 type ClassForm = { name: string; grade_id: string; capacity: number | '' };
 const EXCEPTION_PAGE_SIZE = 20;
+const transitionSteps = [
+  { label: 'Tahun baru', description: 'Periode' },
+  { label: 'Salin struktur', description: 'Data akademik' },
+  { label: 'Pemetaan', description: 'Rombel tujuan' },
+  { label: 'Pengecualian', description: 'Per murid' },
+  { label: 'Tinjau', description: 'Finalisasi' },
+];
 
 const outcomeLabels: Record<Outcome, string> = {
   promoted: 'Naik kelas',
@@ -520,13 +527,26 @@ export function PromotionManager({ writable }: { writable: boolean }) {
 
       <Paper withBorder className={styles.wizardShell}>
         <Box className={styles.stepperWrap}>
-          <Stepper active={activeStep} size="sm" allowNextStepsSelect={false}>
-            <Stepper.Step label="Tahun baru" description="Periode" />
-            <Stepper.Step label="Salin struktur" description="Data akademik" />
-            <Stepper.Step label="Pemetaan" description="Rombel tujuan" />
-            <Stepper.Step label="Pengecualian" description="Per murid" />
-            <Stepper.Step label="Tinjau" description="Finalisasi" />
+          <Stepper
+            active={activeStep}
+            size="sm"
+            allowNextStepsSelect={false}
+            className={styles.stepper}
+            classNames={{
+              steps: styles.stepperSteps,
+              step: styles.stepperStep,
+              separator: styles.stepperSeparator,
+              stepBody: styles.stepperStepBody,
+            }}
+          >
+            {transitionSteps.map((step) => (
+              <Stepper.Step key={step.label} label={step.label} description={step.description} />
+            ))}
           </Stepper>
+          <Text className={styles.mobileStepStatus} size="sm" fw={600} aria-live="polite">
+            Langkah {activeStep + 1} dari {transitionSteps.length}:{' '}
+            {transitionSteps[activeStep].label}
+          </Text>
         </Box>
 
         <Box className={styles.content}>
