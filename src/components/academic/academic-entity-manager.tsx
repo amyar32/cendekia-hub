@@ -25,11 +25,13 @@ import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import {
   IconCheck,
+  IconEye,
   IconFile,
   IconPencil,
   IconSchool,
   IconTrash,
   IconUser,
+  IconUsers,
 } from '@tabler/icons-react';
 import 'dayjs/locale/id';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
@@ -80,6 +82,7 @@ export type AcademicEntityConfig = {
   eyebrow?: string;
   hasStatus?: boolean;
   academicYearFilter?: boolean;
+  viewStudents?: boolean;
   filters?: Array<{
     key: string;
     label: string;
@@ -119,6 +122,9 @@ export function AcademicEntityManager({
   const selectedAcademicYearId = academicYearId || list.selected?.academic_year_id || '';
   const [editing, setEditing] = useState<AcademicRow | null | undefined>(undefined);
   const [removing, setRemoving] = useState<AcademicRow | null>(null);
+  const [viewingStudents, setViewingStudents] = useState<AcademicRow | null>(null);
+  const [students, setStudents] = useState<Array<{ id: string; nis: string; name: string }>>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
   const [form, setForm] = useState<Record<string, Value>>(config.defaults);
   const [saving, setSaving] = useState(false);
 
@@ -189,6 +195,29 @@ export function AcademicEntityManager({
       });
     } finally {
       setSaving(false);
+    }
+  }
+  async function openStudents(row: AcademicRow) {
+    setViewingStudents(row);
+    setStudents([]);
+    setLoadingStudents(true);
+    try {
+      const response = await fetch(`${config.endpoint}?view_class_id=${row.id}`);
+      const result = (await response.json()) as {
+        students?: Array<{ id: string; nis: string; name: string }>;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(result.error || 'Koneksi gagal.');
+      setStudents(result.students || []);
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Gagal memuat murid',
+        message: error instanceof Error ? error.message : 'Koneksi gagal.',
+      });
+      setViewingStudents(null);
+    } finally {
+      setLoadingStudents(false);
     }
   }
   function renderCell(row: AcademicRow, column: AcademicColumn) {
@@ -304,6 +333,16 @@ export function AcademicEntityManager({
                   ))}
                   <Table.Td>
                     <Group gap={6} justify="flex-end">
+                      {config.viewStudents && (
+                        <ActionIcon
+                          aria-label={`Lihat murid ${row.name}`}
+                          variant="subtle"
+                          color="blue"
+                          onClick={() => openStudents(row)}
+                        >
+                          <IconEye size={17} />
+                        </ActionIcon>
+                      )}
                       {writable ? (
                         <>
                           <ActionIcon
@@ -504,6 +543,58 @@ export function AcademicEntityManager({
             </Button>
           </Group>
         </form>
+      </Modal>
+      <Modal
+        opened={!!viewingStudents}
+        onClose={() => !loadingStudents && setViewingStudents(null)}
+        centered
+        size="md"
+        title={
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon variant="light" color="blue" size={38} radius="md">
+              <IconUsers size={20} />
+            </ThemeIcon>
+            <Box>
+              <Text fw={700}>Murid di rombel {viewingStudents?.name}</Text>
+              <Text c="dimmed" size="xs">
+                {students.length} murid dengan penempatan aktif
+              </Text>
+            </Box>
+          </Group>
+        }
+      >
+        {loadingStudents ? (
+          <Text c="dimmed" size="sm">
+            Memuat daftar murid...
+          </Text>
+        ) : students.length ? (
+          <Table.ScrollContainer minWidth={400}>
+            <Table verticalSpacing="sm" highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>MURID</Table.Th>
+                  <Table.Th>NIS</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {students.map((student) => (
+                  <Table.Tr key={student.id}>
+                    <Table.Td>
+                      <Text fw={600} size="sm">
+                        {student.name}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>{student.nis}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        ) : (
+          <Text c="dimmed" size="sm">
+            Belum ada murid yang memiliki penempatan aktif di rombel ini.
+          </Text>
+        )}
       </Modal>
       <Modal
         opened={!!removing}

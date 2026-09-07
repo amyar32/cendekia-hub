@@ -25,6 +25,28 @@ export async function GET(request: Request) {
     await requireUser('classes.read');
     const schoolId = currentSchoolId();
     const url = new URL(request.url);
+    const viewClassId = url.searchParams.get('view_class_id');
+    if (viewClassId) {
+      const classId = z.string().uuid('ID rombel tidak valid.').parse(viewClassId);
+      const classroom = db()
+        .prepare(
+          `SELECT c.id,c.name,g.name AS grade_name,ay.name AS academic_year_name
+           FROM classes c JOIN grades g ON g.id=c.grade_id JOIN academic_years ay ON ay.id=c.academic_year_id
+           WHERE c.id=? AND c.school_id=?`,
+        )
+        .get(classId, schoolId) as
+        { id: string; name: string; grade_name: string; academic_year_name: string } | undefined;
+      if (!classroom) throw new HttpError(404, 'Rombel tidak ditemukan.');
+      const students = db()
+        .prepare(
+          `SELECT s.id,s.nis,s.name,s.gender
+           FROM class_memberships cm JOIN students s ON s.id=cm.student_id
+           WHERE cm.class_id=? AND cm.status='active' AND s.school_id=?
+           ORDER BY s.name`,
+        )
+        .all(classId, schoolId);
+      return Response.json({ classroom, students }, { headers: { 'Cache-Control': 'no-store' } });
+    }
     const { filter, offset } = listParams(request);
     const selectedYear =
       (url.searchParams.get('academic_year_id') || '').trim() || activeAcademicYear(schoolId).id;
@@ -38,7 +60,10 @@ export async function GET(request: Request) {
     const where = whereParts.join(' AND ');
     const rows = db()
       .prepare(
-        `SELECT c.*,ay.name AS academic_year_name,g.name AS grade_name FROM classes c JOIN academic_years ay ON ay.id=c.academic_year_id JOIN grades g ON g.id=c.grade_id WHERE ${where} ORDER BY ay.is_active DESC,ay.start_date DESC,g.level_order,c.name LIMIT 10 OFFSET ?`,
+        `SELECT c.*,ay.name AS academic_year_name,g.name AS grade_name,
+          (SELECT count(*) FROM class_memberships cm WHERE cm.class_id=c.id AND cm.status='active') AS student_count
+         FROM classes c JOIN academic_years ay ON ay.id=c.academic_year_id JOIN grades g ON g.id=c.grade_id
+         WHERE ${where} ORDER BY ay.is_active DESC,ay.start_date DESC,g.level_order,c.name LIMIT 10 OFFSET ?`,
       )
       .all(...params, offset);
     const total = (

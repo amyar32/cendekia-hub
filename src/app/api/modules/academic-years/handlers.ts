@@ -205,22 +205,28 @@ export async function GET(request: Request) {
          LIMIT 10 OFFSET ?`,
       )
       .all(schoolId, filter, offset) as AcademicYearRow[];
-    const rows = baseRows.map((year) => ({
-      ...year,
-      semesters: db()
+    const rows = baseRows.map((year) => {
+      const classrooms = db()
         .prepare(
-          `SELECT id,name,period,start_date,end_date,is_active FROM semesters
-           WHERE academic_year_id=? ORDER BY period`,
-        )
-        .all(year.id),
-      classrooms: db()
-        .prepare(
-          `SELECT c.id,c.grade_id,c.name,c.capacity,c.is_active,g.name AS grade_name
+          `SELECT c.id,c.grade_id,c.name,c.capacity,c.is_active,g.name AS grade_name,
+             (SELECT count(*) FROM class_memberships cm WHERE cm.class_id=c.id AND cm.academic_year_id=? AND cm.status='active') AS student_count
            FROM classes c JOIN grades g ON g.id=c.grade_id
            WHERE c.school_id=? AND c.academic_year_id=? ORDER BY g.level_order,c.name`,
         )
-        .all(schoolId, year.id),
-    }));
+        .all(year.id, schoolId, year.id) as Array<{ capacity: number; student_count: number }>;
+      return {
+        ...year,
+        semesters: db()
+          .prepare(
+            `SELECT id,name,period,start_date,end_date,is_active FROM semesters
+             WHERE academic_year_id=? ORDER BY period`,
+          )
+          .all(year.id),
+        classrooms,
+        student_count: classrooms.reduce((total, classroom) => total + classroom.student_count, 0),
+        capacity: classrooms.reduce((total, classroom) => total + classroom.capacity, 0),
+      };
+    });
     const total = (
       db()
         .prepare('SELECT count(*) AS n FROM academic_years WHERE school_id = ? AND name LIKE ?')

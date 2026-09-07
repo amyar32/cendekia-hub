@@ -161,6 +161,7 @@ const classroom: AcademicEntityConfig = {
   description: 'Kelola rombongan belajar untuk tahun ajaran yang dipilih.',
   note: 'Filter tahun ajaran otomatis menggunakan tahun yang aktif.',
   academicYearFilter: true,
+  viewStudents: true,
   defaults: {
     academic_year_id: '',
     grade_id: '',
@@ -184,6 +185,7 @@ const classroom: AcademicEntityConfig = {
   columns: [
     { key: 'name', label: 'NAMA' },
     { key: 'grade_name', label: 'TINGKAT' },
+    { key: 'student_count', label: 'TERISI' },
     { key: 'capacity', label: 'KAPASITAS' },
     { key: 'is_active', label: 'STATUS', kind: 'status' },
   ],

@@ -43,6 +43,7 @@ type ClassroomForm = {
   name: string;
   capacity: number | string;
   is_active: boolean;
+  student_count?: number;
 };
 type AcademicYear = {
   id: string;
@@ -53,6 +54,8 @@ type AcademicYear = {
   is_active: number;
   semesters: Array<Omit<SemesterForm, 'is_active'> & { is_active: number }>;
   classrooms: Array<Omit<ClassroomForm, 'is_active'> & { is_active: number }>;
+  student_count: number;
+  capacity: number;
 };
 type AcademicYearForm = {
   name: string;
@@ -183,7 +186,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
       <ModuleListLayout
         eyebrow="AKADEMIK"
         title="Tahun Ajaran"
-        description="Kelola periode tahun ajaran dan salin data akademik dari tahun sebelumnya."
+        description="Pantau periode, kesiapan struktur akademik, dan keterisian murid setiap tahun ajaran."
         total={list.total}
         page={list.page}
         onPageChange={list.setPage}
@@ -195,9 +198,9 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
         onReload={list.reload}
         addLabel="Tambah tahun ajaran"
         onAdd={writable ? () => openEditor(null) : undefined}
-        note="Semester dan rombel dikelola dari menu Data Akademik."
+        note="Keterisian menghitung murid dengan penempatan aktif. Semester dan rombel dikelola dari menu Data Akademik."
       >
-        <Table.ScrollContainer minWidth={850}>
+        <Table.ScrollContainer minWidth={980}>
           <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
             <Table.Thead>
               <Table.Tr>
@@ -205,6 +208,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                 <Table.Th>PERIODE</Table.Th>
                 <Table.Th>SEMESTER</Table.Th>
                 <Table.Th>ROMBEL</Table.Th>
+                <Table.Th>MURID</Table.Th>
                 <Table.Th>STATUS</Table.Th>
                 <Table.Th ta="right">AKSI</Table.Th>
               </Table.Tr>
@@ -224,6 +228,19 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                   </Table.Td>
                   <Table.Td>{year.semesters.length}</Table.Td>
                   <Table.Td>{year.classrooms.length}</Table.Td>
+                  <Table.Td>
+                    <Stack gap={2}>
+                      <Text fw={600} size="xs">
+                        {year.student_count} murid
+                        {year.capacity > 0 ? ` / ${year.capacity}` : ''}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {year.capacity > 0
+                          ? `${Math.round((year.student_count / year.capacity) * 100)}% terisi`
+                          : 'Kapasitas belum ditentukan'}
+                      </Text>
+                    </Stack>
+                  </Table.Td>
                   <Table.Td>
                     <Badge variant="dot" color={year.is_active ? 'green' : 'gray'}>
                       {year.is_active ? 'Aktif' : 'Nonaktif'}
