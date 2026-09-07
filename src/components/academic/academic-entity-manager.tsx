@@ -10,6 +10,7 @@ import {
   Button,
   Group,
   Modal,
+  MultiSelect,
   NumberInput,
   Select,
   SimpleGrid,
@@ -41,7 +42,7 @@ import { FileUploader } from '@/components/cms/file-uploader/file-uploader';
 import type { UploadScope } from '@/lib/uploads';
 import classes from './academic-entity-manager.module.css';
 
-type Value = string | number | boolean;
+type Value = string | string[] | number | boolean;
 export type AcademicRow = {
   id: string;
   is_active?: number;
@@ -57,6 +58,8 @@ export type AcademicField = {
   required?: boolean;
   options?: { value: string; label: string }[];
   optionsKey?: string;
+  /** Allows selecting several values when creating a record. Edits remain one value at a time. */
+  multipleKey?: string;
   min?: number;
   max?: number;
   maxLength?: number;
@@ -82,6 +85,7 @@ export type AcademicEntityConfig = {
   eyebrow?: string;
   hasStatus?: boolean;
   academicYearFilter?: boolean;
+  groupedRowsReadOnly?: boolean;
   viewStudents?: boolean;
   filters?: Array<{
     key: string;
@@ -150,7 +154,7 @@ export function AcademicEntityManager({
     event.preventDefault();
     setSaving(true);
     try {
-      await moduleMutation(config.endpoint, editing ? 'PATCH' : 'POST', {
+      const result = await moduleMutation(config.endpoint, editing ? 'PATCH' : 'POST', {
         ...form,
         ...(config.academicYearFilter && !editing
           ? { academic_year_id: selectedAcademicYearId }
@@ -160,9 +164,12 @@ export function AcademicEntityManager({
       setEditing(undefined);
       list.reload();
       notifications.show({
-        color: 'green',
-        title: 'Berhasil',
-        message: `${config.singular} berhasil disimpan.`,
+        color: result.created === 0 ? 'blue' : 'green',
+        title: result.created === 0 ? 'Tidak ada data baru' : 'Berhasil',
+        message:
+          result.created == null
+            ? `${config.singular} berhasil disimpan.`
+            : `${result.created} ${config.singular.toLowerCase()} berhasil ditambahkan.${result.skipped ? ` ${result.skipped} rombel sudah memiliki penugasan yang sama.` : ''}`,
       });
     } catch (error) {
       notifications.show({
@@ -343,7 +350,8 @@ export function AcademicEntityManager({
                           <IconEye size={17} />
                         </ActionIcon>
                       )}
-                      {writable ? (
+                      {writable &&
+                      !(config.groupedRowsReadOnly && Number(row.class_count || 0) > 1) ? (
                         <>
                           <ActionIcon
                             aria-label={`Edit ${row.name}`}
@@ -363,8 +371,10 @@ export function AcademicEntityManager({
                           </ActionIcon>
                         </>
                       ) : (
-                        <Text component="span" c="dimmed">
-                          —
+                        <Text component="span" c="dimmed" size="xs" lh={1.25} ta="right">
+                          {config.groupedRowsReadOnly && Number(row.class_count || 0) > 1
+                            ? 'Pilih rombel di filter untuk mengelola'
+                            : '—'}
                         </Text>
                       )}
                     </Group>
@@ -467,19 +477,37 @@ export function AcademicEntityManager({
                   />
                 );
               if (field.kind === 'select')
-                return (
-                  <Select
-                    key={field.key}
-                    {...common}
-                    placeholder={field.placeholder || `Pilih ${field.label.toLowerCase()}`}
-                    data={field.options || list.options?.[field.optionsKey || field.key] || []}
-                    searchable
-                    allowDeselect={!field.required}
-                    nothingFoundMessage="Data belum tersedia"
-                    disabled={saving}
-                    onChange={(value) => setForm({ ...form, [field.key]: value || '' })}
-                  />
-                );
+                if (field.multipleKey && !editing)
+                  return (
+                    <MultiSelect
+                      key={field.key}
+                      label={field.label}
+                      description={field.description}
+                      inputWrapperOrder={inputWrapperOrder}
+                      placeholder={field.placeholder || `Pilih ${field.label.toLowerCase()}`}
+                      required={field.required}
+                      data={field.options || list.options?.[field.optionsKey || field.key] || []}
+                      searchable
+                      nothingFoundMessage="Data belum tersedia"
+                      disabled={saving}
+                      value={(form[field.multipleKey] as string[]) || []}
+                      onChange={(value) => setForm({ ...form, [field.multipleKey!]: value })}
+                    />
+                  );
+                else
+                  return (
+                    <Select
+                      key={field.key}
+                      {...common}
+                      placeholder={field.placeholder || `Pilih ${field.label.toLowerCase()}`}
+                      data={field.options || list.options?.[field.optionsKey || field.key] || []}
+                      searchable
+                      allowDeselect={!field.required}
+                      nothingFoundMessage="Data belum tersedia"
+                      disabled={saving}
+                      onChange={(value) => setForm({ ...form, [field.key]: value || '' })}
+                    />
+                  );
               if (field.kind === 'date')
                 return (
                   <DateInput

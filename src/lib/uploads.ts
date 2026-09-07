@@ -18,6 +18,13 @@ export const uploadScopes = {
     maxBytes: 5 * 1024 * 1024,
     kind: 'image',
   },
+  'student.photo': {
+    readPermission: 'students.read',
+    writePermission: 'students.write',
+    public: false,
+    maxBytes: 5 * 1024 * 1024,
+    kind: 'image',
+  },
   'student.document': {
     readPermission: 'students.read',
     writePermission: 'students.write',

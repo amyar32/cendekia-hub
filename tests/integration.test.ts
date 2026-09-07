@@ -494,11 +494,21 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   res = await api('/api/modules/teaching-assignments', 'POST', {
     teacher_id: teacher.id,
     subject_id: subject.id,
-    class_id: conflictClassroom.id,
+    class_ids: [conflictClassroom.id, classroom.id],
     semester_id: 'all',
   });
   assert.equal(res.status, 201);
   const conflictAssignment = await res.json();
+  assert.equal(conflictAssignment.created, 1);
+  assert.equal(conflictAssignment.skipped, 1);
+  res = await api('/api/modules/teaching-assignments?q=Matematika');
+  const groupedTeachingAssignments = await res.json();
+  assert.ok(
+    groupedTeachingAssignments.rows.some(
+      (row: { class_count: number; class_name: string }) =>
+        row.class_count === 2 && row.class_name.includes('7C') && row.class_name.includes('7A'),
+    ),
+  );
   assert.equal(
     (
       await api('/api/modules/schedules', 'POST', {
@@ -609,12 +619,16 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(students.total, 1);
   assert.equal(students.rows[0].nis, 'S-001');
   assert.equal(students.rows[0].gender_label, 'Perempuan');
+  res = await uploadApi(png, 'image/png', adminCookie, base, 'student.photo');
+  assert.equal(res.status, 201);
+  const studentPhoto = (await res.json()).upload;
   const pdf = Buffer.from('%PDF-1.4\n%%EOF');
   res = await uploadApi(pdf, 'application/pdf', adminCookie, base, 'student.document');
   assert.equal(res.status, 201);
   const studentFile = (await res.json()).upload;
   const completeStudentInput = {
     id: student.id,
+    photo_url: studentPhoto.url,
     nis: 'S-001',
     nisn: '0098765432',
     name: 'Ayu Cendekia',
@@ -658,6 +672,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   const completeStudent = (await res.json()).rows[0];
   assert.equal(completeStudent.guardian_name, 'Ibu Ayu');
   assert.equal(completeStudent.document_count, 1);
+  assert.equal(completeStudent.photo_url, studentPhoto.url);
   assert.equal(completeStudent.current_class_name, '7A');
   assert.equal(completeStudent.history[0].status_label, 'Aktif');
   res = await api('/api/modules/classes', 'POST', {

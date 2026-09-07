@@ -32,6 +32,12 @@ const documentSchema = z.object({
 });
 const schema = z
   .object({
+    photo_url: z
+      .string()
+      .trim()
+      .max(2048)
+      .refine((value) => !value || Boolean(uploadIdFromUrl(value)), 'Foto murid tidak valid.')
+      .default(''),
     nis: z
       .string()
       .trim()
@@ -180,6 +186,14 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       }
 
       const data = schema.parse(input);
+      const photoUploadId = uploadIdFromUrl(data.photo_url);
+      if (
+        photoUploadId &&
+        !db()
+          .prepare("SELECT id FROM uploads WHERE id=? AND scope='student.photo'")
+          .get(photoUploadId)
+      )
+        throw new HttpError(400, 'Foto hasil upload tidak valid.');
       for (const document of data.documents) {
         const uploadId = uploadIdFromUrl(document.file_url)!;
         if (
@@ -193,6 +207,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         ? requireClass(schoolId, data.placement.class_id)
         : undefined;
       const args = [
+        data.photo_url,
         data.nis,
         data.nisn,
         data.name,
@@ -208,14 +223,14 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       if (method === 'POST')
         db()
           .prepare(
-            `INSERT INTO students(id,school_id,nis,nisn,name,gender,birth_date,birth_place,address,phone,email,enrollment_date,is_active)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,address,phone,email,enrollment_date,is_active)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
           .run(id, schoolId, ...args);
       else
         db()
           .prepare(
-            `UPDATE students SET nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,address=?,phone=?,email=?,enrollment_date=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
+            `UPDATE students SET photo_url=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,address=?,phone=?,email=?,enrollment_date=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
           )
           .run(...args, id, schoolId);
 

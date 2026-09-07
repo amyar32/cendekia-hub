@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   ActionIcon,
+  Avatar,
   Badge,
   Box,
   Button,
@@ -34,6 +35,7 @@ import {
 } from '@tabler/icons-react';
 import 'dayjs/locale/id';
 import { FileUploader } from '@/components/cms/file-uploader/file-uploader';
+import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
 import classes from '@/components/academic/academic-entity-manager.module.css';
@@ -56,6 +58,7 @@ type ClassHistory = {
   status_label: string;
 };
 type StudentForm = {
+  photo_url: string;
   nis: string;
   nisn: string;
   name: string;
@@ -90,6 +93,7 @@ const emptyGuardian = (): Guardian => ({
 });
 const emptyDocument = (): StudentDocument => ({ type: '', file_url: '', description: '' });
 const emptyForm = (): StudentForm => ({
+  photo_url: '',
   nis: '',
   nisn: '',
   name: '',
@@ -126,6 +130,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
     setForm(
       row
         ? {
+            photo_url: row.photo_url || '',
             nis: row.nis,
             nisn: row.nisn || '',
             name: row.name,
@@ -240,10 +245,11 @@ export function StudentManager({ writable }: { writable: boolean }) {
         onAdd={writable ? () => openEditor(null) : undefined}
         note="Riwayat kelas dibuat otomatis setiap kali penempatan murid berubah."
       >
-        <Table.ScrollContainer minWidth={900}>
+        <Table.ScrollContainer minWidth={980}>
           <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
             <Table.Thead>
               <Table.Tr>
+                <Table.Th>FOTO</Table.Th>
                 <Table.Th>NIS</Table.Th>
                 <Table.Th>NAMA</Table.Th>
                 <Table.Th>WALI UTAMA</Table.Th>
@@ -256,6 +262,16 @@ export function StudentManager({ writable }: { writable: boolean }) {
             <Table.Tbody>
               {list.rows.map((row) => (
                 <Table.Tr key={row.id}>
+                  <Table.Td>
+                    <Avatar src={row.photo_url} alt={`Foto ${row.name}`} size={36} radius="xl">
+                      {row.name
+                        .split(' ')
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((part) => part[0])
+                        .join('')}
+                    </Avatar>
+                  </Table.Td>
                   <Table.Td>
                     <Badge variant="light" color="grape">
                       {row.nis}
@@ -335,6 +351,14 @@ export function StudentManager({ writable }: { writable: boolean }) {
         <form onSubmit={save}>
           <Stack gap="lg">
             <Divider label="Identitas murid" labelPosition="left" />
+            <ImageUploader
+              label="Foto murid"
+              description="PNG, JPEG, atau WebP. Ukuran maksimal 5 MB."
+              scope="student.photo"
+              value={form.photo_url}
+              disabled={disabled}
+              onChange={(value) => setForm({ ...form, photo_url: value })}
+            />
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
               <TextInput
                 label="NIS"

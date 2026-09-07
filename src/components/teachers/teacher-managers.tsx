@@ -94,14 +94,22 @@ const teachingAssignment: AcademicEntityConfig = {
     { key: 'subject_id', label: 'Semua mata pelajaran' },
   ],
   description:
-    'Tentukan mapel yang diampu guru sekaligus rombel dan periode akademik tempatnya mengajar.',
+    'Tentukan mapel yang diampu guru sekaligus rombel dan periode akademik tempatnya mengajar. Rombel dengan guru, mapel, dan periode sama ditampilkan dalam satu baris.',
   note: 'Setiap penugasan langsung menetapkan mapel yang diampu. Rombel dan semester harus berada pada tahun ajaran yang dipilih.',
   hasStatus: false,
-  defaults: { teacher_id: '', subject_id: '', class_id: '', semester_id: 'all' },
+  groupedRowsReadOnly: true,
+  defaults: { teacher_id: '', subject_id: '', class_id: '', class_ids: [], semester_id: 'all' },
   fields: [
     { key: 'teacher_id', label: 'Guru', kind: 'select', required: true },
     { key: 'subject_id', label: 'Mata pelajaran', kind: 'select', required: true },
-    { key: 'class_id', label: 'Rombel', kind: 'select', required: true },
+    {
+      key: 'class_id',
+      label: 'Rombel',
+      kind: 'select',
+      multipleKey: 'class_ids',
+      required: true,
+      description: 'Anda dapat memilih lebih dari satu rombel saat menambah penugasan.',
+    },
     {
       key: 'semester_id',
       label: 'Semester',
