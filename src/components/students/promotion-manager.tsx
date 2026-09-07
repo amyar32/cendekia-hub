@@ -791,7 +791,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                       return (
                         <Table.Tr key={sourceClass.id}>
                           <Table.Td>
-                            <Text fw={650} size="sm">
+                            <Text fw={600} size="xs">
                               {sourceClass.name}
                             </Text>
                             <Text c="dimmed" size="xs">
@@ -806,7 +806,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                           </Table.Td>
                           <Table.Td>
                             {graduating ? (
-                              <Text c="dimmed" size="sm">
+                              <Text c="dimmed" size="xs">
                                 Tidak memerlukan rombel
                               </Text>
                             ) : (
@@ -954,7 +954,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                             <Table.Tr key={student.id}>
                               <Table.Td>{student.nis}</Table.Td>
                               <Table.Td>
-                                <Text fw={600} size="sm">
+                                <Text fw={600} size="xs">
                                   {student.name}
                                 </Text>
                               </Table.Td>

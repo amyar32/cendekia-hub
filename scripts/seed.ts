@@ -46,7 +46,31 @@ db().transaction(() => {
         'promotions.write',
         'schedules.read',
         'schedules.write',
+        'student-attendance.read',
+        'student-attendance.write',
+        'student-attendance.approve',
+        'student-attendance.report',
+        'student-checkins.read',
+        'student-checkins.write',
+        'student-checkins.report',
+        'extracurricular-attendance.read',
+        'extracurricular-attendance.write',
+        'extracurricular-attendance.approve',
         'academic-reports.read',
+      ]),
+    );
+  db()
+    .prepare('INSERT OR IGNORE INTO roles(id,name,description,permissions) VALUES (?,?,?,?)')
+    .run(
+      'teacher',
+      'Guru',
+      'Mengisi absensi untuk jadwal mengajar sendiri.',
+      JSON.stringify([
+        'dashboard.read',
+        'student-attendance.read',
+        'student-attendance.write',
+        'extracurricular-attendance.read',
+        'extracurricular-attendance.write',
       ]),
     );
   db()

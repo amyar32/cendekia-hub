@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
+
 import { useState } from 'react';
 import {
   ActionIcon,
@@ -736,11 +738,13 @@ export function StudentManager({ writable }: { writable: boolean }) {
         </form>
       </Modal>
 
-      <Modal
+      <ConfirmationDialog
         opened={!!removing}
         onClose={() => !saving && setRemoving(null)}
         title="Hapus murid?"
-        centered
+        loading={saving}
+        onConfirm={remove}
+        confirmLabel="Hapus"
       >
         <Text>
           Anda akan menghapus{' '}
@@ -749,15 +753,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
           </Text>{' '}
           beserta wali, dokumen, dan riwayat kelasnya.
         </Text>
-        <Group justify="flex-end" mt="lg">
-          <Button variant="default" disabled={saving} onClick={() => setRemoving(null)}>
-            Batal
-          </Button>
-          <Button color="red" loading={saving} onClick={remove}>
-            Hapus
-          </Button>
-        </Group>
-      </Modal>
+      </ConfirmationDialog>
     </>
   );
 }

@@ -33,6 +33,16 @@ export const permissions = [
   'promotions.write',
   'schedules.read',
   'schedules.write',
+  'student-attendance.read',
+  'student-attendance.write',
+  'student-attendance.approve',
+  'student-attendance.report',
+  'student-checkins.read',
+  'student-checkins.write',
+  'student-checkins.report',
+  'extracurricular-attendance.read',
+  'extracurricular-attendance.write',
+  'extracurricular-attendance.approve',
   'academic-reports.read',
 ] as const;
 export type Permission = (typeof permissions)[number];
@@ -54,6 +64,9 @@ export type ModuleKey =
   | 'students'
   | 'promotions'
   | 'schedules'
+  | 'student-attendance'
+  | 'student-checkins'
+  | 'extracurricular-attendance'
   | 'academic-reports';
 export type CmsModule = {
   key: ModuleKey;
@@ -111,6 +124,30 @@ export const modules: CmsModule[] = [
     description: 'Susun jadwal mingguan per rombel dan semester tanpa bentrok guru.',
     path: '/schedules',
     permission: 'schedules.read',
+    group: 'Utama',
+  },
+  {
+    key: 'student-checkins',
+    label: 'Cek-in Siswa',
+    description: 'Catat kedatangan siswa ke sekolah dan status keterlambatannya.',
+    path: '/student-checkins',
+    permission: 'student-checkins.read',
+    group: 'Utama',
+  },
+  {
+    key: 'student-attendance',
+    label: 'Absensi Pelajaran',
+    description: 'Buka sesi dari jadwal, catat kehadiran, dan tinjau rekap absensi siswa.',
+    path: '/student-attendance',
+    permission: 'student-attendance.read',
+    group: 'Utama',
+  },
+  {
+    key: 'extracurricular-attendance',
+    label: 'Absensi Ekstrakurikuler',
+    description: 'Catat kehadiran peserta pada setiap sesi ekstrakurikuler.',
+    path: '/extracurricular-attendance',
+    permission: 'extracurricular-attendance.read',
     group: 'Utama',
   },
   {

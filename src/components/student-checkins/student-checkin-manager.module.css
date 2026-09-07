@@ -1,0 +1,42 @@
+.controlPanel {
+  background: linear-gradient(120deg, var(--mantine-color-body), var(--app-color-brand-soft));
+}
+
+.controlIcon {
+  flex: 0 0 auto;
+}
+
+.listPanel {
+  overflow: hidden;
+}
+
+.summaryGrid {
+  --simple-grid-spacing: 12px;
+}
+
+.summaryCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, var(--mantine-color-body), var(--app-color-subtle));
+}
+
+.checkinTable {
+  overflow: hidden;
+  border: 1px solid var(--app-color-border);
+  border-radius: 10px;
+}
+
+@media (max-width: 780px) {
+  .controlPanel > div > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .controlPanel :global(.mantine-DateInput-root),
+  .controlPanel :global(.mantine-Select-root) {
+    width: 100% !important;
+  }
+}

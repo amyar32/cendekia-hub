@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
+
 import { useState } from 'react';
 import {
   ActionIcon,
@@ -389,11 +391,13 @@ export function ExtracurricularAssignmentManager({ writable }: { writable: boole
         </form>
       </Modal>
 
-      <Modal
+      <ConfirmationDialog
         opened={!!removing}
         onClose={() => !saving && setRemoving(null)}
         title="Hapus penugasan?"
-        centered
+        loading={saving}
+        onConfirm={remove}
+        confirmLabel="Hapus"
       >
         <Text>
           Jadwal dan daftar peserta pada penugasan{' '}
@@ -402,15 +406,7 @@ export function ExtracurricularAssignmentManager({ writable }: { writable: boole
           </Text>{' '}
           juga akan dihapus.
         </Text>
-        <Group justify="flex-end" mt="lg">
-          <Button variant="default" disabled={saving} onClick={() => setRemoving(null)}>
-            Batal
-          </Button>
-          <Button color="red" loading={saving} onClick={remove}>
-            Hapus
-          </Button>
-        </Group>
-      </Modal>
+      </ConfirmationDialog>
     </>
   );
 }

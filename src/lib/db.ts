@@ -39,6 +39,11 @@ export function db() {
     CREATE TABLE IF NOT EXISTS extracurricular_assignments (id TEXT PRIMARY KEY, extracurricular_id TEXT NOT NULL REFERENCES extracurriculars(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, semester_id TEXT REFERENCES semesters(id) ON DELETE RESTRICT, location TEXT NOT NULL DEFAULT '', map_url TEXT NOT NULL DEFAULT '', quota INTEGER NOT NULL DEFAULT 0 CHECK (quota >= 0), status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'completed')), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS extracurricular_schedules (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE CASCADE, semester_id TEXT NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT, time_slot_id TEXT NOT NULL REFERENCES schedule_time_slots(id) ON DELETE RESTRICT, weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6), created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (assignment_id, semester_id, time_slot_id, weekday));
     CREATE TABLE IF NOT EXISTS extracurricular_participants (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE CASCADE, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (assignment_id, student_id));
+    CREATE TABLE IF NOT EXISTS student_attendance_sessions (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, class_schedule_id TEXT NOT NULL REFERENCES class_schedules(id) ON DELETE RESTRICT, teaching_assignment_id TEXT NOT NULL REFERENCES teaching_assignments(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')), subject_name TEXT NOT NULL, class_name TEXT NOT NULL, teacher_name TEXT NOT NULL, starts_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (class_schedule_id, attendance_date));
+    CREATE TABLE IF NOT EXISTS student_attendance_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES student_attendance_sessions(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, student_nis TEXT NOT NULL, student_name TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('present', 'late', 'sick', 'excused', 'absent')), note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'teacher' CHECK (source IN ('teacher', 'admin', 'qr', 'native_app')), recorded_at TEXT NOT NULL DEFAULT (datetime('now')), updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (session_id, student_id));
+    CREATE TABLE IF NOT EXISTS student_checkins (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, checked_in_at TEXT NOT NULL DEFAULT (datetime('now')), status TEXT NOT NULL CHECK (status IN ('present', 'late')), source TEXT NOT NULL DEFAULT 'staff' CHECK (source IN ('staff', 'qr', 'native_app', 'card')), note TEXT NOT NULL DEFAULT '', recorded_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (student_id, attendance_date));
+    CREATE TABLE IF NOT EXISTS extracurricular_attendance_sessions (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, extracurricular_schedule_id TEXT NOT NULL REFERENCES extracurricular_schedules(id) ON DELETE RESTRICT, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE RESTRICT, extracurricular_id TEXT NOT NULL REFERENCES extracurriculars(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')), extracurricular_name TEXT NOT NULL, teacher_name TEXT NOT NULL, starts_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (extracurricular_schedule_id, attendance_date));
+    CREATE TABLE IF NOT EXISTS extracurricular_attendance_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES extracurricular_attendance_sessions(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, student_nis TEXT NOT NULL, student_name TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT '', status TEXT NOT NULL CHECK (status IN ('present', 'late', 'sick', 'excused', 'absent')), note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'teacher' CHECK (source IN ('teacher', 'admin', 'qr', 'native_app')), updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (session_id, student_id));
     CREATE INDEX IF NOT EXISTS audit_created ON audit(created_at);
     CREATE INDEX IF NOT EXISTS uploads_created ON uploads(created_at);
     CREATE INDEX IF NOT EXISTS academic_years_school_dates ON academic_years(school_id, start_date DESC);
@@ -66,6 +71,13 @@ export function db() {
     CREATE INDEX IF NOT EXISTS extracurricular_assignments_year ON extracurricular_assignments(academic_year_id, extracurricular_id);
     CREATE INDEX IF NOT EXISTS extracurricular_schedules_period ON extracurricular_schedules(semester_id, weekday, time_slot_id);
     CREATE INDEX IF NOT EXISTS extracurricular_participants_student ON extracurricular_participants(student_id, assignment_id);
+    CREATE INDEX IF NOT EXISTS student_attendance_sessions_school_date ON student_attendance_sessions(school_id, attendance_date DESC);
+    CREATE INDEX IF NOT EXISTS student_attendance_sessions_teacher_date ON student_attendance_sessions(teacher_id, attendance_date DESC);
+    CREATE INDEX IF NOT EXISTS student_attendance_records_student ON student_attendance_records(student_id, session_id);
+    CREATE INDEX IF NOT EXISTS student_checkins_school_date ON student_checkins(school_id, attendance_date DESC);
+    CREATE INDEX IF NOT EXISTS student_checkins_student_date ON student_checkins(student_id, attendance_date DESC);
+    CREATE INDEX IF NOT EXISTS extracurricular_attendance_sessions_date ON extracurricular_attendance_sessions(school_id, attendance_date DESC);
+    CREATE INDEX IF NOT EXISTS extracurricular_attendance_records_student ON extracurricular_attendance_records(student_id, session_id);
     CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
     CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
   `);
@@ -340,6 +352,130 @@ export function db() {
     if (!studentColumns.some((column) => column.name === 'photo_url'))
       connection.exec("ALTER TABLE students ADD COLUMN photo_url TEXT NOT NULL DEFAULT ''");
     connection.pragma('user_version = 18');
+  }
+  if (schemaVersion < 19) {
+    connection.transaction(() => {
+      connection.exec(`
+        CREATE TABLE IF NOT EXISTS student_attendance_sessions (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, class_schedule_id TEXT NOT NULL REFERENCES class_schedules(id) ON DELETE RESTRICT, teaching_assignment_id TEXT NOT NULL REFERENCES teaching_assignments(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')), subject_name TEXT NOT NULL, class_name TEXT NOT NULL, teacher_name TEXT NOT NULL, starts_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (class_schedule_id, attendance_date));
+        CREATE TABLE IF NOT EXISTS student_attendance_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES student_attendance_sessions(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, student_nis TEXT NOT NULL, student_name TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('present', 'late', 'sick', 'excused', 'absent')), note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'teacher' CHECK (source IN ('teacher', 'admin', 'qr', 'native_app')), recorded_at TEXT NOT NULL DEFAULT (datetime('now')), updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (session_id, student_id));
+        CREATE INDEX IF NOT EXISTS student_attendance_sessions_school_date ON student_attendance_sessions(school_id, attendance_date DESC);
+        CREATE INDEX IF NOT EXISTS student_attendance_sessions_teacher_date ON student_attendance_sessions(teacher_id, attendance_date DESC);
+        CREATE INDEX IF NOT EXISTS student_attendance_records_student ON student_attendance_records(student_id, session_id);
+      `);
+      const storedRoles = connection.prepare('SELECT id, name, permissions FROM roles').all() as {
+        id: string;
+        name: string;
+        permissions: string;
+      }[];
+      const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
+      for (const role of storedRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        if (role.name === 'Administrator') {
+          grants.add('student-attendance.read');
+          grants.add('student-attendance.write');
+          grants.add('student-attendance.approve');
+          grants.add('student-attendance.report');
+        } else if (grants.has('schedules.write')) {
+          grants.add('student-attendance.read');
+          grants.add('student-attendance.write');
+          grants.add('student-attendance.approve');
+          grants.add('student-attendance.report');
+        }
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.pragma('user_version = 19');
+    })();
+  }
+  if (schemaVersion < 20) {
+    connection
+      .prepare('INSERT OR IGNORE INTO roles(id,name,description,permissions) VALUES (?,?,?,?)')
+      .run(
+        'teacher',
+        'Guru',
+        'Mengisi absensi untuk jadwal mengajar sendiri.',
+        JSON.stringify(['dashboard.read', 'student-attendance.read', 'student-attendance.write']),
+      );
+    connection.pragma('user_version = 20');
+  }
+  if (schemaVersion < 22) {
+    connection.transaction(() => {
+      connection.exec(`
+        CREATE TABLE IF NOT EXISTS student_checkins (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, checked_in_at TEXT NOT NULL DEFAULT (datetime('now')), status TEXT NOT NULL CHECK (status IN ('present', 'late')), source TEXT NOT NULL DEFAULT 'staff' CHECK (source IN ('staff', 'qr', 'native_app', 'card')), note TEXT NOT NULL DEFAULT '', recorded_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (student_id, attendance_date));
+        CREATE INDEX IF NOT EXISTS student_checkins_school_date ON student_checkins(school_id, attendance_date DESC);
+        CREATE INDEX IF NOT EXISTS student_checkins_student_date ON student_checkins(student_id, attendance_date DESC);
+      `);
+      const storedRoles = connection.prepare('SELECT id, name, permissions FROM roles').all() as {
+        id: string;
+        name: string;
+        permissions: string;
+      }[];
+      const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
+      for (const role of storedRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        if (role.name === 'Administrator' || grants.has('students.write')) {
+          grants.add('student-checkins.read');
+          grants.add('student-checkins.write');
+          grants.add('student-checkins.report');
+        }
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.pragma('user_version = 22');
+    })();
+  }
+  if (schemaVersion < 23) {
+    connection.transaction(() => {
+      connection.exec(`
+        CREATE TABLE IF NOT EXISTS extracurricular_attendance_sessions (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, extracurricular_schedule_id TEXT NOT NULL REFERENCES extracurricular_schedules(id) ON DELETE RESTRICT, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE RESTRICT, extracurricular_id TEXT NOT NULL REFERENCES extracurriculars(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')), extracurricular_name TEXT NOT NULL, teacher_name TEXT NOT NULL, starts_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (extracurricular_schedule_id, attendance_date));
+        CREATE TABLE IF NOT EXISTS extracurricular_attendance_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES extracurricular_attendance_sessions(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, student_nis TEXT NOT NULL, student_name TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('present', 'late', 'sick', 'excused', 'absent')), note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'teacher' CHECK (source IN ('teacher', 'admin', 'qr', 'native_app')), updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (session_id, student_id));
+        CREATE INDEX IF NOT EXISTS extracurricular_attendance_sessions_date ON extracurricular_attendance_sessions(school_id, attendance_date DESC);
+        CREATE INDEX IF NOT EXISTS extracurricular_attendance_records_student ON extracurricular_attendance_records(student_id, session_id);
+      `);
+      const storedRoles = connection.prepare('SELECT id, name, permissions FROM roles').all() as {
+        id: string;
+        name: string;
+        permissions: string;
+      }[];
+      const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
+      for (const role of storedRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        if (role.name === 'Administrator' || grants.has('extracurricular-assignments.write')) {
+          grants.add('extracurricular-attendance.read');
+          grants.add('extracurricular-attendance.write');
+          grants.add('extracurricular-attendance.approve');
+        }
+        if (role.name === 'Guru') {
+          grants.add('extracurricular-attendance.read');
+          grants.add('extracurricular-attendance.write');
+        }
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.pragma('user_version = 23');
+    })();
+  }
+  if (schemaVersion < 24) {
+    const columns = connection.pragma('table_info(extracurricular_attendance_records)') as {
+      name: string;
+    }[];
+    if (!columns.some((column) => column.name === 'class_name'))
+      connection.exec(
+        "ALTER TABLE extracurricular_attendance_records ADD COLUMN class_name TEXT NOT NULL DEFAULT ''",
+      );
+    connection.pragma('user_version = 24');
+  }
+  if (schemaVersion < 25) {
+    connection.exec(`
+      UPDATE extracurricular_attendance_records AS ar
+      SET class_name=COALESCE((
+        SELECT c.name FROM extracurricular_attendance_sessions AS ats
+        JOIN extracurricular_assignments AS ea ON ea.id=ats.assignment_id
+        JOIN class_memberships AS cm ON cm.student_id=ar.student_id
+          AND cm.academic_year_id=ea.academic_year_id AND cm.status='active'
+        JOIN classes AS c ON c.id=cm.class_id
+        WHERE ats.id=ar.session_id LIMIT 1
+      ), '—')
+      WHERE ar.class_name=''
+    `);
+    connection.pragma('user_version = 25');
   }
   globalDb.cmsDb = connection;
   return connection;

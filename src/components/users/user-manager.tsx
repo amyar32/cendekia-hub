@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
+
 import { useState } from 'react';
 import {
   ActionIcon,
@@ -271,11 +273,13 @@ export function UserManager({
         </form>
       </Modal>
 
-      <Modal
+      <ConfirmationDialog
         opened={!!removing}
         onClose={() => !saving && setRemoving(null)}
         title="Hapus pengguna?"
-        centered
+        loading={saving}
+        onConfirm={remove}
+        confirmLabel="Hapus pengguna"
       >
         <Text>
           Anda akan menghapus{' '}
@@ -284,15 +288,7 @@ export function UserManager({
           </Text>
           . Data yang masih digunakan tidak dapat dihapus.
         </Text>
-        <Group justify="flex-end" mt="lg">
-          <Button variant="default" disabled={saving} onClick={() => setRemoving(null)}>
-            Batal
-          </Button>
-          <Button color="red" loading={saving} onClick={remove}>
-            Hapus pengguna
-          </Button>
-        </Group>
-      </Modal>
+      </ConfirmationDialog>
     </>
   );
 }

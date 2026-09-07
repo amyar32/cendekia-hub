@@ -12,3 +12,13 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* Nested Mantine text has its own default size; keep table content at the cell scale. */
+.mantine-Table-td .mantine-Text-root {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.mantine-Table-td .mantine-Input-input {
+  font-size: var(--app-table-font-size);
+}

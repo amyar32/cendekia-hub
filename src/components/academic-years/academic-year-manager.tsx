@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
+
 import { useState } from 'react';
 import {
   ActionIcon,
@@ -480,11 +482,13 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
         </form>
       </Modal>
 
-      <Modal
+      <ConfirmationDialog
         opened={!!removing}
         onClose={() => !saving && setRemoving(null)}
         title="Hapus tahun ajaran?"
-        centered
+        loading={saving}
+        onConfirm={remove}
+        confirmLabel="Hapus tahun ajaran"
       >
         <Text>
           Anda akan menghapus{' '}
@@ -493,15 +497,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
           </Text>
           . Semester dan rombel yang masih digunakan oleh data lain tidak dapat dihapus.
         </Text>
-        <Group justify="flex-end" mt="lg">
-          <Button variant="default" disabled={saving} onClick={() => setRemoving(null)}>
-            Batal
-          </Button>
-          <Button color="red" loading={saving} onClick={remove}>
-            Hapus tahun ajaran
-          </Button>
-        </Group>
-      </Modal>
+      </ConfirmationDialog>
     </>
   );
 }

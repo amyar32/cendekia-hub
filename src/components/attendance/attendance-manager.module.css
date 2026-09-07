@@ -1,0 +1,98 @@
+.datePanel {
+  background: linear-gradient(120deg, var(--mantine-color-body), var(--app-color-brand-soft));
+}
+
+.dateIcon,
+.lessonIcon {
+  flex: 0 0 auto;
+}
+
+.schedulePanel,
+.attendancePanel {
+  overflow: hidden;
+}
+
+.scheduleCard {
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.scheduleCard:hover {
+  border-color: var(--app-color-brand);
+  box-shadow: 0 8px 20px rgb(56 44 38 / 8%);
+  transform: translateY(-1px);
+}
+
+.selectedSchedule {
+  border-color: var(--app-color-brand);
+  background: var(--app-color-brand-soft);
+}
+
+.inlineIcon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 3px;
+}
+
+.summaryGrid {
+  --simple-grid-spacing: 10px;
+}
+
+.summaryCard {
+  padding: 12px 14px;
+  background: linear-gradient(135deg, var(--mantine-color-body), var(--app-color-subtle));
+}
+
+.attendanceTable {
+  border: 1px solid var(--app-color-border);
+  border-radius: 10px;
+}
+
+.actionBar {
+  padding-top: 4px;
+}
+
+@media (max-width: 780px) {
+  .datePanel > div,
+  .scheduleCard > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .scheduleCard > div > div:last-child {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .actionBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actionBar button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scheduleCard {
+    transition: none;
+  }
+  .scheduleCard:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .datePanel :global(.mantine-DateInput-root) {
+    width: 100% !important;
+  }
+  .datePanel > div > div {
+    width: 100%;
+  }
+  .dateIcon {
+    display: none;
+  }
+}

@@ -59,15 +59,26 @@ export const theme = createTheme({
     Button: {
       defaultProps: { radius: 'md' },
       styles: {
-        root: { fontWeight: 500 },
+        root: { fontWeight: 600 },
       },
     },
     Paper: {
       defaultProps: { radius: 'md' },
     },
+    Alert: {
+      defaultProps: { radius: 'md', variant: 'light' },
+    },
+    Badge: {
+      defaultProps: { variant: 'light', radius: 'sm' },
+      styles: { root: { textTransform: 'none', fontWeight: 600, letterSpacing: 0 } },
+    },
+    InputWrapper: {
+      styles: { label: { fontSize: '12px', fontWeight: 600, marginBottom: '6px' } },
+    },
     Modal: {
       defaultProps: {
         radius: 'lg',
+        centered: true,
         overlayProps: { backgroundOpacity: 0.38, blur: 4 },
         transitionProps: { transition: 'pop', duration: 180 },
       },
@@ -103,14 +114,17 @@ export const theme = createTheme({
       },
     },
     Table: {
+      defaultProps: { verticalSpacing: 'md', horizontalSpacing: 'lg', highlightOnHover: true },
       styles: {
         th: {
           background: appColors.subtle,
           color: appColors.muted,
-          fontSize: '9px',
-          letterSpacing: '1px',
+          fontSize: '10px',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.6px',
         },
-        td: { fontSize: '12px' },
+        td: { fontSize: 'var(--app-table-font-size)', lineHeight: 1.5 },
       },
     },
     Title: {
@@ -147,6 +161,7 @@ export const theme = createTheme({
 /** Makes application-specific theme tokens available to plain CSS. */
 export const cssVariablesResolver: CSSVariablesResolver = (resolvedTheme) => ({
   variables: {
+    '--app-table-font-size': '12px',
     '--app-color-background': resolvedTheme.other.appColors.background,
     '--app-color-surface': resolvedTheme.other.appColors.surface,
     '--app-color-text': resolvedTheme.other.appColors.text,
@@ -159,6 +174,6 @@ export const cssVariablesResolver: CSSVariablesResolver = (resolvedTheme) => ({
     '--app-color-muted-soft': resolvedTheme.other.appColors.mutedSoft,
     '--app-color-subtle': resolvedTheme.other.appColors.subtle,
   },
-  light: {},
+  light: { '--mantine-color-default-border': resolvedTheme.other.appColors.border },
   dark: {},
 });

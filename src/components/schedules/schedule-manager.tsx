@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
@@ -104,6 +106,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
   const [assignmentId, setAssignmentId] = useState('');
   const [saving, setSaving] = useState(false);
   const [copyOpened, setCopyOpened] = useState(false);
+  const [confirmingRemoval, setConfirmingRemoval] = useState(false);
   const [sourceSemesterId, setSourceSemesterId] = useState('');
   const [sourceClassId, setSourceClassId] = useState('');
 
@@ -249,6 +252,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
       setEditing(undefined);
       setCell(null);
       reload();
+      setConfirmingRemoval(false);
       notifications.show({ color: 'green', title: 'Berhasil', message: 'Jadwal telah dihapus.' });
     } catch (error) {
       notifications.show({
@@ -646,7 +650,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                       <Table.Tr key={slot.id}>
                         <Table.Td>{slot.slot_order}</Table.Td>
                         <Table.Td>
-                          <Text fw={600} size="sm">
+                          <Text fw={600} size="xs">
                             {slot.name}
                           </Text>
                         </Table.Td>
@@ -700,10 +704,10 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
       </Tabs>
 
       <Modal
-        opened={editing !== undefined}
+        opened={editing !== undefined && !confirmingRemoval}
         onClose={() => !saving && setEditing(undefined)}
         centered
-        title={editing ? 'Ubah jadwal pelajaran' : 'Tambah jadwal pelajaran'}
+        title={editing ? 'Ubah jadwal' : 'Tambah jadwal'}
       >
         <form onSubmit={saveSchedule}>
           <Stack>
@@ -733,7 +737,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                   type="button"
                   variant="light"
                   color="red"
-                  onClick={removeSchedule}
+                  onClick={() => setConfirmingRemoval(true)}
                   loading={saving}
                 >
                   Hapus
@@ -880,11 +884,28 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
         </form>
       </Modal>
 
-      <Modal
+      <ConfirmationDialog
+        opened={confirmingRemoval}
+        onClose={() => setConfirmingRemoval(false)}
+        title="Hapus jadwal?"
+        confirmLabel="Hapus jadwal"
+        loading={saving}
+        onConfirm={removeSchedule}
+      >
+        <Text size="sm">
+          Jadwal <b>{data?.assignments.find((item) => item.value === assignmentId)?.label}</b> pada
+          hari {cell ? days[cell.weekday - 1] : ''}, slot{' '}
+          {data?.slots.find((slot) => slot.id === cell?.time_slot_id)?.name} akan dihapus. Periksa
+          kembali sebelum melanjutkan.
+        </Text>
+      </ConfirmationDialog>
+      <ConfirmationDialog
         opened={!!slotRemoving}
         onClose={() => !saving && setSlotRemoving(null)}
-        centered
         title="Hapus slot waktu?"
+        loading={saving}
+        onConfirm={removeSlot}
+        confirmLabel="Hapus"
       >
         <Text>
           Slot{' '}
@@ -893,15 +914,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
           </Text>{' '}
           tidak dapat dihapus jika sudah digunakan pada jadwal.
         </Text>
-        <Group justify="flex-end" mt="lg">
-          <Button variant="default" onClick={() => setSlotRemoving(null)} disabled={saving}>
-            Batal
-          </Button>
-          <Button color="red" onClick={removeSlot} loading={saving}>
-            Hapus
-          </Button>
-        </Group>
-      </Modal>
+      </ConfirmationDialog>
     </>
   );
 }

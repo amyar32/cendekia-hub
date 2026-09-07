@@ -40,6 +40,9 @@ import {
   IconArrowUp,
   IconReportAnalytics,
   IconCalendarTime,
+  IconClipboardCheck,
+  IconLogin,
+  IconBallFootball,
 } from '@tabler/icons-react';
 import { modules, can, moduleByKey, type ModuleKey } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -66,6 +69,9 @@ const icons = {
   students: IconUsersGroup,
   promotions: IconArrowUp,
   schedules: IconCalendarTime,
+  'student-attendance': IconClipboardCheck,
+  'student-checkins': IconLogin,
+  'extracurricular-attendance': IconBallFootball,
   'academic-reports': IconReportAnalytics,
 };
 const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [

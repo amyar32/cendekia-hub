@@ -543,7 +543,7 @@ export function AcademicReport() {
                     <Table.Td>{row.nis}</Table.Td>
                     <Table.Td>{row.nisn || '—'}</Table.Td>
                     <Table.Td>
-                      <Text fw={600} size="sm">
+                      <Text fw={600} size="xs">
                         {row.name}
                       </Text>
                     </Table.Td>

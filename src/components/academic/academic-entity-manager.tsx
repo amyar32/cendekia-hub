@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
+
 import { useState } from 'react';
 import {
   ActionIcon,
@@ -608,7 +610,7 @@ export function AcademicEntityManager({
                 {students.map((student) => (
                   <Table.Tr key={student.id}>
                     <Table.Td>
-                      <Text fw={600} size="sm">
+                      <Text fw={600} size="xs">
                         {student.name}
                       </Text>
                     </Table.Td>
@@ -624,11 +626,13 @@ export function AcademicEntityManager({
           </Text>
         )}
       </Modal>
-      <Modal
+      <ConfirmationDialog
         opened={!!removing}
         onClose={() => !saving && setRemoving(null)}
         title={`Hapus ${config.singular.toLowerCase()}?`}
-        centered
+        loading={saving}
+        onConfirm={remove}
+        confirmLabel="Hapus"
       >
         <Text>
           Anda akan menghapus{' '}
@@ -637,15 +641,7 @@ export function AcademicEntityManager({
           </Text>
           . Data yang sudah memiliki relasi tidak dapat dihapus.
         </Text>
-        <Group justify="flex-end" mt="lg">
-          <Button variant="default" disabled={saving} onClick={() => setRemoving(null)}>
-            Batal
-          </Button>
-          <Button color="red" loading={saving} onClick={remove}>
-            Hapus
-          </Button>
-        </Group>
-      </Modal>
+      </ConfirmationDialog>
     </>
   );
 }
