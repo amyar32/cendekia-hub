@@ -27,6 +27,8 @@ export const permissions = [
   'students.write',
   'promotions.read',
   'promotions.write',
+  'schedules.read',
+  'schedules.write',
   'academic-reports.read',
 ] as const;
 export type Permission = (typeof permissions)[number];
@@ -45,6 +47,7 @@ export type ModuleKey =
   | 'homeroom-assignments'
   | 'students'
   | 'promotions'
+  | 'schedules'
   | 'academic-reports';
 export type CmsModule = {
   key: ModuleKey;
@@ -86,6 +89,14 @@ export const modules: CmsModule[] = [
     description: 'Siapkan tahun baru, petakan rombel, dan proses hasil akademik murid.',
     path: '/annual-transition',
     permission: 'promotions.read',
+    group: 'Utama',
+  },
+  {
+    key: 'schedules',
+    label: 'Jadwal Pelajaran',
+    description: 'Susun jadwal mingguan per rombel dan semester tanpa bentrok guru.',
+    path: '/schedules',
+    permission: 'schedules.read',
     group: 'Utama',
   },
   {

@@ -560,7 +560,11 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 </Text>
               </Stack>
               {data.draft_years.length > 0 && (
-                <Alert color="gray" icon={<IconCalendarEvent size={18} />} className={styles.infoAlert}>
+                <Alert
+                  color="gray"
+                  icon={<IconCalendarEvent size={18} />}
+                  className={styles.infoAlert}
+                >
                   <Group align="flex-end" justify="space-between">
                     <Select
                       label="Lanjutkan draft yang sudah ada"
@@ -678,14 +682,6 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                   Tambah rombel baru
                 </Button>
               </Group>
-              <Alert
-                color="gray"
-                icon={<IconUsersGroup size={18} />}
-                className={styles.mappingHint}
-              >
-                Butuh pembagian baru? Tambahkan rombel di sini; rombel tersebut langsung muncul
-                sebagai pilihan tujuan.
-              </Alert>
               <Table.ScrollContainer minWidth={720}>
                 <Table verticalSpacing="md" highlightOnHover>
                   <Table.Thead>
@@ -986,7 +982,11 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                   rombel yang melebihi kapasitas.
                 </Alert>
               )}
-              <Alert color="gray" icon={<IconCalendarEvent size={18} />} className={styles.infoAlert}>
+              <Alert
+                color="gray"
+                icon={<IconCalendarEvent size={18} />}
+                className={styles.infoAlert}
+              >
                 Setelah dikonfirmasi, {data.target_academic_year.label} akan menjadi tahun ajaran
                 aktif dan riwayat lama tetap tersimpan.
               </Alert>

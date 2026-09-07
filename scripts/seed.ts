@@ -40,6 +40,8 @@ db().transaction(() => {
         'students.write',
         'promotions.read',
         'promotions.write',
+        'schedules.read',
+        'schedules.write',
         'academic-reports.read',
       ]),
     );
@@ -61,6 +63,7 @@ db().transaction(() => {
         'homeroom-assignments.read',
         'students.read',
         'promotions.read',
+        'schedules.read',
         'academic-reports.read',
       ]),
     );

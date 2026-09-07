@@ -1,0 +1,266 @@
+.tabs {
+  margin-bottom: 28px;
+}
+
+.panel {
+  overflow: hidden;
+  min-height: 210px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--app-color-border);
+}
+
+.filterBar {
+  justify-content: flex-end;
+}
+
+.viewControl {
+  width: 210px;
+}
+
+.filterControl {
+  width: 190px;
+}
+
+.entityFilter {
+  width: 200px;
+}
+
+.gridScroll {
+  overflow-x: auto;
+}
+
+.scheduleGrid {
+  min-width: 1040px;
+}
+
+.scheduleGrid > :first-child,
+.gridRow > :first-child {
+  border-left: 0;
+}
+
+.headerCell {
+  display: inline-flex;
+  width: calc((100% - 145px) / 6);
+  min-width: 145px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--app-color-border);
+  background: var(--app-color-subtle);
+  color: var(--app-color-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.timeHeader,
+.timeCell {
+  width: 145px;
+  min-width: 145px;
+}
+
+.gridRow {
+  display: flex;
+  border-top: 1px solid var(--app-color-border);
+  min-height: 108px;
+}
+
+.timeCell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 18px;
+  background: var(--app-color-subtle);
+}
+
+.scheduleCell,
+.breakCell {
+  width: calc((100% - 145px) / 6);
+  min-width: 145px;
+  min-height: 108px;
+  border: 0;
+  border-left: 1px solid var(--app-color-border);
+}
+
+.scheduleCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12px;
+  background: transparent;
+  color: var(--app-color-muted);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.scheduleCell:not(:disabled):hover {
+  color: var(--app-color-brand);
+  background: var(--app-color-brand-soft);
+}
+
+.scheduleCell:disabled {
+  cursor: default;
+}
+
+.filledCell {
+  color: var(--app-color-text);
+  background: color-mix(in srgb, var(--app-color-brand-soft) 55%, transparent);
+}
+
+.breakCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-color-subtle);
+  color: var(--app-color-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 210px;
+  padding: 32px;
+  color: var(--app-color-muted);
+  text-align: center;
+}
+
+.note {
+  display: block;
+  margin-top: 16px;
+}
+
+.mobileSchedule {
+  display: none;
+}
+
+@media (max-width: 780px) {
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px;
+  }
+
+  .filterBar {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .viewControl,
+  .entityFilter {
+    grid-column: 1 / -1;
+  }
+
+  .viewControl,
+  .filterControl,
+  .entityFilter {
+    width: 100%;
+  }
+
+  .viewControl {
+    order: 1;
+  }
+
+  .yearFilter,
+  .semesterFilter {
+    order: 2;
+  }
+
+  .entityFilter {
+    order: 3;
+  }
+
+  .copyButton,
+  .reloadButton {
+    order: 4;
+  }
+
+  .copyButton {
+    width: 100%;
+  }
+
+  .reloadButton {
+    justify-self: end;
+  }
+
+  .gridScroll {
+    display: none;
+  }
+
+  .mobileSchedule {
+    display: block;
+    padding: 14px;
+  }
+
+  .daySection + .daySection {
+    margin-top: 18px;
+  }
+
+  .dayTitle {
+    padding: 7px 4px;
+  }
+
+  .mobileSlot {
+    display: flex;
+    width: 100%;
+    min-height: 66px;
+    padding: 0;
+    border: 1px solid var(--app-color-border);
+    border-radius: var(--mantine-radius-sm);
+    background: transparent;
+    color: var(--app-color-text);
+    text-align: left;
+  }
+
+  .mobileSlot + .mobileSlot {
+    margin-top: 7px;
+  }
+
+  .mobileSlot:not(:disabled) {
+    cursor: pointer;
+  }
+
+  .mobileTime {
+    width: 105px;
+    flex: 0 0 105px;
+    padding: 11px;
+    border-right: 1px solid var(--app-color-border);
+    background: var(--app-color-subtle);
+  }
+
+  .mobileLesson {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    padding: 11px 13px;
+  }
+
+  .mobileBreak {
+    color: var(--app-color-muted);
+  }
+}
+
+@media (max-width: 480px) {
+  .yearFilter,
+  .semesterFilter {
+    grid-column: 1 / -1;
+  }
+}

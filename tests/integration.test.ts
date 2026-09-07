@@ -413,6 +413,141 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
       (row: { semester_name: string }) => row.semester_name === 'Semua Semester',
     ),
   );
+  res = await api('/api/modules/semesters', 'POST', {
+    academic_year_id: secondAcademicYear.id,
+    name: 'Semester Genap',
+    period: 2,
+    start_date: '2027-01-01',
+    end_date: '2027-06-30',
+    is_active: false,
+  });
+  assert.equal(res.status, 201);
+  const secondSemester = await res.json();
+  res = await api('/api/modules/schedule-time-slots', 'POST', {
+    name: 'JP 1',
+    start_time: '07:00',
+    end_time: '07:40',
+    slot_order: 1,
+    is_break: false,
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const timeSlot = await res.json();
+  assert.equal(
+    (
+      await api('/api/modules/schedule-time-slots', 'POST', {
+        name: 'Slot bentrok',
+        start_time: '07:30',
+        end_time: '08:00',
+        slot_order: 2,
+        is_break: false,
+        is_active: true,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await api('/api/modules/schedules', 'POST', {
+        teaching_assignment_id: teachingAssignment.id,
+        semester_id: secondSemester.id,
+        time_slot_id: timeSlot.id,
+        weekday: 1,
+      })
+    ).status,
+    400,
+  );
+  res = await api('/api/modules/schedules', 'POST', {
+    teaching_assignment_id: annualTeachingAssignment.id,
+    semester_id: semester.id,
+    time_slot_id: timeSlot.id,
+    weekday: 1,
+  });
+  assert.equal(res.status, 201);
+  const sourceSchedule = await res.json();
+  res = await api(
+    `/api/modules/schedules?academic_year_id=${secondAcademicYear.id}&semester_id=${semester.id}&class_id=${classroom.id}`,
+  );
+  const schedule = await res.json();
+  assert.equal(schedule.entries.length, 1);
+  assert.equal(schedule.entries[0].subject_name, 'Matematika');
+  assert.equal(
+    (
+      await api('/api/modules/schedules', 'POST', {
+        teaching_assignment_id: teachingAssignment.id,
+        semester_id: semester.id,
+        time_slot_id: timeSlot.id,
+        weekday: 1,
+      })
+    ).status,
+    409,
+  );
+  res = await api('/api/modules/classes', 'POST', {
+    academic_year_id: secondAcademicYear.id,
+    grade_id: grade.id,
+    name: '7C',
+    capacity: 32,
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const conflictClassroom = await res.json();
+  res = await api('/api/modules/teaching-assignments', 'POST', {
+    teacher_id: teacher.id,
+    subject_id: subject.id,
+    class_id: conflictClassroom.id,
+    semester_id: 'all',
+  });
+  assert.equal(res.status, 201);
+  const conflictAssignment = await res.json();
+  assert.equal(
+    (
+      await api('/api/modules/schedules', 'POST', {
+        teaching_assignment_id: conflictAssignment.id,
+        semester_id: semester.id,
+        time_slot_id: timeSlot.id,
+        weekday: 1,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (await api('/api/modules/teaching-assignments', 'DELETE', { id: conflictAssignment.id }))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await api('/api/modules/classes', 'DELETE', { id: conflictClassroom.id })).status,
+    200,
+  );
+  res = await api('/api/modules/schedules/copy', 'POST', {
+    source_semester_id: semester.id,
+    target_semester_id: secondSemester.id,
+    class_id: classroom.id,
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).copied, 1);
+  res = await api(
+    `/api/modules/schedules?academic_year_id=${secondAcademicYear.id}&semester_id=${secondSemester.id}&class_id=${classroom.id}`,
+  );
+  const copiedSchedule = await res.json();
+  assert.equal(copiedSchedule.entries.length, 1);
+  assert.equal(
+    (await api('/api/modules/teaching-assignments', 'DELETE', { id: annualTeachingAssignment.id }))
+      .status,
+    409,
+  );
+  assert.equal(
+    (await api('/api/modules/schedules', 'DELETE', { id: sourceSchedule.id })).status,
+    200,
+  );
+  assert.equal(
+    (await api('/api/modules/schedules', 'DELETE', { id: copiedSchedule.entries[0].id })).status,
+    200,
+  );
+  assert.equal(
+    (await api('/api/modules/schedule-time-slots', 'DELETE', { id: timeSlot.id })).status,
+    200,
+  );
   res = await api(
     `/api/modules/teaching-assignments?class_id=${classroom.id}&subject_id=${subject.id}`,
   );
@@ -587,6 +722,25 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
       (await api(`/api/modules/${moduleKey}`, 'GET', undefined, viewerCookie)).status,
       200,
     );
+  assert.equal((await api('/api/modules/schedules', 'GET', undefined, viewerCookie)).status, 200);
+  assert.equal(
+    (
+      await api(
+        '/api/modules/schedule-time-slots',
+        'POST',
+        {
+          name: 'Tanpa izin',
+          start_time: '08:00',
+          end_time: '08:40',
+          slot_order: 1,
+          is_break: false,
+          is_active: true,
+        },
+        viewerCookie,
+      )
+    ).status,
+    403,
+  );
   assert.equal(
     (
       await api(
