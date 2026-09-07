@@ -45,6 +45,7 @@ type ReportRow = {
 type ReportData = {
   rows: ReportRow[];
   summary: Record<string, number>;
+  school: { name: string; code: string; npsn: string; address: string } | null;
   selected: { academic_year_id: string; class_id: string; status: string };
   options: { academic_year_id: Option[]; class_id: Option[]; status: Option[] };
 };
@@ -68,6 +69,24 @@ const reportColumns = [
   'Status',
 ];
 
+const exportPalette = {
+  brand: 'FFE15F37',
+  brandStrong: 'FFC94E29',
+  brandSoft: 'FFFCEFE9',
+  ink: 'FF58595B',
+  muted: 'FF858587',
+  line: 'FFEBE7E4',
+  stripe: 'FFFAF8F7',
+};
+
+const exportStatusColors: Record<string, string> = {
+  active: 'FFFCEFE9',
+  promoted: 'FFFFF4F0',
+  retained: 'FFFAF8F7',
+  graduated: 'FFFFE4DA',
+  withdrawn: 'FFFFC6B4',
+};
+
 function formatReportDate(value?: string) {
   if (!value) return '—';
   const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
@@ -87,6 +106,12 @@ function exportRows(rows: ReportRow[]) {
     formatReportDate(row.end_date),
     row.status_label,
   ]);
+}
+
+function exportTimestamp() {
+  return new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' }).format(
+    new Date(),
+  );
 }
 
 export function AcademicReport() {
@@ -138,26 +163,103 @@ export function AcademicReport() {
     [classId, data],
   );
   const reportTitle = `Laporan Akademik${selectedYear ? ` — ${selectedYear}` : ''}${selectedClass ? ` — ${selectedClass}` : ''}`;
+  const reportPeriod = selectedYear || 'Semua tahun ajaran';
+  const reportClass = selectedClass || 'Semua rombel';
+  const reportStatus =
+    data?.options.status.find((option) => option.value === status)?.label || 'Semua status';
+  const schoolName = data?.school?.name || 'Cendekia Hub';
+  const schoolIdentifiers = [data?.school?.npsn && `NPSN ${data.school.npsn}`, data?.school?.code]
+    .filter(Boolean)
+    .join('   •   ');
+  const schoolAddress = data?.school?.address || '';
+  const schoolHeaderInfo = [schoolIdentifiers, schoolAddress].filter(Boolean).join('   •   ');
+  const pdfSchoolHeaderInfo =
+    schoolHeaderInfo.length > 132 ? `${schoolHeaderInfo.slice(0, 129)}…` : schoolHeaderInfo;
   const hasFilters = Boolean(classId || status || query);
 
   const downloadExcel = async () => {
     if (!data?.rows.length) return;
     setExporting('excel');
     try {
+      const generatedAt = exportTimestamp();
       const { Workbook } = await import('exceljs');
       const workbook = new Workbook();
       const worksheet = workbook.addWorksheet('Laporan Akademik');
       worksheet.mergeCells(1, 1, 1, reportColumns.length);
-      worksheet.getCell('A1').value = reportTitle;
-      worksheet.getCell('A1').font = { bold: true, size: 14 };
-      worksheet.getCell('A2').value =
-        `Diekspor: ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`;
+      worksheet.getCell('A1').value = schoolName;
+      worksheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+      worksheet.getCell('A1').fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: exportPalette.brandStrong },
+      };
+      worksheet.getCell('A1').alignment = { vertical: 'middle' };
+      worksheet.getRow(1).height = 30;
+      worksheet.mergeCells(2, 1, 2, reportColumns.length);
+      worksheet.getCell('A2').value = schoolHeaderInfo;
+      worksheet.getCell('A2').font = { size: 10, color: { argb: exportPalette.muted } };
+      worksheet.getCell('A2').alignment = { vertical: 'middle', wrapText: true };
+      worksheet.getRow(2).height = 30;
+      worksheet.mergeCells(3, 1, 3, reportColumns.length);
+      worksheet.getCell('A3').value = reportTitle;
+      worksheet.getCell('A3').font = { bold: true, size: 12, color: { argb: exportPalette.ink } };
+      worksheet.getRow(3).height = 22;
+      worksheet.mergeCells(4, 1, 4, reportColumns.length);
+      worksheet.getCell('A4').value =
+        `Periode: ${reportPeriod}   •   Rombel: ${reportClass}   •   Status: ${reportStatus}   •   Total murid: ${data.summary.total || 0}   •   Diekspor: ${generatedAt}`;
+      worksheet.getCell('A4').font = {
+        size: 9,
+        italic: true,
+        color: { argb: exportPalette.muted },
+      };
+      worksheet.getRow(4).height = 19;
       const header = worksheet.addRow(reportColumns);
       header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1971C2' } };
-      exportRows(data.rows).forEach((row) => worksheet.addRow(row));
+      header.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: exportPalette.brand },
+      };
+      header.alignment = { vertical: 'middle', horizontal: 'center' };
+      header.height = 24;
+      data.rows.forEach((reportRow, index) => {
+        const row = worksheet.addRow(exportRows([reportRow])[0]);
+        row.height = 22;
+        row.eachCell((cell) => {
+          cell.font = { size: 10, color: { argb: exportPalette.ink } };
+          cell.alignment = { vertical: 'middle', wrapText: true };
+          cell.border = {
+            bottom: { style: 'thin', color: { argb: exportPalette.line } },
+          };
+          if (index % 2 === 1) {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: exportPalette.stripe },
+            };
+          }
+        });
+        row.getCell(3).font = { bold: true, size: 10, color: { argb: exportPalette.ink } };
+        row.getCell(8).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: {
+            argb: exportStatusColors[reportRow.academic_status] || exportPalette.brandSoft,
+          },
+        };
+      });
       worksheet.columns = [14, 18, 30, 16, 20, 15, 15, 18].map((width) => ({ width }));
-      worksheet.views = [{ state: 'frozen', ySplit: 3 }];
+      worksheet.autoFilter = { from: 'A5', to: `H${worksheet.rowCount}` };
+      worksheet.views = [{ state: 'frozen', ySplit: 5 }];
+      worksheet.pageSetup = {
+        orientation: 'landscape',
+        paperSize: 9,
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        horizontalCentered: true,
+      };
+      worksheet.headerFooter.oddFooter = `&L ${schoolName} &R Halaman &P dari &N`;
       const bytes = await workbook.xlsx.writeBuffer();
       const url = URL.createObjectURL(
         new Blob([bytes], {
@@ -189,33 +291,61 @@ export function AcademicReport() {
     if (!data?.rows.length) return;
     setExporting('pdf');
     try {
+      const generatedAt = exportTimestamp();
       const [{ jsPDF }, autoTableModule] = await Promise.all([
         import('jspdf'),
         import('jspdf-autotable'),
       ]);
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const autoTable = autoTableModule.default;
-      pdf.setFontSize(15);
-      pdf.text(reportTitle, 14, 16);
-      pdf.setFontSize(9);
-      pdf.setTextColor(90);
-      pdf.text(
-        `Total murid: ${data.summary.total || 0}  |  Dicetak ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`,
-        14,
-        22,
-      );
+      const drawPageHeader = () => {
+        pdf.setFillColor(201, 78, 41);
+        pdf.rect(0, 0, 297, 27, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(15);
+        pdf.text(schoolName.toUpperCase(), 14, 12);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8.5);
+        pdf.text(pdfSchoolHeaderInfo || 'Laporan Akademik Murid', 14, 19);
+        pdf.text(`Total ${data.summary.total || 0} murid`, 283, 15, { align: 'right' });
+        pdf.setTextColor(71, 85, 105);
+        pdf.setFontSize(8);
+        pdf.text(`LAPORAN AKADEMIK MURID  •  ${reportPeriod}`, 14, 35);
+        pdf.text(`Rombel: ${reportClass}   •   Status: ${reportStatus}`, 14, 39);
+        pdf.text(`Dibuat ${generatedAt}`, 283, 39, { align: 'right' });
+      };
+      drawPageHeader();
       autoTable(pdf, {
         head: [reportColumns],
         body: exportRows(data.rows),
-        startY: 28,
-        theme: 'grid',
-        styles: { fontSize: 7.5, cellPadding: 2 },
-        headStyles: { fillColor: [25, 113, 194] },
-        columnStyles: { 0: { cellWidth: 19 }, 1: { cellWidth: 25 }, 2: { cellWidth: 43 } },
+        startY: 45,
+        margin: { top: 45, right: 14, bottom: 18, left: 14 },
+        theme: 'plain',
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 2.4,
+          textColor: [88, 89, 91],
+          lineColor: [235, 231, 228],
+          lineWidth: 0.15,
+        },
+        headStyles: {
+          fillColor: [225, 95, 55],
+          textColor: 255,
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+        alternateRowStyles: { fillColor: [250, 248, 247] },
+        columnStyles: {
+          0: { cellWidth: 19 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 43, fontStyle: 'bold' },
+        },
         didDrawPage: ({ pageNumber }) => {
+          if (pageNumber > 1) drawPageHeader();
           pdf.setFontSize(7);
           pdf.setTextColor(110);
-          pdf.text(`Halaman ${pageNumber}`, 282, 204, { align: 'right' });
+          pdf.text(`${schoolName}  •  Halaman ${pageNumber}`, 283, 204, { align: 'right' });
         },
       });
       pdf.save(`laporan-akademik-${data.selected.academic_year_id}.pdf`);

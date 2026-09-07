@@ -13,6 +13,13 @@ import { failure } from '@/lib/http';
 const optionalUuid = z.union([z.literal(''), z.string().uuid()]);
 const statusSchema = z.enum(['', 'active', 'promoted', 'retained', 'graduated', 'withdrawn']);
 
+type SchoolReportIdentity = {
+  name: string;
+  code: string;
+  npsn: string;
+  address: string;
+};
+
 export async function GET(request: Request) {
   try {
     await requireUser('academic-reports.read');
@@ -25,6 +32,9 @@ export async function GET(request: Request) {
     const classId = optionalUuid.parse(url.searchParams.get('class_id') || '');
     const status = statusSchema.parse(url.searchParams.get('status') || '');
     const filter = `%${(url.searchParams.get('q') || '').trim()}%`;
+    const school = db()
+      .prepare('SELECT name, code, npsn, address FROM schools WHERE id = ?')
+      .get(schoolId) as SchoolReportIdentity | undefined;
     const rows = db()
       .prepare(
         `SELECT cm.id,s.nis,s.nisn,s.name,c.id AS class_id,c.name AS class_name,
@@ -76,6 +86,7 @@ export async function GET(request: Request) {
       {
         rows,
         summary,
+        school: school ?? null,
         selected: { academic_year_id: academicYearId, class_id: classId, status },
         options: {
           academic_year_id: academicYearOptions(schoolId),
