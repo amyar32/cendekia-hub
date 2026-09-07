@@ -47,27 +47,36 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
   if (assignment.semester_id && assignment.semester_id !== semester.id)
     throw new HttpError(400, 'Penugasan ekstrakurikuler tidak berlaku pada semester ini.');
   const slot = db()
-    .prepare('SELECT id,is_active,is_break FROM schedule_time_slots WHERE id=? AND school_id=?')
+    .prepare(
+      'SELECT id,start_time,end_time,is_active,is_break FROM schedule_time_slots WHERE id=? AND school_id=?',
+    )
     .get(data.time_slot_id, schoolId) as
-    { id: string; is_active: number; is_break: number } | undefined;
+    | { id: string; start_time: string; end_time: string; is_active: number; is_break: number }
+    | undefined;
   if (!slot || !slot.is_active || slot.is_break)
     throw new HttpError(400, 'Slot waktu tidak aktif atau tidak dapat digunakan.');
 
   const lessonConflict = db()
     .prepare(
       `SELECT cs.id FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-       WHERE cs.semester_id=? AND cs.weekday=? AND cs.time_slot_id=? AND ta.teacher_id=? LIMIT 1`,
+       JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
+       WHERE cs.semester_id=? AND cs.weekday=?
+         AND NOT (sts.end_time<=? OR sts.start_time>=?)
+         AND ta.teacher_id=? LIMIT 1`,
     )
-    .get(data.semester_id, data.weekday, data.time_slot_id, assignment.teacher_id);
+    .get(data.semester_id, data.weekday, slot.start_time, slot.end_time, assignment.teacher_id);
   if (lessonConflict)
     throw new HttpError(409, 'Pembina memiliki jadwal pelajaran pada waktu tersebut.');
 
   const teacherConflict = db()
     .prepare(
       `SELECT es.id FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
-       WHERE es.semester_id=? AND es.weekday=? AND es.time_slot_id=? AND ea.teacher_id=? AND es.id<>? LIMIT 1`,
+       JOIN schedule_time_slots sts ON sts.id=es.time_slot_id
+       WHERE es.semester_id=? AND es.weekday=?
+         AND NOT (sts.end_time<=? OR sts.start_time>=?)
+         AND ea.teacher_id=? AND es.id<>? LIMIT 1`,
     )
-    .get(data.semester_id, data.weekday, data.time_slot_id, assignment.teacher_id, id);
+    .get(data.semester_id, data.weekday, slot.start_time, slot.end_time, assignment.teacher_id, id);
   if (teacherConflict)
     throw new HttpError(409, 'Pembina sudah memiliki jadwal ekstrakurikuler pada waktu tersebut.');
 
@@ -75,10 +84,12 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
     const locationConflict = db()
       .prepare(
         `SELECT es.id FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
-         WHERE es.semester_id=? AND es.weekday=? AND es.time_slot_id=?
+         JOIN schedule_time_slots sts ON sts.id=es.time_slot_id
+         WHERE es.semester_id=? AND es.weekday=?
+           AND NOT (sts.end_time<=? OR sts.start_time>=?)
            AND lower(ea.location)=lower(?) AND ea.location<>'' AND es.id<>? LIMIT 1`,
       )
-      .get(data.semester_id, data.weekday, data.time_slot_id, assignment.location, id);
+      .get(data.semester_id, data.weekday, slot.start_time, slot.end_time, assignment.location, id);
     if (locationConflict)
       throw new HttpError(409, 'Lokasi sudah digunakan ekstrakurikuler lain pada waktu tersebut.');
   }
@@ -91,10 +102,19 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
       .prepare(
         `SELECT es.id FROM extracurricular_schedules es
          JOIN extracurricular_participants ep ON ep.assignment_id=es.assignment_id
-         WHERE es.semester_id=? AND es.weekday=? AND es.time_slot_id=?
+         JOIN schedule_time_slots sts ON sts.id=es.time_slot_id
+         WHERE es.semester_id=? AND es.weekday=?
+           AND NOT (sts.end_time<=? OR sts.start_time>=?)
            AND ep.student_id=? AND es.id<>? LIMIT 1`,
       )
-      .get(data.semester_id, data.weekday, data.time_slot_id, participant.student_id, id);
+      .get(
+        data.semester_id,
+        data.weekday,
+        slot.start_time,
+        slot.end_time,
+        participant.student_id,
+        id,
+      );
     if (extracurricularConflict)
       throw new HttpError(
         409,
@@ -105,10 +125,12 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
         `SELECT cs.id FROM class_schedules cs
          JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
          JOIN class_memberships cm ON cm.class_id=ta.class_id AND cm.academic_year_id=ta.academic_year_id
-         WHERE cs.semester_id=? AND cs.weekday=? AND cs.time_slot_id=?
+         JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
+         WHERE cs.semester_id=? AND cs.weekday=?
+           AND NOT (sts.end_time<=? OR sts.start_time>=?)
            AND cm.student_id=? AND cm.status='active' LIMIT 1`,
       )
-      .get(data.semester_id, data.weekday, data.time_slot_id, participant.student_id);
+      .get(data.semester_id, data.weekday, slot.start_time, slot.end_time, participant.student_id);
     if (classConflict)
       throw new HttpError(
         409,

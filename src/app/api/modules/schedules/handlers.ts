@@ -51,9 +51,12 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
   if (assignment.semester_id && assignment.semester_id !== semester.id)
     throw new HttpError(400, 'Penugasan mengajar tidak berlaku pada semester ini.');
   const slot = db()
-    .prepare('SELECT id,is_break,is_active FROM schedule_time_slots WHERE id=? AND school_id=?')
+    .prepare(
+      'SELECT id,start_time,end_time,is_break,is_active FROM schedule_time_slots WHERE id=? AND school_id=?',
+    )
     .get(data.time_slot_id, schoolId) as
-    { id: string; is_break: number; is_active: number } | undefined;
+    | { id: string; start_time: string; end_time: string; is_break: number; is_active: number }
+    | undefined;
   if (!slot || !slot.is_active)
     throw new HttpError(400, 'Slot waktu tidak aktif atau tidak valid.');
   if (slot.is_break) throw new HttpError(400, 'Slot istirahat tidak dapat diisi pelajaran.');
@@ -62,10 +65,12 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
     .prepare(
       `SELECT cs.id FROM class_schedules cs
        JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-       WHERE cs.semester_id=? AND cs.weekday=? AND cs.time_slot_id=?
+       JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
+       WHERE cs.semester_id=? AND cs.weekday=?
+         AND NOT (sts.end_time<=? OR sts.start_time>=?)
          AND ta.class_id=? AND cs.id<>?`,
     )
-    .get(data.semester_id, data.weekday, data.time_slot_id, assignment.class_id, id);
+    .get(data.semester_id, data.weekday, slot.start_time, slot.end_time, assignment.class_id, id);
   if (classConflict)
     throw new HttpError(409, 'Rombel sudah memiliki pelajaran pada waktu tersebut.');
 
@@ -73,19 +78,24 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
     .prepare(
       `SELECT cs.id FROM class_schedules cs
        JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-       WHERE cs.semester_id=? AND cs.weekday=? AND cs.time_slot_id=?
+       JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
+       WHERE cs.semester_id=? AND cs.weekday=?
+         AND NOT (sts.end_time<=? OR sts.start_time>=?)
          AND ta.teacher_id=? AND cs.id<>?`,
     )
-    .get(data.semester_id, data.weekday, data.time_slot_id, assignment.teacher_id, id);
+    .get(data.semester_id, data.weekday, slot.start_time, slot.end_time, assignment.teacher_id, id);
   if (teacherConflict)
     throw new HttpError(409, 'Guru sudah mengajar rombel lain pada waktu tersebut.');
   const extracurricularTeacherConflict = db()
     .prepare(
       `SELECT es.id FROM extracurricular_schedules es
        JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
-       WHERE es.semester_id=? AND es.weekday=? AND es.time_slot_id=? AND ea.teacher_id=? LIMIT 1`,
+       JOIN schedule_time_slots sts ON sts.id=es.time_slot_id
+       WHERE es.semester_id=? AND es.weekday=?
+         AND NOT (sts.end_time<=? OR sts.start_time>=?)
+         AND ea.teacher_id=? LIMIT 1`,
     )
-    .get(data.semester_id, data.weekday, data.time_slot_id, assignment.teacher_id);
+    .get(data.semester_id, data.weekday, slot.start_time, slot.end_time, assignment.teacher_id);
   if (extracurricularTeacherConflict)
     throw new HttpError(409, 'Guru sudah membina ekstrakurikuler pada waktu tersebut.');
   const participantConflict = db()
@@ -93,13 +103,16 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
       `SELECT es.id FROM extracurricular_schedules es
        JOIN extracurricular_participants ep ON ep.assignment_id=es.assignment_id
        JOIN class_memberships cm ON cm.student_id=ep.student_id
-       WHERE es.semester_id=? AND es.weekday=? AND es.time_slot_id=?
+       JOIN schedule_time_slots sts ON sts.id=es.time_slot_id
+       WHERE es.semester_id=? AND es.weekday=?
+         AND NOT (sts.end_time<=? OR sts.start_time>=?)
          AND cm.class_id=? AND cm.academic_year_id=? AND cm.status='active' LIMIT 1`,
     )
     .get(
       data.semester_id,
       data.weekday,
-      data.time_slot_id,
+      slot.start_time,
+      slot.end_time,
       assignment.class_id,
       assignment.academic_year_id,
     );

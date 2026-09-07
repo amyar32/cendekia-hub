@@ -1,4 +1,5 @@
 import { test, before, after } from 'node:test';
+import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import assert from 'node:assert/strict';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
@@ -1098,7 +1099,9 @@ test('academic year template copies semesters, classes, teaching assignments, ho
       is_active: true,
     });
     assert.equal(res.status, 201);
-    sourceSlot = await res.json();
+    const createdSlot = await res.json();
+    const updatedTimeSlots = await (await api('/api/modules/schedule-time-slots')).json();
+    sourceSlot = updatedTimeSlots.rows.find((row: { id: string }) => row.id === createdSlot.id);
   }
   assert.ok(sourceSemester);
 
@@ -1155,6 +1158,29 @@ test('academic year template copies semesters, classes, teaching assignments, ho
     weekday: 4,
   });
   assert.equal(res.status, 201);
+  const overlappingSlotId = randomUUID();
+  const database = new Database(join(dir, 'test.sqlite'));
+  try {
+    const maxOrder = database
+      .prepare('SELECT MAX(slot_order) AS value FROM schedule_time_slots WHERE school_id=?')
+      .get(sourceSlot.school_id) as { value: number };
+    database
+      .prepare(
+        `INSERT INTO schedule_time_slots
+         (id,school_id,name,start_time,end_time,slot_order,is_break,is_active)
+         VALUES(?,?,?,?,?,?,0,1)`,
+      )
+      .run(
+        overlappingSlotId,
+        sourceSlot.school_id,
+        'JP Beririsan',
+        sourceSlot.start_time,
+        sourceSlot.end_time,
+        maxOrder.value + 1,
+      );
+  } finally {
+    database.close();
+  }
   res = await api(
     `/api/modules/schedules?academic_year_id=${sourceYear.id}&semester_id=${sourceSemester.id}&class_id=${sourceClass.id}`,
   );
@@ -1193,7 +1219,7 @@ test('academic year template copies semesters, classes, teaching assignments, ho
       await api('/api/modules/schedules', 'POST', {
         teaching_assignment_id: sourceAssignment.id,
         semester_id: sourceSemester.id,
-        time_slot_id: sourceSlot.id,
+        time_slot_id: overlappingSlotId,
         weekday: 4,
       })
     ).status,
@@ -1206,6 +1232,17 @@ test('academic year template copies semesters, classes, teaching assignments, ho
     weekday: 6,
   });
   assert.equal(res.status, 201);
+  assert.equal(
+    (
+      await api('/api/modules/extracurricular-schedules', 'POST', {
+        extracurricular_assignment_id: extracurricularAssignment.id,
+        semester_id: sourceSemester.id,
+        time_slot_id: overlappingSlotId,
+        weekday: 6,
+      })
+    ).status,
+    409,
+  );
   res = await api('/api/modules/homeroom-assignments', 'POST', {
     academic_year_id: sourceYear.id,
     teacher_id: teachers.rows[0].id,
