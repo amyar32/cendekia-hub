@@ -58,24 +58,30 @@ const icons = {
   classes: IconUsersGroup,
   grades: IconHierarchy,
   subjects: IconBooks,
+  extracurriculars: IconLayersIntersect,
   teachers: IconUsers,
   'teaching-assignments': IconSchoolBell,
   'homeroom-assignments': IconHome2,
+  'extracurricular-assignments': IconCalendarTime,
   students: IconUsersGroup,
   promotions: IconArrowUp,
   schedules: IconCalendarTime,
   'academic-reports': IconReportAnalytics,
 };
 const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
-  { label: 'Data Sekolah', keys: ['students', 'teachers', 'grades', 'subjects'] },
+  {
+    label: 'Data Sekolah',
+    keys: ['students', 'teachers', 'grades', 'subjects', 'extracurriculars'],
+  },
   {
     label: 'Akademik',
     keys: [
       'academic-years',
       'semesters',
       'classes',
-      'teaching-assignments',
       'homeroom-assignments',
+      'teaching-assignments',
+      'extracurricular-assignments',
     ],
   },
   { label: 'Laporan', keys: ['academic-reports'] },

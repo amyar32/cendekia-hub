@@ -93,6 +93,12 @@ const dateFormatter = new Intl.DateTimeFormat('id-ID', {
   year: 'numeric',
   timeZone: 'UTC',
 });
+const inputWrapperOrder: Array<'label' | 'input' | 'description' | 'error'> = [
+  'label',
+  'input',
+  'description',
+  'error',
+];
 function formatDate(value: string) {
   return dateFormatter.format(new Date(`${value}T00:00:00Z`));
 }
@@ -357,6 +363,7 @@ export function AcademicEntityManager({
               const common = {
                 label: field.label,
                 description: field.description,
+                inputWrapperOrder,
                 placeholder: field.placeholder || `Masukkan ${field.label.toLowerCase()}`,
                 required: field.required,
                 value: form[field.key] as never,

@@ -62,7 +62,12 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         const data = schema.parse(input);
         if (
           data.is_break &&
-          db().prepare('SELECT id FROM class_schedules WHERE time_slot_id=? LIMIT 1').get(id)
+          db()
+            .prepare(
+              `SELECT id FROM class_schedules WHERE time_slot_id=?
+               UNION ALL SELECT id FROM extracurricular_schedules WHERE time_slot_id=? LIMIT 1`,
+            )
+            .get(id, id)
         )
           throw new HttpError(
             409,

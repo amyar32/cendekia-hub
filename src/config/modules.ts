@@ -17,12 +17,16 @@ export const permissions = [
   'classes.write',
   'subjects.read',
   'subjects.write',
+  'extracurriculars.read',
+  'extracurriculars.write',
   'teachers.read',
   'teachers.write',
   'teaching-assignments.read',
   'teaching-assignments.write',
   'homeroom-assignments.read',
   'homeroom-assignments.write',
+  'extracurricular-assignments.read',
+  'extracurricular-assignments.write',
   'students.read',
   'students.write',
   'promotions.read',
@@ -42,9 +46,11 @@ export type ModuleKey =
   | 'classes'
   | 'grades'
   | 'subjects'
+  | 'extracurriculars'
   | 'teachers'
   | 'teaching-assignments'
   | 'homeroom-assignments'
+  | 'extracurricular-assignments'
   | 'students'
   | 'promotions'
   | 'schedules'
@@ -68,6 +74,14 @@ export const modules: CmsModule[] = [
     group: 'Akademik',
   },
   {
+    key: 'homeroom-assignments',
+    label: 'Wali Kelas',
+    description: 'Tentukan guru wali kelas untuk setiap rombel dan tahun ajaran.',
+    path: '/academic/homeroom-assignments',
+    permission: 'homeroom-assignments.read',
+    group: 'Akademik',
+  },
+  {
     key: 'teaching-assignments',
     label: 'Penugasan Mengajar',
     description: 'Kelola mapel yang diampu guru beserta rombel dan periode mengajarnya.',
@@ -76,11 +90,11 @@ export const modules: CmsModule[] = [
     group: 'Akademik',
   },
   {
-    key: 'homeroom-assignments',
-    label: 'Wali Kelas',
-    description: 'Tentukan guru wali kelas untuk setiap rombel dan tahun ajaran.',
-    path: '/academic/homeroom-assignments',
-    permission: 'homeroom-assignments.read',
+    key: 'extracurricular-assignments',
+    label: 'Penugasan Ekstrakurikuler',
+    description: 'Kelola pembina, peserta, jadwal, lokasi, dan kuota ekstrakurikuler per periode.',
+    path: '/academic/extracurricular-assignments',
+    permission: 'extracurricular-assignments.read',
     group: 'Akademik',
   },
   {
@@ -137,6 +151,14 @@ export const modules: CmsModule[] = [
     description: 'Kelola kode, kategori, dan identitas mata pelajaran.',
     path: '/master-data/subjects',
     permission: 'subjects.read',
+    group: 'Data Sekolah',
+  },
+  {
+    key: 'extracurriculars',
+    label: 'Ekstrakurikuler',
+    description: 'Kelola master program ekstrakurikuler sekolah.',
+    path: '/master-data/extracurriculars',
+    permission: 'extracurriculars.read',
     group: 'Data Sekolah',
   },
   {

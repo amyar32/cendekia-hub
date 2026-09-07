@@ -65,6 +65,8 @@ type AcademicYearForm = {
   copy_teaching_assignments: boolean;
   copy_homeroom_assignments: boolean;
   copy_schedules: boolean;
+  copy_extracurricular_assignments: boolean;
+  copy_extracurricular_schedules: boolean;
 };
 
 const emptyForm = (): AcademicYearForm => ({
@@ -78,6 +80,8 @@ const emptyForm = (): AcademicYearForm => ({
   copy_teaching_assignments: true,
   copy_homeroom_assignments: true,
   copy_schedules: true,
+  copy_extracurricular_assignments: true,
+  copy_extracurricular_schedules: true,
 });
 const endpoint = '/api/modules/academic-years';
 const dateFormatter = new Intl.DateTimeFormat('id-ID', {
@@ -109,6 +113,8 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
             copy_teaching_assignments: false,
             copy_homeroom_assignments: false,
             copy_schedules: false,
+            copy_extracurricular_assignments: false,
+            copy_extracurricular_schedules: false,
           }
         : emptyForm(),
     );
@@ -357,6 +363,12 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                           ...form,
                           copy_semesters: checked,
                           copy_schedules: checked ? form.copy_schedules : false,
+                          copy_extracurricular_assignments: checked
+                            ? form.copy_extracurricular_assignments
+                            : false,
+                          copy_extracurricular_schedules: checked
+                            ? form.copy_extracurricular_schedules
+                            : false,
                         });
                       }}
                     />
@@ -405,6 +417,34 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                       }
                       onChange={(event) =>
                         setForm({ ...form, copy_schedules: event.currentTarget.checked })
+                      }
+                    />
+                    <Checkbox
+                      label="Salin penugasan ekstrakurikuler"
+                      description="Pembina, lokasi, dan kuota disalin sebagai draft; peserta dikosongkan"
+                      checked={form.copy_extracurricular_assignments}
+                      disabled={!form.copy_semesters}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setForm({
+                          ...form,
+                          copy_extracurricular_assignments: checked,
+                          copy_extracurricular_schedules: checked
+                            ? form.copy_extracurricular_schedules
+                            : false,
+                        });
+                      }}
+                    />
+                    <Checkbox
+                      label="Salin jadwal ekstrakurikuler"
+                      description="Mengikuti slot dan pemetaan semester yang disalin"
+                      checked={form.copy_extracurricular_schedules}
+                      disabled={!form.copy_semesters || !form.copy_extracurricular_assignments}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          copy_extracurricular_schedules: event.currentTarget.checked,
+                        })
                       }
                     />
                   </SimpleGrid>

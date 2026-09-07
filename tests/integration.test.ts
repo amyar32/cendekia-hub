@@ -470,7 +470,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   );
   const schedule = await res.json();
   assert.equal(schedule.entries.length, 1);
-  assert.equal(schedule.entries[0].subject_name, 'Matematika');
+  assert.equal(schedule.entries[0].entry_name, 'Matematika');
   assert.equal(
     (
       await api('/api/modules/schedules', 'POST', {
@@ -717,7 +717,14 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     (await api('/api/modules/academic-years', 'GET', undefined, viewerCookie)).status,
     200,
   );
-  for (const moduleKey of ['semesters', 'grades', 'classes', 'subjects'])
+  for (const moduleKey of [
+    'semesters',
+    'grades',
+    'classes',
+    'subjects',
+    'extracurriculars',
+    'extracurricular-assignments',
+  ])
     assert.equal(
       (await api(`/api/modules/${moduleKey}`, 'GET', undefined, viewerCookie)).status,
       200,
@@ -736,6 +743,17 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
           is_break: false,
           is_active: true,
         },
+        viewerCookie,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await api(
+        '/api/modules/extracurriculars',
+        'POST',
+        { code: 'NO', name: 'Tanpa izin', is_active: true },
         viewerCookie,
       )
     ).status,
@@ -1069,6 +1087,69 @@ test('academic year template copies semesters, classes, teaching assignments, ho
   }
   assert.ok(sourceSemester);
 
+  res = await api('/api/modules/extracurriculars', 'POST', {
+    code: 'pramuka',
+    name: 'Pramuka',
+    category: 'Organisasi',
+    description: 'Kegiatan kepanduan sekolah',
+    is_required: true,
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const extracurricular = await res.json();
+  res = await api('/api/modules/extracurriculars?q=PRAMUKA');
+  const extracurriculars = await res.json();
+  assert.equal(extracurriculars.total, 1);
+  assert.equal(extracurriculars.rows[0].requirement_label, 'Wajib');
+  res = await api('/api/modules/students', 'POST', {
+    nis: 'S-EKSKUL-001',
+    nisn: '',
+    name: 'Peserta Ekstrakurikuler',
+    gender: 'female',
+    birth_date: '',
+    birth_place: '',
+    address: '',
+    phone: '',
+    email: '',
+    enrollment_date: sourceYear.start_date,
+    is_active: true,
+    guardians: [],
+    documents: [],
+    placement: { class_id: sourceClass.id, start_date: sourceYear.start_date },
+  });
+  assert.equal(res.status, 201);
+  const extracurricularParticipant = await res.json();
+
+  res = await api('/api/modules/extracurricular-assignments', 'POST', {
+    academic_year_id: sourceYear.id,
+    extracurricular_id: extracurricular.id,
+    teacher_id: teachers.rows[0].id,
+    semester_id: 'all',
+    location: 'Lapangan sekolah',
+    map_url: 'https://maps.google.com/?q=lapangan+sekolah',
+    quota: 40,
+    status: 'active',
+    student_ids: [extracurricularParticipant.id],
+  });
+  assert.equal(res.status, 201);
+  const extracurricularAssignment = await res.json();
+  res = await api('/api/modules/extracurricular-schedules', 'POST', {
+    extracurricular_assignment_id: extracurricularAssignment.id,
+    semester_id: sourceSemester.id,
+    time_slot_id: sourceSlot.id,
+    weekday: 4,
+  });
+  assert.equal(res.status, 201);
+  res = await api(
+    `/api/modules/schedules?academic_year_id=${sourceYear.id}&semester_id=${sourceSemester.id}&class_id=${sourceClass.id}`,
+  );
+  const classScheduleWithExtracurricular = await res.json();
+  assert.ok(
+    classScheduleWithExtracurricular.entries.some(
+      (entry: { entry_type: string }) => entry.entry_type === 'extracurricular',
+    ),
+  );
+
   res = await api('/api/modules/teaching-assignments', 'POST', {
     academic_year_id: sourceYear.id,
     teacher_id: teachers.rows[0].id,
@@ -1078,6 +1159,31 @@ test('academic year template copies semesters, classes, teaching assignments, ho
   });
   assert.equal(res.status, 201);
   const sourceAssignment = await res.json();
+  res = await api(
+    `/api/modules/schedules?academic_year_id=${sourceYear.id}&semester_id=${sourceSemester.id}&view=teacher&teacher_id=${teachers.rows[0].id}`,
+  );
+  const combinedTeacherSchedule = await res.json();
+  assert.ok(
+    combinedTeacherSchedule.entries.some(
+      (entry: { entry_type: string }) => entry.entry_type === 'extracurricular',
+    ),
+  );
+  assert.ok(
+    combinedTeacherSchedule.assignments.some(
+      (assignment: { type: string }) => assignment.type === 'extracurricular',
+    ),
+  );
+  assert.equal(
+    (
+      await api('/api/modules/schedules', 'POST', {
+        teaching_assignment_id: sourceAssignment.id,
+        semester_id: sourceSemester.id,
+        time_slot_id: sourceSlot.id,
+        weekday: 4,
+      })
+    ).status,
+    409,
+  );
   res = await api('/api/modules/schedules', 'POST', {
     teaching_assignment_id: sourceAssignment.id,
     semester_id: sourceSemester.id,
@@ -1103,6 +1209,8 @@ test('academic year template copies semesters, classes, teaching assignments, ho
     copy_teaching_assignments: true,
     copy_homeroom_assignments: true,
     copy_schedules: true,
+    copy_extracurricular_assignments: true,
+    copy_extracurricular_schedules: true,
   });
   assert.equal(res.status, 201);
   const copiedYear = await res.json();
@@ -1124,10 +1232,21 @@ test('academic year template copies semesters, classes, teaching assignments, ho
       `/api/modules/schedules?academic_year_id=${copiedYear.id}&semester_id=${copiedSemesters.rows[0].id}&class_id=${copiedClasses.rows[0].id}`,
     )
   ).json();
+  const copiedExtracurriculars = await (
+    await api(`/api/modules/extracurricular-assignments?academic_year_id=${copiedYear.id}`)
+  ).json();
   assert.equal(copiedSemesters.total, 2);
   assert.equal(copiedClasses.total, classes.total);
   assert.ok(copiedTeaching.total >= 1);
   assert.ok(copiedHomeroom.total >= 1);
+  assert.equal(copiedExtracurriculars.total, 1);
+  assert.equal(copiedExtracurriculars.rows[0].status, 'draft');
+  assert.equal(copiedExtracurriculars.rows[0].participant_count, 0);
+  assert.equal(copiedExtracurriculars.rows[0].schedule_count, 1);
+  assert.equal(
+    copiedExtracurriculars.rows[0].map_url,
+    'https://maps.google.com/?q=lapangan+sekolah',
+  );
   const automaticallyCopiedSchedule = copiedSchedule.entries.find(
     (entry: { weekday: number }) => entry.weekday === 6,
   );

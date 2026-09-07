@@ -25,6 +25,7 @@ export function db() {
     CREATE TABLE IF NOT EXISTS grades (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, name TEXT NOT NULL, level_order INTEGER NOT NULL CHECK (level_order > 0), description TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, name), UNIQUE (school_id, level_order));
     CREATE TABLE IF NOT EXISTS classes (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, grade_id TEXT NOT NULL REFERENCES grades(id) ON DELETE RESTRICT, name TEXT NOT NULL, capacity INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0), is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, academic_year_id, name));
     CREATE TABLE IF NOT EXISTS subjects (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, code TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, code), UNIQUE (school_id, name));
+    CREATE TABLE IF NOT EXISTS extracurriculars (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, code TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', is_required INTEGER NOT NULL DEFAULT 0 CHECK (is_required IN (0, 1)), is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, code), UNIQUE (school_id, name));
     CREATE TABLE IF NOT EXISTS teachers (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, user_id TEXT REFERENCES users(id) ON DELETE SET NULL, photo_url TEXT NOT NULL DEFAULT '', employee_code TEXT NOT NULL, nip TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male', 'female')), birth_date TEXT, phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', join_date TEXT, employment_status TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, employee_code));
     CREATE TABLE IF NOT EXISTS teaching_assignments (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, semester_id TEXT REFERENCES semesters(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teacher_id, subject_id, class_id, academic_year_id, semester_id));
     CREATE TABLE IF NOT EXISTS homeroom_assignments (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (class_id, academic_year_id), UNIQUE (teacher_id, academic_year_id));
@@ -35,6 +36,9 @@ export function db() {
     CREATE TABLE IF NOT EXISTS student_documents (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, type TEXT NOT NULL, file_url TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS promotion_batches (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, source_academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, target_academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, actions TEXT NOT NULL, activates_target INTEGER NOT NULL DEFAULT 0 CHECK (activates_target IN (0, 1)), status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed', 'undone')), created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), undone_at TEXT);
     CREATE TABLE IF NOT EXISTS class_memberships (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, start_date TEXT NOT NULL, end_date TEXT, status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'transferred', 'withdrawn')), completion_reason TEXT NOT NULL DEFAULT '', promotion_batch_id TEXT REFERENCES promotion_batches(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), CHECK (end_date IS NULL OR start_date <= end_date), UNIQUE (student_id, class_id, academic_year_id, start_date));
+    CREATE TABLE IF NOT EXISTS extracurricular_assignments (id TEXT PRIMARY KEY, extracurricular_id TEXT NOT NULL REFERENCES extracurriculars(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, semester_id TEXT REFERENCES semesters(id) ON DELETE RESTRICT, location TEXT NOT NULL DEFAULT '', map_url TEXT NOT NULL DEFAULT '', quota INTEGER NOT NULL DEFAULT 0 CHECK (quota >= 0), status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'completed')), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS extracurricular_schedules (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE CASCADE, semester_id TEXT NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT, time_slot_id TEXT NOT NULL REFERENCES schedule_time_slots(id) ON DELETE RESTRICT, weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6), created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (assignment_id, semester_id, time_slot_id, weekday));
+    CREATE TABLE IF NOT EXISTS extracurricular_participants (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE CASCADE, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (assignment_id, student_id));
     CREATE INDEX IF NOT EXISTS audit_created ON audit(created_at);
     CREATE INDEX IF NOT EXISTS uploads_created ON uploads(created_at);
     CREATE INDEX IF NOT EXISTS academic_years_school_dates ON academic_years(school_id, start_date DESC);
@@ -58,6 +62,10 @@ export function db() {
     CREATE INDEX IF NOT EXISTS student_documents_student ON student_documents(student_id);
     CREATE INDEX IF NOT EXISTS class_memberships_year_class ON class_memberships(academic_year_id, class_id);
     CREATE UNIQUE INDEX IF NOT EXISTS class_memberships_one_active ON class_memberships(student_id, academic_year_id) WHERE status = 'active';
+    CREATE UNIQUE INDEX IF NOT EXISTS extracurricular_assignments_unique ON extracurricular_assignments(extracurricular_id, academic_year_id, COALESCE(semester_id, ''));
+    CREATE INDEX IF NOT EXISTS extracurricular_assignments_year ON extracurricular_assignments(academic_year_id, extracurricular_id);
+    CREATE INDEX IF NOT EXISTS extracurricular_schedules_period ON extracurricular_schedules(semester_id, weekday, time_slot_id);
+    CREATE INDEX IF NOT EXISTS extracurricular_participants_student ON extracurricular_participants(student_id, assignment_id);
     CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
     CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
   `);
@@ -287,6 +295,45 @@ export function db() {
       }
       connection.pragma('user_version = 15');
     })();
+  }
+  if (schemaVersion < 16) {
+    connection.transaction(() => {
+      connection.exec(`
+        CREATE TABLE IF NOT EXISTS extracurriculars (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, code TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', is_required INTEGER NOT NULL DEFAULT 0 CHECK (is_required IN (0, 1)), is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, code), UNIQUE (school_id, name));
+        CREATE TABLE IF NOT EXISTS extracurricular_assignments (id TEXT PRIMARY KEY, extracurricular_id TEXT NOT NULL REFERENCES extracurriculars(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, semester_id TEXT REFERENCES semesters(id) ON DELETE RESTRICT, location TEXT NOT NULL DEFAULT '', quota INTEGER NOT NULL DEFAULT 0 CHECK (quota >= 0), status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'completed')), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+        CREATE TABLE IF NOT EXISTS extracurricular_schedules (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE CASCADE, semester_id TEXT NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT, time_slot_id TEXT NOT NULL REFERENCES schedule_time_slots(id) ON DELETE RESTRICT, weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6), created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (assignment_id, semester_id, time_slot_id, weekday));
+        CREATE TABLE IF NOT EXISTS extracurricular_participants (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE CASCADE, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (assignment_id, student_id));
+        CREATE UNIQUE INDEX IF NOT EXISTS extracurricular_assignments_unique ON extracurricular_assignments(extracurricular_id, academic_year_id, COALESCE(semester_id, ''));
+        CREATE INDEX IF NOT EXISTS extracurricular_assignments_year ON extracurricular_assignments(academic_year_id, extracurricular_id);
+        CREATE INDEX IF NOT EXISTS extracurricular_schedules_period ON extracurricular_schedules(semester_id, weekday,time_slot_id);
+        CREATE INDEX IF NOT EXISTS extracurricular_participants_student ON extracurricular_participants(student_id, assignment_id);
+      `);
+      const storedRoles = connection.prepare('SELECT id, permissions FROM roles').all() as {
+        id: string;
+        permissions: string;
+      }[];
+      const updateRole = connection.prepare('UPDATE roles SET permissions = ? WHERE id = ?');
+      for (const role of storedRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        if (grants.has('subjects.read')) grants.add('extracurriculars.read');
+        if (grants.has('subjects.write')) grants.add('extracurriculars.write');
+        if (grants.has('teaching-assignments.read')) grants.add('extracurricular-assignments.read');
+        if (grants.has('teaching-assignments.write'))
+          grants.add('extracurricular-assignments.write');
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.pragma('user_version = 16');
+    })();
+  }
+  if (schemaVersion < 17) {
+    const columns = connection.pragma('table_info(extracurricular_assignments)') as {
+      name: string;
+    }[];
+    if (!columns.some((column) => column.name === 'map_url'))
+      connection.exec(
+        "ALTER TABLE extracurricular_assignments ADD COLUMN map_url TEXT NOT NULL DEFAULT ''",
+      );
+    connection.pragma('user_version = 17');
   }
   globalDb.cmsDb = connection;
   return connection;

@@ -38,7 +38,7 @@ import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import { moduleMutation } from '@/hooks/use-module-list';
 import styles from './schedule-manager.module.css';
 
-type Option = { value: string; label: string };
+type Option = { value: string; label: string; type?: 'lesson' | 'extracurricular' };
 type CopyOption = Option & {
   academic_year_id?: string;
   name?: string;
@@ -55,12 +55,13 @@ type Slot = {
 };
 type Entry = {
   id: string;
-  teaching_assignment_id: string;
+  assignment_id: string;
+  entry_type: 'lesson' | 'extracurricular';
   semester_id: string;
   time_slot_id: string;
   weekday: number;
-  subject_name: string;
-  subject_code: string;
+  entry_name: string;
+  entry_code: string;
   teacher_name: string;
   class_name: string;
 };
@@ -161,10 +162,14 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
     return () => controller.abort();
   }, [slotRevision]);
 
-  const entryMap = useMemo(
-    () => new Map(data?.entries.map((entry) => [`${entry.weekday}:${entry.time_slot_id}`, entry])),
-    [data?.entries],
-  );
+  const entryMap = useMemo(() => {
+    const map = new Map<string, Entry[]>();
+    for (const entry of data?.entries || []) {
+      const key = `${entry.weekday}:${entry.time_slot_id}`;
+      map.set(key, [...(map.get(key) || []), entry]);
+    }
+    return map;
+  }, [data?.entries]);
   const copySemesters = data?.options.copy_semester_id || [];
   const selectedSourceSemester = copySemesters.find((option) => option.value === sourceSemesterId);
   const sourceClasses = (data?.options.copy_class_id || []).filter(
@@ -190,7 +195,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
     if (!writable) return;
     setCell({ weekday, time_slot_id: timeSlotId });
     setEditing(entry || null);
-    setAssignmentId(entry?.teaching_assignment_id || '');
+    setAssignmentId(entry?.assignment_id || '');
   }
 
   async function saveSchedule(event: React.FormEvent) {
@@ -198,13 +203,23 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
     if (!cell || !semesterId) return;
     setSaving(true);
     try {
-      await moduleMutation('/api/modules/schedules', editing ? 'PATCH' : 'POST', {
-        id: editing?.id,
-        teaching_assignment_id: assignmentId,
-        semester_id: semesterId,
-        time_slot_id: cell.time_slot_id,
-        weekday: cell.weekday,
-      });
+      const type =
+        data?.assignments.find((assignment) => assignment.value === assignmentId)?.type || 'lesson';
+      await moduleMutation(
+        type === 'extracurricular'
+          ? '/api/modules/extracurricular-schedules'
+          : '/api/modules/schedules',
+        editing ? 'PATCH' : 'POST',
+        {
+          id: editing?.id,
+          ...(type === 'extracurricular'
+            ? { extracurricular_assignment_id: assignmentId }
+            : { teaching_assignment_id: assignmentId }),
+          semester_id: semesterId,
+          time_slot_id: cell.time_slot_id,
+          weekday: cell.weekday,
+        },
+      );
       setEditing(undefined);
       setCell(null);
       reload();
@@ -224,7 +239,13 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
     if (!editing) return;
     setSaving(true);
     try {
-      await moduleMutation('/api/modules/schedules', 'DELETE', { id: editing.id });
+      await moduleMutation(
+        editing.entry_type === 'extracurricular'
+          ? '/api/modules/extracurricular-schedules'
+          : '/api/modules/schedules',
+        'DELETE',
+        { id: editing.id },
+      );
       setEditing(undefined);
       setCell(null);
       reload();
@@ -481,7 +502,9 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                         </Text>
                       </div>
                       {days.map((day, index) => {
-                        const entry = entryMap.get(`${index + 1}:${slot.id}`);
+                        const cellEntries = entryMap.get(`${index + 1}:${slot.id}`) || [];
+                        const entry = cellEntries[0];
+                        const entryNames = [...new Set(cellEntries.map((item) => item.entry_name))];
                         if (slot.is_break)
                           return (
                             <div className={styles.breakCell} key={day}>
@@ -492,20 +515,28 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                           <button
                             type="button"
                             key={day}
-                            className={`${styles.scheduleCell} ${entry ? styles.filledCell : ''}`}
+                            className={`${styles.scheduleCell} ${cellEntries.length ? styles.filledCell : ''}`}
                             onClick={() => openCell(index + 1, slot.id, entry)}
-                            disabled={!writable}
+                            disabled={!writable || cellEntries.length > 1}
                           >
-                            {entry ? (
+                            {cellEntries.length ? (
                               <>
                                 <Text fw={700} size="xs" lineClamp={2}>
-                                  {entry.subject_name}
+                                  {entryNames.join(', ')}
                                 </Text>
                                 <Text variant="caption" lineClamp={1}>
-                                  {view === 'class' ? entry.teacher_name : entry.class_name}
+                                  {cellEntries.length > 1
+                                    ? `${cellEntries.length} kegiatan`
+                                    : view === 'class'
+                                      ? entry.teacher_name
+                                      : entry.class_name}
                                 </Text>
                                 <Badge size="xs" variant="light" mt={5}>
-                                  {entry.subject_code}
+                                  {cellEntries.every(
+                                    (item) => item.entry_type === 'extracurricular',
+                                  )
+                                    ? 'EKSKUL'
+                                    : entry?.entry_code}
                                 </Badge>
                               </>
                             ) : writable ? (
@@ -529,14 +560,16 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                       {day}
                     </Text>
                     {data.slots.map((slot) => {
-                      const entry = entryMap.get(`${index + 1}:${slot.id}`);
+                      const cellEntries = entryMap.get(`${index + 1}:${slot.id}`) || [];
+                      const entry = cellEntries[0];
+                      const entryNames = [...new Set(cellEntries.map((item) => item.entry_name))];
                       return (
                         <button
                           type="button"
                           key={slot.id}
-                          className={`${styles.mobileSlot} ${entry ? styles.filledCell : ''} ${slot.is_break ? styles.mobileBreak : ''}`}
+                          className={`${styles.mobileSlot} ${cellEntries.length ? styles.filledCell : ''} ${slot.is_break ? styles.mobileBreak : ''}`}
                           onClick={() => !slot.is_break && openCell(index + 1, slot.id, entry)}
-                          disabled={!writable || Boolean(slot.is_break)}
+                          disabled={!writable || Boolean(slot.is_break) || cellEntries.length > 1}
                         >
                           <Box className={styles.mobileTime}>
                             <Text fw={700} size="xs">
@@ -549,13 +582,17 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                           <Box className={styles.mobileLesson}>
                             {slot.is_break ? (
                               <Text variant="caption">Istirahat</Text>
-                            ) : entry ? (
+                            ) : cellEntries.length ? (
                               <>
                                 <Text fw={700} size="xs">
-                                  {entry.subject_name}
+                                  {entryNames.join(', ')}
                                 </Text>
                                 <Text variant="caption">
-                                  {view === 'class' ? entry.teacher_name : entry.class_name}
+                                  {cellEntries.length > 1
+                                    ? `${cellEntries.length} kegiatan`
+                                    : view === 'class'
+                                      ? entry.teacher_name
+                                      : entry.class_name}
                                 </Text>
                               </>
                             ) : (
@@ -677,9 +714,8 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
               </Text>
             </Group>
             <Select
-              label="Penugasan mengajar"
-              description="Pilihan mengikuti rombel/guru dan semester yang sedang ditampilkan."
-              placeholder="Pilih guru dan mata pelajaran"
+              label="Penugasan"
+              placeholder="Pilih penugasan"
               data={data?.assignments || []}
               value={assignmentId || null}
               onChange={(value) => setAssignmentId(value || '')}
@@ -687,6 +723,10 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
               required
               nothingFoundMessage="Penugasan belum tersedia"
             />
+            <Text size="xs" c="dimmed" mt={-8}>
+              Pilihan mengikuti rombel/guru dan semester yang sedang ditampilkan. Pada tampilan Per
+              Guru, ekstrakurikuler juga tersedia.
+            </Text>
             <Group justify="space-between" mt="md">
               {editing ? (
                 <Button

@@ -66,6 +66,42 @@ const subject: AcademicEntityConfig = {
   ],
 };
 
+const extracurricular: AcademicEntityConfig = {
+  endpoint: '/api/modules/extracurriculars',
+  title: 'Ekstrakurikuler',
+  singular: 'Ekstrakurikuler',
+  eyebrow: 'MASTER DATA',
+  description: 'Kelola master program ekstrakurikuler sekolah.',
+  note: 'Program dibuat satu kali; pembina, peserta, dan jadwal ditentukan melalui penugasan per tahun ajaran.',
+  defaults: {
+    code: '',
+    name: '',
+    category: '',
+    description: '',
+    is_required: false,
+    is_active: true,
+  },
+  fields: [
+    { key: 'code', label: 'Kode', placeholder: 'Contoh: PRAMUKA', required: true },
+    { key: 'name', label: 'Nama ekstrakurikuler', placeholder: 'Contoh: Pramuka', required: true },
+    { key: 'category', label: 'Kategori', placeholder: 'Contoh: Organisasi' },
+    { key: 'description', label: 'Deskripsi', kind: 'textarea', placeholder: 'Keterangan program' },
+    {
+      key: 'is_required',
+      label: 'Ekstrakurikuler wajib',
+      kind: 'switch',
+      description: 'Tandai jika seluruh murid wajib mengikuti program ini.',
+    },
+  ],
+  columns: [
+    { key: 'code', label: 'KODE', kind: 'code' },
+    { key: 'name', label: 'NAMA' },
+    { key: 'category', label: 'KATEGORI' },
+    { key: 'requirement_label', label: 'JENIS' },
+    { key: 'is_active', label: 'STATUS', kind: 'status' },
+  ],
+};
+
 const semester: AcademicEntityConfig = {
   endpoint: '/api/modules/semesters',
   title: 'Semester',
@@ -158,6 +194,9 @@ export const GradeManager = ({ writable }: { writable: boolean }) => (
 );
 export const SubjectManager = ({ writable }: { writable: boolean }) => (
   <AcademicEntityManager config={subject} writable={writable} />
+);
+export const ExtracurricularManager = ({ writable }: { writable: boolean }) => (
+  <AcademicEntityManager config={extracurricular} writable={writable} />
 );
 export const SemesterManager = ({ writable }: { writable: boolean }) => (
   <AcademicEntityManager config={semester} writable={writable} />

@@ -114,6 +114,8 @@ const copySchema = z
     copy_teaching_assignments: z.boolean().default(false),
     copy_homeroom_assignments: z.boolean().default(false),
     copy_schedules: z.boolean().default(false),
+    copy_extracurricular_assignments: z.boolean().default(false),
+    copy_extracurricular_schedules: z.boolean().default(false),
   })
   .superRefine((data, context) => {
     if (
@@ -124,6 +126,18 @@ const copySchema = z
         code: 'custom',
         message: 'Penyalinan jadwal memerlukan semester, rombel, dan penugasan mengajar.',
         path: ['copy_schedules'],
+      });
+    if (data.copy_extracurricular_assignments && !data.copy_semesters)
+      context.addIssue({
+        code: 'custom',
+        message: 'Penyalinan penugasan ekstrakurikuler memerlukan semester.',
+        path: ['copy_extracurricular_assignments'],
+      });
+    if (data.copy_extracurricular_schedules && !data.copy_extracurricular_assignments)
+      context.addIssue({
+        code: 'custom',
+        message: 'Penyalinan jadwal ekstrakurikuler memerlukan penugasannya.',
+        path: ['copy_extracurricular_schedules'],
       });
   });
 
@@ -598,6 +612,73 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
             for (const assignment of assignments) {
               const targetClassId = targetBySource.get(assignment.class_id);
               if (targetClassId) insert.run(randomUUID(), assignment.teacher_id, targetClassId, id);
+            }
+          }
+
+          if (copy.copy_extracurricular_assignments) {
+            const assignments = db()
+              .prepare(
+                `SELECT ea.id,ea.extracurricular_id,ea.teacher_id,ea.location,ea.map_url,ea.quota,s.period
+                 FROM extracurricular_assignments ea
+                 LEFT JOIN semesters s ON s.id=ea.semester_id
+                 WHERE ea.academic_year_id=?`,
+              )
+              .all(copy.copy_from_academic_year_id) as Array<{
+              id: string;
+              extracurricular_id: string;
+              teacher_id: string;
+              location: string;
+              map_url: string;
+              quota: number;
+              period: number | null;
+            }>;
+            const insertAssignment = db().prepare(
+              `INSERT OR IGNORE INTO extracurricular_assignments
+               (id,extracurricular_id,teacher_id,academic_year_id,semester_id,location,map_url,quota,status)
+               VALUES(?,?,?,?,?,?,?,?,'draft')`,
+            );
+            const insertSchedule = db().prepare(
+              `INSERT OR IGNORE INTO extracurricular_schedules
+               (id,assignment_id,semester_id,time_slot_id,weekday) VALUES(?,?,?,?,?)`,
+            );
+            for (const assignment of assignments) {
+              const targetAssignmentSemesterId =
+                assignment.period == null ? null : semesterByPeriod.get(assignment.period);
+              if (assignment.period != null && !targetAssignmentSemesterId) continue;
+              const targetAssignmentId = randomUUID();
+              const inserted = insertAssignment.run(
+                targetAssignmentId,
+                assignment.extracurricular_id,
+                assignment.teacher_id,
+                id,
+                targetAssignmentSemesterId ?? null,
+                assignment.location,
+                assignment.map_url,
+                assignment.quota,
+              );
+              if (!inserted.changes || !copy.copy_extracurricular_schedules) continue;
+              const schedules = db()
+                .prepare(
+                  `SELECT es.time_slot_id,es.weekday,s.period
+                   FROM extracurricular_schedules es JOIN semesters s ON s.id=es.semester_id
+                   WHERE es.assignment_id=?`,
+                )
+                .all(assignment.id) as Array<{
+                time_slot_id: string;
+                weekday: number;
+                period: number;
+              }>;
+              for (const schedule of schedules) {
+                const targetScheduleSemesterId = semesterByPeriod.get(schedule.period);
+                if (targetScheduleSemesterId)
+                  insertSchedule.run(
+                    randomUUID(),
+                    targetAssignmentId,
+                    targetScheduleSemesterId,
+                    schedule.time_slot_id,
+                    schedule.weekday,
+                  );
+              }
             }
           }
         }

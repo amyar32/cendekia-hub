@@ -79,6 +79,35 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
     .get(data.semester_id, data.weekday, data.time_slot_id, assignment.teacher_id, id);
   if (teacherConflict)
     throw new HttpError(409, 'Guru sudah mengajar rombel lain pada waktu tersebut.');
+  const extracurricularTeacherConflict = db()
+    .prepare(
+      `SELECT es.id FROM extracurricular_schedules es
+       JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
+       WHERE es.semester_id=? AND es.weekday=? AND es.time_slot_id=? AND ea.teacher_id=? LIMIT 1`,
+    )
+    .get(data.semester_id, data.weekday, data.time_slot_id, assignment.teacher_id);
+  if (extracurricularTeacherConflict)
+    throw new HttpError(409, 'Guru sudah membina ekstrakurikuler pada waktu tersebut.');
+  const participantConflict = db()
+    .prepare(
+      `SELECT es.id FROM extracurricular_schedules es
+       JOIN extracurricular_participants ep ON ep.assignment_id=es.assignment_id
+       JOIN class_memberships cm ON cm.student_id=ep.student_id
+       WHERE es.semester_id=? AND es.weekday=? AND es.time_slot_id=?
+         AND cm.class_id=? AND cm.academic_year_id=? AND cm.status='active' LIMIT 1`,
+    )
+    .get(
+      data.semester_id,
+      data.weekday,
+      data.time_slot_id,
+      assignment.class_id,
+      assignment.academic_year_id,
+    );
+  if (participantConflict)
+    throw new HttpError(
+      409,
+      'Salah satu murid rombel ini memiliki ekstrakurikuler pada waktu tersebut.',
+    );
   return assignment;
 }
 
@@ -118,10 +147,13 @@ export async function GET(request: Request) {
             db()
               .prepare(
                 `SELECT DISTINCT t.id AS value FROM teachers t
-               JOIN teaching_assignments ta ON ta.teacher_id=t.id
-               WHERE t.school_id=? AND ta.academic_year_id=? ORDER BY t.name LIMIT 1`,
+               WHERE t.school_id=? AND EXISTS (
+                 SELECT 1 FROM teaching_assignments ta WHERE ta.teacher_id=t.id AND ta.academic_year_id=?
+                 UNION ALL
+                 SELECT 1 FROM extracurricular_assignments ea WHERE ea.teacher_id=t.id AND ea.academic_year_id=?
+               ) ORDER BY t.name LIMIT 1`,
               )
-              .get(schoolId, academicYearId) as { value: string } | undefined
+              .get(schoolId, academicYearId, academicYearId) as { value: string } | undefined
           )?.value ?? '');
     const entityId = requestedEntity || defaultEntity;
     if (view === 'class' && entityId) {
@@ -130,48 +162,103 @@ export async function GET(request: Request) {
         throw new HttpError(400, 'Rombel tidak berada pada tahun ajaran yang dipilih.');
     }
 
-    const entityClause = view === 'class' ? 'ta.class_id=?' : 'ta.teacher_id=?';
     const entries =
-      semesterId && entityId
-        ? db()
-            .prepare(
-              `SELECT cs.*,ta.teacher_id,ta.subject_id,ta.class_id,t.name AS teacher_name,
-                      s.name AS subject_name,s.code AS subject_code,c.name AS class_name
-               FROM class_schedules cs
-               JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-               JOIN teachers t ON t.id=ta.teacher_id
-               JOIN subjects s ON s.id=ta.subject_id
-               JOIN classes c ON c.id=ta.class_id
-               WHERE cs.semester_id=? AND ${entityClause}
-               ORDER BY cs.weekday,cs.time_slot_id`,
-            )
-            .all(semesterId, entityId)
-        : [];
+      !semesterId || !entityId
+        ? []
+        : view === 'class'
+          ? db()
+              .prepare(
+                `SELECT cs.id,'lesson' AS entry_type,ta.id AS assignment_id,cs.semester_id,cs.time_slot_id,cs.weekday,
+                  t.name AS teacher_name,s.name AS entry_name,s.code AS entry_code,c.name AS class_name
+           FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
+           JOIN teachers t ON t.id=ta.teacher_id JOIN subjects s ON s.id=ta.subject_id JOIN classes c ON c.id=ta.class_id
+           WHERE cs.semester_id=? AND ta.class_id=?
+           UNION ALL
+           SELECT DISTINCT es.id,'extracurricular' AS entry_type,ea.id AS assignment_id,es.semester_id,es.time_slot_id,es.weekday,
+                  t.name AS teacher_name,e.name AS entry_name,e.code AS entry_code,'' AS class_name
+           FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
+           JOIN extracurriculars e ON e.id=ea.extracurricular_id JOIN teachers t ON t.id=ea.teacher_id
+           JOIN extracurricular_participants ep ON ep.assignment_id=ea.id JOIN class_memberships cm ON cm.student_id=ep.student_id
+           WHERE es.semester_id=? AND cm.class_id=? AND cm.academic_year_id=? AND cm.status='active'
+           ORDER BY weekday,time_slot_id`,
+              )
+              .all(semesterId, entityId, semesterId, entityId, academicYearId)
+          : db()
+              .prepare(
+                `SELECT cs.id,'lesson' AS entry_type,ta.id AS assignment_id,cs.semester_id,cs.time_slot_id,cs.weekday,
+                  t.name AS teacher_name,s.name AS entry_name,s.code AS entry_code,c.name AS class_name
+           FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
+           JOIN teachers t ON t.id=ta.teacher_id JOIN subjects s ON s.id=ta.subject_id JOIN classes c ON c.id=ta.class_id
+           WHERE cs.semester_id=? AND ta.teacher_id=?
+           UNION ALL
+           SELECT es.id,'extracurricular' AS entry_type,ea.id AS assignment_id,es.semester_id,es.time_slot_id,es.weekday,
+                  t.name AS teacher_name,e.name AS entry_name,e.code AS entry_code,'' AS class_name
+           FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
+           JOIN extracurriculars e ON e.id=ea.extracurricular_id JOIN teachers t ON t.id=ea.teacher_id
+           WHERE es.semester_id=? AND ea.teacher_id=?
+           ORDER BY weekday,time_slot_id`,
+              )
+              .all(semesterId, entityId, semesterId, entityId);
     const slots = db()
       .prepare(
         `SELECT * FROM schedule_time_slots sts WHERE sts.school_id=? AND
          (sts.is_active=1 OR EXISTS (
            SELECT 1 FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-           WHERE cs.time_slot_id=sts.id AND cs.semester_id=? AND ${entityClause}
+           WHERE cs.time_slot_id=sts.id AND cs.semester_id=? AND (?='class' AND ta.class_id=? OR ?='teacher' AND ta.teacher_id=?)
+         ) OR EXISTS (
+           SELECT 1 FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
+           WHERE es.time_slot_id=sts.id AND es.semester_id=? AND ?='teacher' AND ea.teacher_id=?
          )) ORDER BY sts.slot_order,sts.start_time`,
       )
-      .all(schoolId, semesterId || '', entityId || '');
+      .all(
+        schoolId,
+        semesterId || '',
+        view,
+        entityId || '',
+        view,
+        entityId || '',
+        semesterId || '',
+        view,
+        entityId || '',
+      );
     const assignments =
-      semesterId && entityId
-        ? db()
-            .prepare(
-              `SELECT ta.id AS value,s.code || ' — ' || s.name || ' · ' || t.name ||
-                      CASE WHEN ?='teacher' THEN ' · ' || c.name ELSE '' END AS label
-               FROM teaching_assignments ta
-               JOIN teachers t ON t.id=ta.teacher_id
-               JOIN subjects s ON s.id=ta.subject_id
-               JOIN classes c ON c.id=ta.class_id
-               WHERE ta.academic_year_id=? AND ${entityClause}
-                 AND (ta.semester_id IS NULL OR ta.semester_id=?)
-               ORDER BY s.name,t.name,c.name`,
-            )
-            .all(view, academicYearId, entityId, semesterId)
-        : [];
+      !semesterId || !entityId
+        ? []
+        : view === 'class'
+          ? db()
+              .prepare(
+                `SELECT ta.id AS value,'lesson' AS type,s.code || ' — ' || s.name || ' · ' || t.name AS label
+           FROM teaching_assignments ta JOIN teachers t ON t.id=ta.teacher_id JOIN subjects s ON s.id=ta.subject_id
+           WHERE ta.academic_year_id=? AND ta.class_id=? AND (ta.semester_id IS NULL OR ta.semester_id=?)
+           UNION ALL
+           SELECT DISTINCT ea.id AS value,'extracurricular' AS type,'Ekstrakurikuler · ' || e.name AS label
+           FROM extracurricular_assignments ea JOIN extracurriculars e ON e.id=ea.extracurricular_id
+           JOIN extracurricular_participants ep ON ep.assignment_id=ea.id JOIN class_memberships cm ON cm.student_id=ep.student_id
+           WHERE ea.academic_year_id=? AND (ea.semester_id IS NULL OR ea.semester_id=?)
+             AND cm.class_id=? AND cm.academic_year_id=? AND cm.status='active'
+           ORDER BY label`,
+              )
+              .all(
+                academicYearId,
+                entityId,
+                semesterId,
+                academicYearId,
+                semesterId,
+                entityId,
+                academicYearId,
+              )
+          : db()
+              .prepare(
+                `SELECT ta.id AS value,'lesson' AS type,s.code || ' — ' || s.name || ' · ' || c.name AS label
+           FROM teaching_assignments ta JOIN subjects s ON s.id=ta.subject_id JOIN classes c ON c.id=ta.class_id
+           WHERE ta.academic_year_id=? AND ta.teacher_id=? AND (ta.semester_id IS NULL OR ta.semester_id=?)
+           UNION ALL
+           SELECT ea.id AS value,'extracurricular' AS type,'Ekstrakurikuler · ' || e.name AS label
+           FROM extracurricular_assignments ea JOIN extracurriculars e ON e.id=ea.extracurricular_id
+           WHERE ea.academic_year_id=? AND ea.teacher_id=? AND (ea.semester_id IS NULL OR ea.semester_id=?)
+           ORDER BY label`,
+              )
+              .all(academicYearId, entityId, semesterId, academicYearId, entityId, semesterId);
     const copySemesters = db()
       .prepare(
         `SELECT s.id AS value,ay.name || ' · ' || s.name AS label,s.academic_year_id
