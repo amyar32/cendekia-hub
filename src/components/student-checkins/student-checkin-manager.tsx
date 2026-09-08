@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -24,6 +25,7 @@ import {
   IconCheck,
   IconClock,
   IconLogin,
+  IconQrcode,
   IconSearch,
   IconUserCheck,
   IconUsers,
@@ -167,6 +169,17 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
         eyebrow="KEHADIRAN HARIAN"
         title="Cek-in siswa"
         description="Catat kedatangan siswa, pantau keterlambatan, dan periksa kehadiran harian per rombel."
+        action={
+          writable ? (
+            <Button
+              component={Link}
+              href="/student-checkins/scanner"
+              leftSection={<IconQrcode size={18} />}
+            >
+              Buka scanner
+            </Button>
+          ) : undefined
+        }
       />
       <Paper withBorder p="lg" mb="md" className={styles.controlPanel}>
         <Group justify="space-between" align="end" wrap="wrap">

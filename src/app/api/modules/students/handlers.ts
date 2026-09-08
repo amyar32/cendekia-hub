@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   activeAcademicYear,
@@ -139,7 +139,9 @@ export async function GET(request: Request) {
     const where = `s.school_id=? AND (s.nis LIKE ? OR s.nisn LIKE ? OR s.name LIKE ? OR s.email LIKE ?)`;
     const rows = db()
       .prepare(
-        `SELECT s.*,CASE s.gender WHEN 'male' THEN 'Laki-laki' ELSE 'Perempuan' END AS gender_label
+        `SELECT s.id,s.school_id,s.photo_url,s.nis,s.nisn,s.name,s.gender,s.birth_date,s.birth_place,
+          s.address,s.phone,s.email,s.enrollment_date,s.is_active,s.created_at,s.updated_at,
+          CASE s.gender WHEN 'male' THEN 'Laki-laki' ELSE 'Perempuan' END AS gender_label
        FROM students s WHERE ${where} ORDER BY s.is_active DESC,s.name LIMIT 10 OFFSET ?`,
       )
       .all(schoolId, filter, filter, filter, filter, offset) as StudentRow[];
@@ -223,10 +225,10 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       if (method === 'POST')
         db()
           .prepare(
-            `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,address,phone,email,enrollment_date,is_active)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,address,phone,email,enrollment_date,is_active,qr_token)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
-          .run(id, schoolId, ...args);
+          .run(id, schoolId, ...args, randomBytes(24).toString('hex'));
       else
         db()
           .prepare(

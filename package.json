@@ -19,12 +19,14 @@
     "@mantine/hooks": "^8.3.0",
     "@mantine/notifications": "^8.3.0",
     "@tabler/icons-react": "^3.35.0",
+    "@zxing/browser": "^0.2.1",
     "better-sqlite3": "^12.4.0",
     "dayjs": "^1.11.23",
     "exceljs": "^4.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "next": "^16.0.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zod": "^4.1.0"
@@ -32,6 +34,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "eslint": "^9.0.0",

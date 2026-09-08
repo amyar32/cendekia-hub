@@ -50,6 +50,10 @@ const schoolSchema = z.object({
         return false;
       }
     }, 'Zona waktu tidak valid.'),
+  checkin_late_after: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Batas keterlambatan harus berupa jam HH:mm.')
+    .default('07:15'),
   is_active: z.boolean().default(true),
 });
 
@@ -63,6 +67,7 @@ type SchoolRow = {
   phone: string;
   logo_url: string;
   timezone: string;
+  checkin_late_after: string;
   is_active: number;
   created_at: string;
   updated_at: string;
@@ -105,7 +110,7 @@ export async function PATCH(request: Request) {
       if (previous) {
         db()
           .prepare(
-            `UPDATE schools SET name=?, code=?, npsn=?, address=?, email=?, phone=?, logo_url=?, timezone=?, is_active=?, updated_at=datetime('now') WHERE id=?`,
+            `UPDATE schools SET name=?, code=?, npsn=?, address=?, email=?, phone=?, logo_url=?, timezone=?, checkin_late_after=?, is_active=?, updated_at=datetime('now') WHERE id=?`,
           )
           .run(
             data.name,
@@ -116,13 +121,14 @@ export async function PATCH(request: Request) {
             data.phone,
             data.logo_url,
             data.timezone,
+            data.checkin_late_after,
             Number(data.is_active),
             id,
           );
       } else {
         db()
           .prepare(
-            `INSERT INTO schools(id, name, code, npsn, address, email, phone, logo_url, timezone, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO schools(id, name, code, npsn, address, email, phone, logo_url, timezone, checkin_late_after, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             id,
@@ -134,6 +140,7 @@ export async function PATCH(request: Request) {
             data.phone,
             data.logo_url,
             data.timezone,
+            data.checkin_late_after,
             Number(data.is_active),
           );
       }

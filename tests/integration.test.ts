@@ -706,6 +706,48 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(completeStudent.photo_url, studentPhoto.url);
   assert.equal(completeStudent.current_class_name, '7A');
   assert.equal(completeStudent.history[0].status_label, 'Aktif');
+  res = await api(`/api/modules/students/${student.id}/card`);
+  assert.equal(res.status, 200);
+  const firstCard = await res.json();
+  assert.match(firstCard.qr_value, /^cendekia:checkin:[0-9a-f]{48}$/);
+  assert.equal(firstCard.qr_token, undefined);
+  res = await api(`/student-cards/${student.id}/print`);
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /Ayu Cendekia/);
+  res = await api(`/api/modules/students/${student.id}/card`, 'POST');
+  assert.equal(res.status, 200);
+  const replacementCard = await res.json();
+  assert.notEqual(replacementCard.qr_value, firstCard.qr_value);
+  assert.equal(
+    (await api('/api/modules/student-checkins/scanner', 'POST', { code: student.nis })).status,
+    400,
+  );
+  assert.equal(
+    (
+      await api('/api/modules/student-checkins/scanner', 'POST', {
+        code: firstCard.qr_value,
+      })
+    ).status,
+    404,
+  );
+  res = await api('/api/modules/student-checkins/scanner', 'POST', {
+    code: replacementCard.qr_value,
+  });
+  assert.equal(res.status, 201);
+  const scanned = await res.json();
+  assert.equal(scanned.outcome, 'success');
+  assert.equal(scanned.student.name, 'Ayu Cendekia');
+  res = await api('/api/modules/student-checkins/scanner', 'POST', {
+    code: replacementCard.qr_value,
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).outcome, 'duplicate');
+  res = await api('/api/modules/student-checkins/scanner');
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).summary.total, 1);
+  const cleanupDb = new Database(join(dir, 'test.sqlite'));
+  cleanupDb.prepare('DELETE FROM student_checkins WHERE student_id=?').run(student.id);
+  cleanupDb.close();
   res = await api('/api/modules/classes', 'POST', {
     academic_year_id: secondAcademicYear.id,
     grade_id: grade.id,

@@ -29,6 +29,7 @@ import {
   IconCheck,
   IconEye,
   IconFile,
+  IconId,
   IconPencil,
   IconPlus,
   IconTrash,
@@ -41,6 +42,7 @@ import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
 import classes from '@/components/academic/academic-entity-manager.module.css';
+import { StudentCardModal } from './student-card-modal';
 
 type Guardian = {
   name: string;
@@ -127,6 +129,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
   const [removing, setRemoving] = useState<StudentRow | null>(null);
   const [form, setForm] = useState<StudentForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [cardStudentId, setCardStudentId] = useState<string | null>(null);
 
   function openEditor(row: StudentRow | null) {
     setForm(
@@ -303,6 +306,15 @@ export function StudentManager({ writable }: { writable: boolean }) {
                   <Table.Td>
                     <Group gap={6} justify="flex-end">
                       <ActionIcon
+                        aria-label={`Kartu ${row.name}`}
+                        title="Buat kartu siswa"
+                        variant="subtle"
+                        color="blue"
+                        onClick={() => setCardStudentId(row.id)}
+                      >
+                        <IconId size={17} />
+                      </ActionIcon>
+                      <ActionIcon
                         aria-label={`Lihat ${row.name}`}
                         variant="subtle"
                         color="gray"
@@ -328,6 +340,13 @@ export function StudentManager({ writable }: { writable: boolean }) {
           </Table>
         </Table.ScrollContainer>
       </ModuleListLayout>
+
+      <StudentCardModal
+        key={cardStudentId || 'closed'}
+        studentId={cardStudentId}
+        writable={writable}
+        onClose={() => setCardStudentId(null)}
+      />
 
       <Modal
         opened={editing !== undefined}

@@ -23,9 +23,18 @@ export async function POST(request: Request) {
     if (attempt && attempt.reset_at > Date.now() && attempt.attempts >= 5)
       throw new HttpError(429, 'Terlalu banyak percobaan. Coba lagi dalam 15 menit.');
     const user = db()
-      .prepare('SELECT id,password,active,must_change_password FROM users WHERE email=?')
+      .prepare(
+        'SELECT u.id,u.password,u.active,u.must_change_password,r.permissions FROM users u JOIN roles r ON r.id=u.role_id WHERE u.email=?',
+      )
       .get(email) as
-      { id: string; password: string; active: number; must_change_password: number } | undefined;
+      | {
+          id: string;
+          password: string;
+          active: number;
+          must_change_password: number;
+          permissions: string;
+        }
+      | undefined;
     const valid = verifyPassword(password, user?.password ?? dummyPassword);
     if (!user || !valid || !user.active) {
       db().transaction(() => {
@@ -43,7 +52,14 @@ export async function POST(request: Request) {
       audit(email, 'login', 'auth', user.id);
     })();
     await createSession(user.id);
-    return Response.json({ ok: true, must_change_password: Boolean(user.must_change_password) });
+    const permissions = JSON.parse(user.permissions) as string[];
+    const scannerOnly =
+      permissions.includes('student-checkins.write') && !permissions.includes('dashboard.read');
+    return Response.json({
+      ok: true,
+      must_change_password: Boolean(user.must_change_password),
+      redirect_to: scannerOnly ? '/student-checkins/scanner' : '/',
+    });
   } catch (error) {
     return failure(error);
   }

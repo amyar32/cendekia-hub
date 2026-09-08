@@ -33,6 +33,7 @@ export type School = {
   phone: string;
   logo_url: string;
   timezone: string;
+  checkin_late_after: string;
   is_active: number;
   created_at: string;
   updated_at: string;
@@ -51,6 +52,7 @@ const emptyForm: SchoolForm = {
   phone: '',
   logo_url: '',
   timezone: 'Asia/Jakarta',
+  checkin_late_after: '07:15',
   is_active: true,
 };
 
@@ -71,6 +73,7 @@ function toForm(school: School | null): SchoolForm {
     phone: school.phone,
     logo_url: school.logo_url,
     timezone: school.timezone,
+    checkin_late_after: school.checkin_late_after || '07:15',
     is_active: Boolean(school.is_active),
   };
 }
@@ -197,6 +200,15 @@ export function SchoolSettings({
               onChange={(value) => value && setField('timezone', value)}
               required
               allowDeselect={false}
+              disabled={!writable}
+            />
+            <TextInput
+              label="Batas waktu cek-in"
+              description="Cek-in setelah jam ini otomatis ditandai terlambat."
+              type="time"
+              value={form.checkin_late_after}
+              onChange={(event) => setField('checkin_late_after', event.currentTarget.value)}
+              required
               disabled={!writable}
             />
           </SimpleGrid>
