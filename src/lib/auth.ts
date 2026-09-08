@@ -11,17 +11,24 @@ export type SessionUser = {
   role_id: string;
   role: string;
   permissions: string[];
+  must_change_password: boolean;
 };
 export async function currentUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const row = db()
     .prepare(
-      `SELECT u.id,u.name,u.email,u.role_id,r.name AS role,r.permissions FROM sessions s JOIN users u ON u.id=s.user_id JOIN roles r ON r.id=u.role_id WHERE s.token=? AND s.expires_at>? AND u.active=1`,
+      `SELECT u.id,u.name,u.email,u.role_id,u.must_change_password,r.name AS role,r.permissions FROM sessions s JOIN users u ON u.id=s.user_id JOIN roles r ON r.id=u.role_id WHERE s.token=? AND s.expires_at>? AND u.active=1`,
     )
     .get(tokenHash(token), Date.now()) as
     (Omit<SessionUser, 'permissions'> & { permissions: string }) | undefined;
-  return row ? { ...row, permissions: JSON.parse(row.permissions) } : null;
+  return row
+    ? {
+        ...row,
+        must_change_password: Boolean(row.must_change_password),
+        permissions: JSON.parse(row.permissions),
+      }
+    : null;
 }
 export class HttpError extends Error {
   constructor(
@@ -34,6 +41,8 @@ export class HttpError extends Error {
 export async function requireUser(permission?: string) {
   const user = await currentUser();
   if (!user) throw new HttpError(401, 'Silakan masuk kembali.');
+  if (permission && user.must_change_password)
+    throw new HttpError(403, 'Ganti kata sandi sementara sebelum melanjutkan.');
   if (permission && !can(user.permissions, permission))
     throw new HttpError(403, 'Anda tidak memiliki izin untuk tindakan ini.');
   return user;

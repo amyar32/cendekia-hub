@@ -109,6 +109,11 @@ export function CmsShell({
   const [opened, setOpened] = useState(false);
   const [currentAcademicContext, setCurrentAcademicContext] = useState(academicContext);
 
+  useEffect(() => {
+    if (user.must_change_password && path !== '/settings/account')
+      router.replace('/settings/account');
+  }, [path, router, user.must_change_password]);
+
   useEffect(
     () =>
       subscribeAcademicContext((update: AcademicContextUpdate) => {

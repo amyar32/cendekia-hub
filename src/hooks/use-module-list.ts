@@ -81,5 +81,12 @@ export async function moduleMutation(endpoint: string, method: string, body: unk
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error);
-  return result as { ok: true; id: string; created?: number; skipped?: number };
+  return result as {
+    ok: true;
+    id: string;
+    created?: number;
+    skipped?: number;
+    account_email?: string;
+    temporary_password?: string;
+  };
 }

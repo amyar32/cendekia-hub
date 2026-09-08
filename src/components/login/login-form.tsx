@@ -40,7 +40,7 @@ export function LoginForm() {
         message: 'Selamat datang kembali di workspace Anda.',
         color: 'green',
       });
-      router.replace('/');
+      router.replace(result.must_change_password ? '/settings/account' : '/');
       router.refresh();
     } catch (e) {
       notifications.show({

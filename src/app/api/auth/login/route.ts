@@ -22,8 +22,10 @@ export async function POST(request: Request) {
       .get(email) as { attempts: number; reset_at: number } | undefined;
     if (attempt && attempt.reset_at > Date.now() && attempt.attempts >= 5)
       throw new HttpError(429, 'Terlalu banyak percobaan. Coba lagi dalam 15 menit.');
-    const user = db().prepare('SELECT id,password,active FROM users WHERE email=?').get(email) as
-      { id: string; password: string; active: number } | undefined;
+    const user = db()
+      .prepare('SELECT id,password,active,must_change_password FROM users WHERE email=?')
+      .get(email) as
+      { id: string; password: string; active: number; must_change_password: number } | undefined;
     const valid = verifyPassword(password, user?.password ?? dummyPassword);
     if (!user || !valid || !user.active) {
       db().transaction(() => {
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
       audit(email, 'login', 'auth', user.id);
     })();
     await createSession(user.id);
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, must_change_password: Boolean(user.must_change_password) });
   } catch (error) {
     return failure(error);
   }

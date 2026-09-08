@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       throw new HttpError(400, 'Kata sandi saat ini salah.');
     db().transaction(() => {
       db()
-        .prepare('UPDATE users SET password=? WHERE id=?')
+        .prepare('UPDATE users SET password=?,must_change_password=0 WHERE id=?')
         .run(hashPassword(input.password), user.id);
       db().prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);
       audit(user.email, 'password.changed', 'auth', user.id);

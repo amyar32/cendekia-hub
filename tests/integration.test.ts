@@ -350,6 +350,36 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   });
   assert.equal(res.status, 201);
   const teacher = await res.json();
+  assert.equal(teacher.account_email, 'budi@cendekia.test');
+  assert.equal(typeof teacher.temporary_password, 'string');
+  assert.ok(teacher.temporary_password.length >= 12);
+  res = await api(
+    '/api/auth/login',
+    'POST',
+    { email: teacher.account_email, password: teacher.temporary_password },
+    '',
+  );
+  assert.equal(res.status, 200);
+  assert.equal((await res.clone().json()).must_change_password, true);
+  const teacherCookie = res.headers.get('set-cookie')!.split(';')[0];
+  assert.equal(
+    (await api('/api/modules/student-attendance', 'GET', undefined, teacherCookie)).status,
+    403,
+  );
+  assert.equal(
+    (
+      await api(
+        '/api/auth/password',
+        'POST',
+        {
+          currentPassword: teacher.temporary_password,
+          password: 'budi-new-password-123',
+        },
+        teacherCookie,
+      )
+    ).status,
+    200,
+  );
   res = await uploadApi(png, 'image/png', adminCookie, base, 'teacher.photo');
   assert.equal(res.status, 201);
   const teacherPhoto = (await res.json()).upload;

@@ -1,4 +1,219 @@
-.panel {
+.securityAlert {
+  max-width: 1040px;
+  margin-bottom: 20px;
+  border: 1px solid color-mix(in srgb, var(--mantine-color-yellow-6) 26%, transparent);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(440px, 1.45fr);
+  align-items: start;
+  gap: 22px;
+  max-width: 1040px;
+}
+
+.profileCard,
+.securityCard {
+  overflow: hidden;
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--app-color-text) 4%, transparent);
+}
+
+.profileTop {
+  position: relative;
+  min-height: 136px;
+  padding: 30px 28px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 84% 15%,
+      color-mix(in srgb, var(--app-color-surface) 42%, transparent) 0 8%,
+      transparent 8.5%
+    ),
+    linear-gradient(135deg, var(--app-color-brand-soft), #fff8f4);
+  border-bottom: 1px solid color-mix(in srgb, var(--app-color-brand) 16%, transparent);
+}
+
+.profileGlow {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  top: -86px;
+  right: -35px;
+  border-radius: 50%;
+  border: 24px solid color-mix(in srgb, var(--app-color-brand) 8%, transparent);
+}
+
+.avatar {
+  position: relative;
+  color: var(--app-color-surface);
+  background: linear-gradient(145deg, var(--app-color-brand), var(--app-color-brand-strong));
+  border: 4px solid color-mix(in srgb, var(--app-color-surface) 90%, transparent);
+  box-shadow: 0 10px 25px color-mix(in srgb, var(--app-color-brand-strong) 22%, transparent);
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.avatar :global(.mantine-Avatar-placeholder) {
+  color: #fff;
+}
+
+.statusBadge {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.profileBody {
+  padding: 25px 28px 27px;
+}
+
+.profileName {
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.4px;
+}
+
+.profileDetails {
+  margin-top: 25px;
+  padding: 6px 0;
+  border-top: 1px solid var(--app-color-border);
+  border-bottom: 1px solid var(--app-color-border);
+}
+
+.detailRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.detailContent {
+  min-width: 0;
+}
+
+.detailContent :global(.mantine-Text-root:last-child) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.managedNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 20px;
+  color: var(--app-color-muted-soft);
+}
+
+.managedNote svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.securityCard {
   padding: 28px;
-  max-width: 580px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--app-color-border);
+}
+
+.passwordForm {
+  display: grid;
+  gap: 18px;
+  padding-top: 23px;
+}
+
+.passwordForm :global(.mantine-Input-input) {
+  min-height: 42px;
+  background: color-mix(in srgb, var(--app-color-subtle) 55%, var(--app-color-surface));
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
+}
+
+.passwordForm :global(.mantine-Input-input:focus) {
+  background: var(--app-color-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-color-brand) 10%, transparent);
+}
+
+.passwordForm :global(.mantine-Input-section) {
+  color: var(--app-color-muted);
+}
+
+.passwordHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: 9px;
+  color: var(--app-color-muted-strong);
+  background: var(--app-color-subtle);
+  border: 1px solid var(--app-color-border);
+}
+
+.passwordHint > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--app-color-brand);
+}
+
+.formFooter {
+  padding-top: 4px;
+}
+
+.sessionNote {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--app-color-muted-soft);
+}
+
+.sessionNote svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .profileTop {
+    min-height: 118px;
+  }
+
+  .profileDetails {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@media (max-width: 560px) {
+  .profileTop,
+  .profileBody,
+  .securityCard {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .profileDetails {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .formFooter {
+    align-items: stretch;
+  }
+
+  .formFooter :global(.mantine-Button-root) {
+    width: 100%;
+  }
 }

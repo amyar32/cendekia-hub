@@ -23,7 +23,7 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 ## Fitur
 
 - **Autentikasi:** login, logout, ubah password, sesi server 8 jam, cookie HttpOnly/SameSite, password scrypt dengan salt acak, dan batas 5 percobaan login gagal per email selama 15 menit.
-- **Pengguna:** tambah, edit, nonaktifkan, hapus, dan tentukan role. Perubahan pengguna mencabut sesi pengguna tersebut.
+- **Pengguna:** tambah, edit, nonaktifkan, hapus, dan tentukan role. Saat profil guru baru dibuat, akun role Guru dapat dibuat otomatis dengan password sementara yang wajib diganti saat login pertama. Perubahan pengguna mencabut sesi pengguna tersebut.
 - **RBAC:** role Administrator, Editor, Viewer; custom role dengan permission baca/tulis per modul. Permission diperiksa ulang dari database pada setiap request. Navigasi juga mengikuti permission.
 - **Audit trail:** login berhasil/gagal, logout, perubahan password, dan setiap mutasi modul. Mutasi data dan audit berada dalam satu transaksi SQLite. Password dan token tidak dicatat. Endpoint hanya baca; trigger database menolak UPDATE/DELETE audit.
 - **Akademik:** tahun ajaran, semester, tingkat, rombel, mata pelajaran, guru, penugasan mengajar, dan wali kelas.

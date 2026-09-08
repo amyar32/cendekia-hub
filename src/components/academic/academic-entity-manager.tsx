@@ -10,6 +10,7 @@ import {
   Badge,
   Box,
   Button,
+  Code,
   Group,
   Modal,
   MultiSelect,
@@ -28,6 +29,7 @@ import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import {
   IconCheck,
+  IconCopy,
   IconEye,
   IconFile,
   IconPencil,
@@ -69,11 +71,13 @@ export type AcademicField = {
   secondaryKey?: string;
   secondaryLabel?: string;
   secondaryPlaceholder?: string;
+  createOnly?: boolean;
+  editOnly?: boolean;
 };
 export type AcademicColumn = {
   key: string;
   label: string;
-  kind?: 'text' | 'status' | 'date' | 'code' | 'avatar' | 'file';
+  kind?: 'text' | 'status' | 'date' | 'code' | 'avatar' | 'file' | 'account';
 };
 export type AcademicEntityConfig = {
   endpoint: string;
@@ -133,6 +137,10 @@ export function AcademicEntityManager({
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [form, setForm] = useState<Record<string, Value>>(config.defaults);
   const [saving, setSaving] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
 
   function openEditor(row: AcademicRow | null) {
     const values = { ...config.defaults };
@@ -163,6 +171,11 @@ export function AcademicEntityManager({
           : {}),
         id: editing?.id,
       });
+      if (result.account_email && result.temporary_password)
+        setCreatedCredentials({
+          email: result.account_email,
+          password: result.temporary_password,
+        });
       setEditing(undefined);
       list.reload();
       notifications.show({
@@ -260,6 +273,20 @@ export function AcademicEntityManager({
           {String(value)}
         </Badge>
       );
+    if (column.kind === 'account') {
+      const status = String(value || 'none');
+      const presentation = {
+        active: { label: 'Aktif', color: 'green' },
+        pending: { label: 'Wajib ganti password', color: 'yellow' },
+        inactive: { label: 'Nonaktif', color: 'red' },
+        none: { label: 'Belum dibuat', color: 'gray' },
+      }[status] || { label: status, color: 'gray' };
+      return (
+        <Badge variant="light" color={presentation.color}>
+          {presentation.label}
+        </Badge>
+      );
+    }
     return (
       <Text fw={column.key === 'name' ? 600 : 400} size="xs">
         {value === '' || value == null ? '—' : String(value)}
@@ -411,6 +438,7 @@ export function AcademicEntityManager({
         <form onSubmit={save}>
           <Stack gap="md">
             {config.fields.map((field) => {
+              if ((field.createOnly && editing) || (field.editOnly && !editing)) return null;
               const common = {
                 label: field.label,
                 description: field.description,
@@ -625,6 +653,59 @@ export function AcademicEntityManager({
             Belum ada murid yang memiliki penempatan aktif di rombel ini.
           </Text>
         )}
+      </Modal>
+      <Modal
+        opened={!!createdCredentials}
+        onClose={() => setCreatedCredentials(null)}
+        centered
+        size="md"
+        title="Akun aplikasi guru berhasil dibuat"
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Salin dan berikan informasi ini kepada guru. Password sementara hanya ditampilkan satu
+            kali dan wajib diganti saat login pertama.
+          </Text>
+          <Box className={classes.statusCard}>
+            <Text variant="label" mb={6}>
+              EMAIL
+            </Text>
+            <Code>{createdCredentials?.email}</Code>
+            <Text variant="label" mt="md" mb={6}>
+              PASSWORD SEMENTARA
+            </Text>
+            <Code>{createdCredentials?.password}</Code>
+          </Box>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setCreatedCredentials(null)}>
+              Tutup
+            </Button>
+            <Button
+              leftSection={<IconCopy size={17} />}
+              onClick={async () => {
+                if (!createdCredentials) return;
+                try {
+                  await navigator.clipboard.writeText(
+                    `Email: ${createdCredentials.email}\nPassword sementara: ${createdCredentials.password}`,
+                  );
+                  notifications.show({
+                    color: 'green',
+                    title: 'Kredensial disalin',
+                    message: 'Informasi akun siap dibagikan kepada guru.',
+                  });
+                } catch {
+                  notifications.show({
+                    color: 'red',
+                    title: 'Tidak dapat menyalin otomatis',
+                    message: 'Salin email dan password secara manual dari tampilan ini.',
+                  });
+                }
+              }}
+            >
+              Salin akun
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
       <ConfirmationDialog
         opened={!!removing}

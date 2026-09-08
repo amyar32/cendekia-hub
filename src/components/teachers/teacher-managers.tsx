@@ -11,8 +11,9 @@ const teacher: AcademicEntityConfig = {
   singular: 'Guru',
   eyebrow: 'GURU',
   description: 'Kelola identitas, kontak, akun, dan status kepegawaian guru.',
-  note: 'Kode pegawai wajib unik. NIP dan akun pengguna bersifat opsional.',
+  note: 'Akun aplikasi dibuat otomatis untuk guru baru. Email wajib dan password sementara hanya ditampilkan satu kali.',
   defaults: {
+    create_account: true,
     user_id: '',
     photo_url: '',
     employee_code: '',
@@ -50,7 +51,12 @@ const teacher: AcademicEntityConfig = {
     },
     { key: 'birth_date', label: 'Tanggal lahir', kind: 'date' },
     { key: 'phone', label: 'Nomor telepon', placeholder: 'Contoh: 081234567890', maxLength: 30 },
-    { key: 'email', label: 'Email', placeholder: 'guru@sekolah.sch.id' },
+    {
+      key: 'email',
+      label: 'Email',
+      placeholder: 'guru@sekolah.sch.id',
+      description: 'Digunakan sebagai email login jika akun aplikasi dibuat.',
+    },
     { key: 'address', label: 'Alamat', kind: 'textarea', placeholder: 'Alamat tempat tinggal' },
     { key: 'join_date', label: 'Tanggal bergabung', kind: 'date' },
     {
@@ -65,11 +71,19 @@ const teacher: AcademicEntityConfig = {
       ],
     },
     {
+      key: 'create_account',
+      label: 'Buat akun aplikasi',
+      kind: 'switch',
+      description: 'Akun role Guru dan password sementara akan dibuat bersama profil ini.',
+      createOnly: true,
+    },
+    {
       key: 'user_id',
       label: 'Akun pengguna',
       kind: 'select',
       optionsKey: 'user_id',
       placeholder: 'Hubungkan akun (opsional)',
+      editOnly: true,
     },
   ],
   columns: [
@@ -79,6 +93,7 @@ const teacher: AcademicEntityConfig = {
     { key: 'nip', label: 'NIP' },
     { key: 'gender_label', label: 'JENIS KELAMIN' },
     { key: 'employment_status_label', label: 'STATUS PEGAWAI' },
+    { key: 'account_status', label: 'AKSES APLIKASI', kind: 'account' },
     { key: 'is_active', label: 'STATUS', kind: 'status' },
   ],
 };
