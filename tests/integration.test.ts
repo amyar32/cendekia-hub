@@ -1216,6 +1216,11 @@ test('academic year template copies semesters, classes, teaching assignments, ho
   }
   assert.ok(sourceSemester);
 
+  res = await api('/api/modules/schedules/settings', 'PATCH', {
+    weekdays: [1, 2, 3, 4, 5, 6],
+  });
+  assert.equal(res.status, 200);
+
   res = await api('/api/modules/extracurriculars', 'POST', {
     code: 'pramuka',
     name: 'Pramuka',
@@ -1508,11 +1513,26 @@ test('guided annual transition keeps the source active until finalization and ca
     `${editableClass.name} Edit`,
   );
 
+  const actions = preview.students.map(
+    (previewStudent: { id: string; source_level_order: number }) => {
+      if (previewStudent.source_level_order === preview.max_grade_level)
+        return { student_id: previewStudent.id, outcome: 'graduated', target_class_id: '' };
+      const targetClass = preview.target_classes.find(
+        (row: { level_order: number }) => row.level_order === previewStudent.source_level_order + 1,
+      );
+      assert.ok(targetClass, 'Rombel tujuan kenaikan kelas harus tersedia.');
+      return {
+        student_id: previewStudent.id,
+        outcome: 'promoted',
+        target_class_id: targetClass.value,
+      };
+    },
+  );
   res = await api('/api/modules/promotions', 'POST', {
     source_academic_year_id: sourceYear.value,
     target_academic_year_id: draft.id,
     activate_target: true,
-    actions: [{ student_id: student.id, outcome: 'graduated', target_class_id: '' }],
+    actions,
   });
   assert.equal(res.status, 200);
   const completed = await res.json();

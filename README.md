@@ -4,7 +4,7 @@ Boilerplate CMS modular menggunakan **Next.js 16 App Router, React 19, TypeScrip
 
 ## Menjalankan lokal
 
-Gunakan Node.js **22.13+** dan npm.
+Gunakan Node.js **22.13+** dan npm. `package-lock.json` adalah satu-satunya lockfile yang digunakan.
 
 ```bash
 npm install
@@ -90,11 +90,64 @@ Folder halaman mengikuti struktur URL dan bagian navigasi. Contohnya data murid 
 npm run typecheck
 npm run lint
 npm run format:check
+npm run security:check
 npm run build
 npm test
 ```
 
-Tes integrasi membutuhkan build terlebih dahulu. Tes menjalankan server produksi di port 3317, memakai database sementara, lalu membersihkannya. Cakupan: autentikasi, CRUD modul, konteks tahun ajaran, kenaikan kelas, laporan historis, pembatasan role, penolakan origin asing, pencabutan sesi, perubahan password, pencegahan eskalasi akses, dan proteksi audit pada database.
+Seluruh pemeriksaan rilis dapat dijalankan berurutan dengan:
+
+```bash
+npm run release:check
+```
+
+Workflow GitHub Actions menjalankan pemeriksaan yang sama pada pull request dan push ke `main`.
+Audit keamanan memblokir rilis untuk temuan tingkat tinggi atau kritis. Saat ini npm juga melaporkan
+temuan moderat pada dependensi transitif `exceljs` (`uuid`); `npm audit fix --force` tidak digunakan
+karena akan menurunkan versi ExcelJS secara breaking. Tinjau kembali saat ExcelJS menyediakan jalur
+pembaruan yang kompatibel.
+Tes integrasi membutuhkan build terlebih dahulu. Tes menjalankan server produksi di port 3317,
+memakai database sementara, lalu membersihkannya. Cakupan: autentikasi, CRUD modul, konteks tahun
+ajaran, kenaikan kelas, laporan historis, pembatasan role, penolakan origin asing, pencabutan sesi,
+perubahan password, pencegahan eskalasi akses, proteksi audit pada database, serta backup dan
+restore.
+
+## Backup dan restore
+
+Database dan upload merupakan satu kesatuan backup. Buat backup konsisten ketika aplikasi masih
+berjalan dengan:
+
+```bash
+npm run backup
+```
+
+Hasilnya disimpan di `BACKUP_STORAGE_PATH` dan berisi snapshot SQLite, upload, serta manifest
+checksum SHA-256. Salin direktori hasil backup ke mesin atau object storage lain; backup yang hanya
+tersimpan di server aplikasi tidak melindungi dari kerusakan disk. Verifikasi arsip secara berkala:
+
+```bash
+npm run backup:verify -- --from data/backups/cendekia-backup-<timestamp>
+```
+
+Untuk restore, hentikan aplikasi terlebih dahulu. Perintah berikut memverifikasi checksum dan
+integritas SQLite sebelum mengganti data. Jika database aktif sudah ada, salinan rollback otomatis
+dibuat lebih dahulu.
+
+```bash
+npm run backup:restore -- --from data/backups/cendekia-backup-<timestamp> --confirm
+```
+
+Setelah restore, jalankan aplikasi dan periksa login, logo/dokumen, serta laporan akademik. Lakukan
+latihan restore ke lokasi sementara sebelum memakai prosedur ini pada produksi:
+
+```bash
+npm run backup:restore -- \
+  --from data/backups/cendekia-backup-<timestamp> \
+  --database /tmp/cendekia-restore/cms.sqlite \
+  --uploads /tmp/cendekia-restore/uploads \
+  --rollback-output /tmp/cendekia-restore/rollbacks \
+  --confirm
+```
 
 ## Menjalankan produksi
 
