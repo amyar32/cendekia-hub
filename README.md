@@ -33,6 +33,10 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
 - **Dashboard:** statistik dan aktivitas aktual, sesuai akses pengguna.
+- **Onboarding sekolah:** wizard konfigurasi profil dan jenjang SD/SMP/SMA, tingkat, template mata
+  pelajaran dan ekstrakurikuler, tahun ajaran, semester, rombel, hari belajar, slot waktu Mantine,
+  import Excel tervalidasi, penugasan guru, wali kelas, dan pembina, serta checklist kesiapan
+  operasional.
 
 Administrator sistem tidak dapat diedit/dihapus, pengguna tidak dapat mengubah akses akunnya sendiri, dan pengguna tidak dapat memberikan akses melebihi permission yang dimilikinya. Akun dibuat administrator; registrasi publik dan reset password melalui email belum disertakan.
 
@@ -44,6 +48,7 @@ src/
     login/                    Halaman login
     (cms)/                    Layout terautentikasi
       page.tsx                Ringkasan
+      onboarding/            Wizard persiapan dan import data awal sekolah
       annual-transition/      Pergantian tahun ajaran
       master-data/            Murid, guru, tingkat, dan mata pelajaran
       academic/               Tahun ajaran, semester, rombel, dan penugasan
@@ -110,7 +115,28 @@ Tes integrasi membutuhkan build terlebih dahulu. Tes menjalankan server produksi
 memakai database sementara, lalu membersihkannya. Cakupan: autentikasi, CRUD modul, konteks tahun
 ajaran, kenaikan kelas, laporan historis, pembatasan role, penolakan origin asing, pencabutan sesi,
 perubahan password, pencegahan eskalasi akses, proteksi audit pada database, serta backup dan
-restore.
+restore. Pengujian onboarding mencakup konfigurasi SD enam tingkat serta preview dan import workbook
+simulasi berisi 15 guru dan 50 murid.
+
+## Data simulasi onboarding
+
+Selain template kosong dari halaman **Persiapan Sekolah**, aplikasi menyediakan workbook simulasi
+untuk SD, SMP, dan SMA. Workbook selalu melewati preview dan validasi sebelum data ditulis. SD
+memiliki enam tingkat, sedangkan SMP dan SMA memiliki tiga tingkat. Setiap workbook simulasi berisi
+enam rombel, 15 guru, serta 50 murid lengkap dengan penempatan kelas.
+
+Untuk membuat database simulasi lengkap langsung dari terminal, gunakan salah satu jenjang berikut
+pada database kosong:
+
+```bash
+npm run db:seed:simulation -- --level sd
+npm run db:seed:simulation -- --level smp
+npm run db:seed:simulation -- --level sma
+```
+
+Perintah menggunakan `DATABASE_PATH`, `UPLOAD_STORAGE_PATH`, `SEED_ADMIN_EMAIL`, dan
+`SEED_ADMIN_PASSWORD` dari `.env`. Seed simulasi ditujukan untuk demo/pengujian dan menolak konflik
+pada database yang sudah berisi data.
 
 ## Backup dan restore
 

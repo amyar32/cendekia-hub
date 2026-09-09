@@ -11,6 +11,7 @@ import {
   IconPuzzle,
   IconCircleCheck,
   IconSparkles,
+  IconChecklist,
 } from '@tabler/icons-react';
 import type { SessionUser } from '@/lib/auth';
 import { modules, can } from '@/config/modules';
@@ -63,10 +64,12 @@ export function Dashboard({
   user,
   stats,
   activities,
+  onboardingComplete,
 }: {
   user: SessionUser;
   stats: Record<string, number | null>;
   activities: { id: number; actor: string; action: string; entity: string; created_at: string }[];
+  onboardingComplete: boolean;
 }) {
   return (
     <>
@@ -85,6 +88,29 @@ export function Dashboard({
           </Badge>
         }
       />
+      {!onboardingComplete && can(user.permissions, 'school.read') && (
+        <Paper component="section" className={styles.onboardingBanner} withBorder>
+          <ThemeIcon size={44} radius="md" variant="light">
+            <IconChecklist size={23} />
+          </ThemeIcon>
+          <div>
+            <Text fw={700} size="sm">
+              Selesaikan persiapan sekolah
+            </Text>
+            <Text variant="description" mt={4}>
+              Atur struktur akademik, import data awal, dan periksa kesiapan operasional.
+            </Text>
+          </div>
+          <Button
+            component={Link}
+            href="/onboarding"
+            variant="light"
+            rightSection={<IconArrowRight size={16} />}
+          >
+            Lanjutkan onboarding
+          </Button>
+        </Paper>
+      )}
       <section className={styles.welcomeBanner}>
         <div>
           <Badge variant="light" color="brand" mb="md" leftSection={<IconSparkles size={13} />}>

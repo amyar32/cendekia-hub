@@ -248,3 +248,27 @@
     padding: 0 16px;
   }
 }
+.onboardingBanner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  border-color: color-mix(in srgb, var(--app-color-brand) 30%, var(--app-color-border));
+  background: linear-gradient(105deg, var(--app-color-brand-soft), var(--app-color-surface));
+}
+
+.onboardingBanner > div:nth-child(2) {
+  flex: 1;
+}
+
+@media (max-width: 620px) {
+  .onboardingBanner {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .onboardingBanner > a {
+    width: 100%;
+  }
+}

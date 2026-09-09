@@ -43,6 +43,7 @@ import {
   IconClipboardCheck,
   IconLogin,
   IconBallFootball,
+  IconChecklist,
 } from '@tabler/icons-react';
 import { modules, can, moduleByKey, type ModuleKey } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -52,6 +53,7 @@ import {
 } from '@/lib/academic-context-client';
 import styles from './cms-shell.module.css';
 const icons = {
+  onboarding: IconChecklist,
   users: IconUsers,
   roles: IconShieldCheck,
   audit: IconHistory,

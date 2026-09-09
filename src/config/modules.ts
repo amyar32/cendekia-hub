@@ -47,6 +47,7 @@ export const permissions = [
 ] as const;
 export type Permission = (typeof permissions)[number];
 export type ModuleKey =
+  | 'onboarding'
   | 'users'
   | 'roles'
   | 'audit'
@@ -78,6 +79,14 @@ export type CmsModule = {
 };
 
 export const modules: CmsModule[] = [
+  {
+    key: 'onboarding',
+    label: 'Persiapan Sekolah',
+    description: 'Selesaikan konfigurasi awal, import data, dan checklist kesiapan operasional.',
+    path: '/onboarding',
+    permission: 'school.read',
+    group: 'Utama',
+  },
   {
     key: 'academic-years',
     label: 'Tahun Ajaran',

@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts",
+    "db:seed:simulation": "node --env-file-if-exists=.env --import tsx scripts/seed-simulation.ts",
     "backup": "node --env-file-if-exists=.env --import tsx scripts/backup.ts",
     "backup:verify": "node --import tsx scripts/verify-backup.ts",
     "backup:restore": "node --env-file-if-exists=.env --import tsx scripts/restore-backup.ts",

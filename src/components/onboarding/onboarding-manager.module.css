@@ -1,0 +1,296 @@
+.shell {
+  overflow: hidden;
+  box-shadow: 0 18px 45px rgb(35 57 93 / 7%);
+}
+
+.stepperWrap {
+  padding: 24px;
+  border-bottom: 1px solid var(--app-color-border);
+  background: linear-gradient(
+    115deg,
+    var(--app-color-brand-soft),
+    color-mix(in srgb, var(--app-color-brand-soft) 35%, var(--app-color-surface)) 62%,
+    var(--app-color-surface)
+  );
+}
+
+.content {
+  min-height: 520px;
+  padding: 28px;
+  background: linear-gradient(
+    145deg,
+    var(--app-color-surface),
+    color-mix(in srgb, var(--app-color-brand-soft) 22%, var(--app-color-surface))
+  );
+}
+
+.loading {
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.mobileStep {
+  display: none;
+}
+
+.levelCard,
+.dayCard {
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.levelCard {
+  min-height: 168px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.levelCard:hover:not(:disabled),
+.dayCard:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--app-color-brand) 50%, var(--app-color-border));
+  transform: translateY(-2px);
+}
+
+.levelCard:focus-visible,
+.dayCard:focus-visible {
+  outline: 2px solid var(--app-color-brand);
+  outline-offset: 2px;
+}
+
+.levelCard:disabled,
+.dayCard:disabled {
+  cursor: default;
+}
+
+.levelCardActive,
+.dayCardActive {
+  border-color: var(--app-color-brand);
+  background: var(--app-color-brand-soft);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--app-color-brand) 13%, transparent);
+}
+
+.rows {
+  display: grid;
+  gap: 10px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dayCard {
+  min-height: 86px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.importCard {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.importCard > :last-child {
+  grid-column: 1 / -1;
+}
+
+.dropzone {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border-style: dashed;
+  text-align: center;
+  background: var(--app-color-subtle);
+}
+
+.countItem {
+  min-height: 96px;
+  padding: 16px;
+  border-radius: var(--mantine-radius-md);
+  background: linear-gradient(145deg, var(--app-color-surface), var(--app-color-subtle));
+  box-shadow: 0 8px 24px rgb(35 57 93 / 4%);
+}
+
+.countValue {
+  color: var(--app-color-brand);
+}
+
+.readinessHero {
+  position: relative;
+  overflow: hidden;
+  padding: 28px;
+  border-color: color-mix(in srgb, var(--app-color-brand) 30%, var(--app-color-border));
+  color: white;
+  background:
+    linear-gradient(125deg, rgb(29 78 216 / 96%), rgb(79 70 229 / 92%)), var(--app-color-brand);
+  box-shadow: 0 22px 55px rgb(37 75 170 / 22%);
+}
+
+.readinessGlow {
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  top: -170px;
+  right: -50px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 16%);
+  box-shadow: 0 0 80px rgb(255 255 255 / 18%);
+}
+
+.readinessTop {
+  position: relative;
+  z-index: 1;
+}
+
+.readinessHeroIcon {
+  flex: 0 0 auto;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 18%);
+}
+
+.readinessTitle {
+  color: white;
+}
+
+.readinessDescription {
+  max-width: 630px;
+  color: rgb(255 255 255 / 82%);
+}
+
+.readinessScore {
+  min-width: 96px;
+  padding: 15px 18px;
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: var(--mantine-radius-lg);
+  text-align: center;
+  background: rgb(255 255 255 / 12%);
+  backdrop-filter: blur(8px);
+}
+
+.readinessProgress {
+  position: relative;
+  z-index: 1;
+  margin-top: 24px;
+  background: rgb(255 255 255 / 22%);
+}
+
+.readinessPanel {
+  background: color-mix(in srgb, var(--app-color-surface) 94%, var(--app-color-brand-soft));
+  box-shadow: 0 12px 32px rgb(35 57 93 / 6%);
+}
+
+.readinessItem {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-color-subtle);
+  transition:
+    border-color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.readinessItemReady {
+  border-color: color-mix(in srgb, var(--mantine-color-green-6) 28%, var(--app-color-border));
+  background: color-mix(in srgb, var(--mantine-color-green-0) 45%, var(--app-color-surface));
+}
+
+.readinessItem:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgb(35 57 93 / 6%);
+}
+
+.readinessItemText {
+  min-width: 0;
+  flex: 1;
+}
+
+.actions {
+  padding-top: 20px;
+  border-top: 1px solid var(--app-color-border);
+}
+
+@media (max-width: 900px) {
+  .stepperSteps {
+    flex-wrap: nowrap;
+  }
+
+  .stepBody {
+    display: none;
+  }
+
+  .weekdays {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .mobileStep {
+    display: block;
+    margin-top: 12px;
+    color: var(--app-color-muted);
+    font-size: 11px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 620px) {
+  .stepperWrap,
+  .content {
+    padding: 18px;
+  }
+
+  .weekdays {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content :global(.mantine-Group-root) {
+    flex-wrap: wrap;
+  }
+
+  .grow {
+    flex-basis: 100%;
+  }
+
+  .readinessHero {
+    padding: 22px;
+  }
+
+  .readinessScore {
+    width: 100%;
+  }
+
+  .actions > button,
+  .actions > :global(.mantine-Group-root),
+  .actions > :global(.mantine-Group-root) button {
+    width: 100%;
+  }
+}

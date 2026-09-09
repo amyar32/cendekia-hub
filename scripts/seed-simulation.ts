@@ -6,6 +6,30 @@ import { hashPassword } from '../src/lib/password';
 import { permissions } from '../src/config/modules';
 
 /** Populates an empty database with a realistic end-to-end school scenario. */
+const levelArgument = process.argv[process.argv.indexOf('--level') + 1] || 'sma';
+if (!['sd', 'smp', 'sma'].includes(levelArgument))
+  throw new Error('Jenjang simulasi harus sd, smp, atau sma.');
+const schoolLevel = levelArgument as 'sd' | 'smp' | 'sma';
+const schoolConfig = {
+  sd: {
+    name: 'SD Negeri Cendekia Nusantara',
+    code: 'SDNC',
+    domain: 'sd-cendekia.sch.id',
+    gradeNames: ['1', '2', '3', '4', '5', '6'],
+  },
+  smp: {
+    name: 'SMP Negeri Cendekia Nusantara',
+    code: 'SMPNC',
+    domain: 'smp-cendekia.sch.id',
+    gradeNames: ['VII', 'VIII', 'IX'],
+  },
+  sma: {
+    name: 'SMA Negeri Cendekia Nusantara',
+    code: 'SMANC',
+    domain: 'sma-cendekia.sch.id',
+    gradeNames: ['X', 'XI', 'XII'],
+  },
+}[schoolLevel];
 const database = db();
 const adminEmail = (process.env.SEED_ADMIN_EMAIL || 'admin@example.com').toLowerCase();
 const adminPassword = process.env.SEED_ADMIN_PASSWORD;
@@ -112,35 +136,41 @@ database.transaction(() => {
   insert('users', {
     id: ids.editor,
     name: 'Siti Rahmawati',
-    email: 'operator@smkn1nusantara.sch.id',
+    email: `operator@${schoolConfig.domain}`,
     password: hashPassword('Simulasi2026!'),
     role_id: 'editor',
   });
   insert('users', {
     id: ids.viewer,
     name: 'Budi Santoso',
-    email: 'kepsek@smkn1nusantara.sch.id',
+    email: `kepsek@${schoolConfig.domain}`,
     password: hashPassword('Simulasi2026!'),
     role_id: 'viewer',
   });
   insert('users', {
     id: ids.teacherUser,
     name: 'Rizky Pratama, S.Kom.',
-    email: 'rizky.pratama@smkn1nusantara.sch.id',
+    email: `rizky.pratama@${schoolConfig.domain}`,
     password: hashPassword('Simulasi2026!'),
     role_id: 'teacher',
   });
-  const schoolLogo = upload('school.logo', 'logo-smkn-1-nusantara.png', ids.admin);
+  const schoolLogo = upload(
+    'school.logo',
+    `logo-${schoolConfig.code.toLowerCase()}.png`,
+    ids.admin,
+  );
   insert('schools', {
     id: ids.school,
-    name: 'SMK Negeri 1 Nusantara',
-    code: 'SMKN1N',
+    name: schoolConfig.name,
+    code: schoolConfig.code,
     npsn: '69876543',
     address: 'Jl. Pendidikan No. 17, Bandung, Jawa Barat',
-    email: 'info@smkn1nusantara.sch.id',
+    email: `info@${schoolConfig.domain}`,
     phone: '022-7654321',
     logo_url: schoolLogo,
     timezone: 'Asia/Jakarta',
+    education_level: schoolLevel,
+    onboarding_completed_at: new Date().toISOString(),
     is_active: 1,
   });
   insert('academic_years', {
@@ -175,18 +205,28 @@ database.transaction(() => {
       is_active: semester[6],
     });
 
-  const grades = ['X', 'XI', 'XII'].map((name, index) => ({ id: id(), name, level: index + 1 }));
+  const grades = schoolConfig.gradeNames.map((name, index) => ({
+    id: id(),
+    name,
+    level: index + 1,
+  }));
   for (const grade of grades)
     insert('grades', {
       id: grade.id,
       school_id: ids.school,
       name: `Kelas ${grade.name}`,
       level_order: grade.level,
-      description: `Tingkat ${grade.name} SMK`,
+      description: `Tingkat ${grade.name} ${schoolLevel.toUpperCase()}`,
       is_active: 1,
     });
-  const classes = ['X RPL 1', 'X RPL 2', 'XI RPL 1', 'XI RPL 2', 'XII RPL 1', 'XII RPL 2'].map(
-    (name, index) => ({ id: id(), name, grade: grades[Math.floor(index / 2)] }),
+  const classSuffixes = schoolLevel === 'sd' ? ['A'] : ['A', 'B'];
+  const classes = grades.flatMap((grade) =>
+    classSuffixes.map((section) => ({
+      id: id(),
+      name: `${grade.name} ${section}`,
+      grade,
+      section,
+    })),
   );
   for (const classroom of classes)
     insert('classes', {
@@ -198,11 +238,14 @@ database.transaction(() => {
       capacity: 36,
       is_active: 1,
     });
-  const previousClasses = ['X RPL 1', 'X RPL 2', 'XI RPL 1', 'XI RPL 2'].map((name, index) => ({
-    id: id(),
-    name,
-    grade: grades[Math.floor(index / 2)],
-  }));
+  const previousClasses = grades.slice(0, -1).flatMap((grade) =>
+    classSuffixes.map((section) => ({
+      id: id(),
+      name: `${grade.name} ${section}`,
+      grade,
+      section,
+    })),
+  );
   for (const classroom of previousClasses)
     insert('classes', {
       id: classroom.id,
@@ -213,17 +256,30 @@ database.transaction(() => {
       capacity: 36,
       is_active: 0,
     });
-  const subjects = [
-    ['MP001', 'Matematika', 'Umum'],
-    ['MP002', 'Bahasa Indonesia', 'Umum'],
-    ['MP003', 'Bahasa Inggris', 'Umum'],
-    ['MP004', 'Pendidikan Agama', 'Umum'],
-    ['RPL001', 'Pemrograman Web', 'Kejuruan'],
-    ['RPL002', 'Basis Data', 'Kejuruan'],
-    ['RPL003', 'Pemrograman Mobile', 'Kejuruan'],
-    ['RPL004', 'UI/UX Design', 'Kejuruan'],
-    ['PKN001', 'Pendidikan Pancasila', 'Umum'],
-  ];
+  const subjects =
+    schoolLevel === 'sd'
+      ? [
+          ['MP001', 'Matematika', 'Umum'],
+          ['MP002', 'Bahasa Indonesia', 'Umum'],
+          ['MP003', 'IPAS', 'Umum'],
+          ['MP004', 'Pendidikan Agama', 'Umum'],
+          ['MP005', 'Pendidikan Pancasila', 'Umum'],
+          ['MP006', 'PJOK', 'Umum'],
+          ['MP007', 'Seni dan Budaya', 'Umum'],
+          ['MP008', 'Bahasa Inggris', 'Muatan Lokal'],
+          ['MP009', 'Bahasa Daerah', 'Muatan Lokal'],
+        ]
+      : [
+          ['MP001', 'Matematika', 'Umum'],
+          ['MP002', 'Bahasa Indonesia', 'Umum'],
+          ['MP003', 'Bahasa Inggris', 'Umum'],
+          ['MP004', 'Pendidikan Agama', 'Umum'],
+          ['MP005', 'IPA', 'Umum'],
+          ['MP006', 'IPS', 'Umum'],
+          ['MP007', 'Informatika', 'Umum'],
+          ['MP008', 'PJOK', 'Umum'],
+          ['MP009', 'Pendidikan Pancasila', 'Umum'],
+        ];
   const subjectRows = subjects.map(([code, name, category]) => ({
     id: id(),
     code,
@@ -237,20 +293,30 @@ database.transaction(() => {
       description: `Mata pelajaran ${subject.name}`,
       is_active: 1,
     });
-  const teachers = [
-    ['G001', '198501012010011001', 'Ahmad Fauzi, S.Pd.', 'male', 'permanent'],
-    ['G002', '198703122011012002', 'Dewi Lestari, S.Pd.', 'female', 'permanent'],
-    ['G003', '199001052015031003', 'Rizky Pratama, S.Kom.', 'male', 'contract'],
-    ['G004', '198811202012012004', 'Nadia Putri, S.Pd.', 'female', 'permanent'],
-    ['G005', '199205142018021005', 'Fajar Hidayat, S.Kom.', 'male', 'contract'],
-    ['G006', '199410102020121006', 'Intan Permata, S.Pd.', 'female', 'honorary'],
-  ].map(([employee_code, nip, name, gender, employment_status]) => ({
+  const teacherNames = [
+    'Ahmad Fauzi',
+    'Dewi Lestari',
+    'Rizky Pratama',
+    'Nadia Putri',
+    'Fajar Hidayat',
+    'Intan Permata',
+    'Budi Santoso',
+    'Siti Rahmawati',
+    'Arif Nugroho',
+    'Maya Anggraini',
+    'Dedi Kurniawan',
+    'Ratna Sari',
+    'Yoga Prabowo',
+    'Nur Aisyah',
+    'Agus Setiawan',
+  ];
+  const teachers = teacherNames.map((name, index) => ({
     id: id(),
-    employee_code,
-    nip,
-    name,
-    gender,
-    employment_status,
+    employee_code: `G${String(index + 1).padStart(3, '0')}`,
+    nip: `198${index % 10}0101201${index % 10}01100${index % 9}`,
+    name: `${name}, S.Pd.`,
+    gender: index % 2 ? 'female' : 'male',
+    employment_status: index % 5 === 0 ? 'honorary' : index % 4 === 0 ? 'contract' : 'permanent',
   }));
   for (const [index, teacher] of teachers.entries())
     insert('teachers', {
@@ -258,14 +324,14 @@ database.transaction(() => {
       school_id: ids.school,
       user_id: index === 2 ? ids.teacherUser : null,
       photo_url: upload('teacher.photo', `foto-${teacher.employee_code}.png`, ids.admin),
-      birth_date: `198${index}-05-12`,
-      phone: `0812345678${index}`,
+      birth_date: `${1978 + (index % 18)}-05-12`,
+      phone: `08123456${String(index).padStart(4, '0')}`,
       email:
         index === 2
-          ? 'rizky.pratama@smkn1nusantara.sch.id'
-          : `guru${index + 1}@smkn1nusantara.sch.id`,
+          ? `rizky.pratama@${schoolConfig.domain}`
+          : `guru${index + 1}@${schoolConfig.domain}`,
       address: 'Bandung, Jawa Barat',
-      join_date: `201${index}-07-01`,
+      join_date: `${2008 + index}-07-01`,
       is_active: 1,
     });
   database.exec("UPDATE teachers SET qr_token=lower(hex(randomblob(24))) WHERE qr_token=''");
@@ -328,32 +394,24 @@ database.transaction(() => {
       weekday: (index % 5) + 1,
     });
 
-  const students = [
-    'Alya Safitri',
-    'Bagas Pramudya',
-    'Citra Maharani',
-    'Dimas Saputra',
-    'Eka Wulandari',
-    'Farhan Akbar',
-    'Gina Oktaviani',
-    'Hendra Kurniawan',
-    'Indah Permata',
-    'Joko Susilo',
-    'Kania Aulia',
-    'Lukman Hakim',
-    'Maya Sari',
-    'Nanda Pratama',
-    'Oki Ramadhan',
-    'Putri Ayuningtyas',
-    'Qori Rahman',
-    'Rani Puspitasari',
-    'Satria Nugraha',
-    'Tia Anggraini',
-    'Umar Faruq',
-    'Vina Melati',
-    'Wahyu Setiawan',
-    'Xenia Larasati',
-  ].map((name, index) => ({ id: id(), name, index }));
+  const studentFirstNames = [
+    'Alya',
+    'Bagas',
+    'Citra',
+    'Dimas',
+    'Eka',
+    'Farhan',
+    'Gina',
+    'Hendra',
+    'Indah',
+    'Joko',
+  ];
+  const studentLastNames = ['Safitri', 'Pramudya', 'Maharani', 'Saputra', 'Wulandari'];
+  const students = Array.from({ length: 50 }, (_, index) => ({
+    id: id(),
+    name: `${studentFirstNames[index % studentFirstNames.length]} ${studentLastNames[Math.floor(index / studentFirstNames.length)]}`,
+    index,
+  }));
   const promotionBatchId = id();
   const promotionActions: Record<string, string>[] = [];
   insert('promotion_batches', {
@@ -376,13 +434,13 @@ database.transaction(() => {
       nisn: `0098${String(100000 + student.index)}`,
       name: student.name,
       gender: student.index % 2 ? 'male' : 'female',
-      birth_date: `200${8 + (student.index % 3)}-${String((student.index % 9) + 1).padStart(2, '0')}-15`,
+      birth_date: `${schoolLevel === 'sd' ? 2015 : schoolLevel === 'smp' ? 2012 : 2009}-${String((student.index % 9) + 1).padStart(2, '0')}-15`,
       birth_place: 'Bandung',
       address: `Jl. Melati No. ${student.index + 1}, Bandung`,
       phone: `08129876${String(student.index).padStart(3, '0')}`,
       email: `siswa${student.index + 1}@contoh.sch.id`,
       enrollment_date: '2026-07-13',
-      is_active: student.index === 23 ? 0 : 1,
+      is_active: student.index === students.length - 1 ? 0 : 1,
     });
     insert('guardians', {
       id: id(),
@@ -402,11 +460,13 @@ database.transaction(() => {
         file_url: upload('student.document', `kk-${student.index + 1}.png`, ids.admin),
         description: 'Dokumen simulasi',
       });
-    const classIndex = student.index % classes.length;
-    const wasPromoted = classIndex >= 2 && student.index !== 23;
+    const wasPromoted = classroom.grade.level > 1 && student.index !== students.length - 1;
     if (wasPromoted) {
       const sourceMembershipId = id();
-      const previousClass = previousClasses[classIndex - 2];
+      const previousClass = previousClasses.find(
+        (item) =>
+          item.grade.level === classroom.grade.level - 1 && item.section === classroom.section,
+      )!;
       insert('class_memberships', {
         id: sourceMembershipId,
         student_id: student.id,
@@ -432,8 +492,8 @@ database.transaction(() => {
       academic_year_id: ids.yearCurrent,
       start_date: '2026-07-13',
       end_date: null,
-      status: student.index === 23 ? 'withdrawn' : 'active',
-      completion_reason: student.index === 23 ? 'withdrawn' : '',
+      status: student.index === students.length - 1 ? 'withdrawn' : 'active',
+      completion_reason: student.index === students.length - 1 ? 'withdrawn' : '',
       promotion_batch_id: wasPromoted ? promotionBatchId : null,
     });
   }
@@ -543,7 +603,8 @@ database.transaction(() => {
     entity: 'simulation',
     entity_id: ids.school,
     details: JSON.stringify({
-      message: 'Database simulasi lengkap dibuat',
+      message: `Database simulasi ${schoolLevel.toUpperCase()} lengkap dibuat`,
+      level: schoolLevel,
       students: students.length,
       teachers: teachers.length,
     }),

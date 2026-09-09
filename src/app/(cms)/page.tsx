@@ -29,6 +29,20 @@ export default async function Page() {
         created_at: string;
       }[])
     : [];
+  const onboarding = can(user.permissions, 'school.read')
+    ? (db()
+        .prepare(
+          'SELECT onboarding_completed_at FROM schools ORDER BY is_active DESC,created_at LIMIT 1',
+        )
+        .get() as { onboarding_completed_at: string | null } | undefined)
+    : undefined;
 
-  return <Dashboard user={user} stats={stats} activities={activities} />;
+  return (
+    <Dashboard
+      user={user}
+      stats={stats}
+      activities={activities}
+      onboardingComplete={Boolean(onboarding?.onboarding_completed_at)}
+    />
+  );
 }

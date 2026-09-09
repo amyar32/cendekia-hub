@@ -150,6 +150,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
   const [yearForm, setYearForm] = useState<YearForm>({ name: '', start_date: '', end_date: '' });
   const [existingDraft, setExistingDraft] = useState('');
   const [copyTeaching, setCopyTeaching] = useState(true);
+  const [copyExtracurricularAssignments, setCopyExtracurricularAssignments] = useState(true);
   const [copyHomeroom, setCopyHomeroom] = useState(true);
   const [copySchedules, setCopySchedules] = useState(true);
   const [mappings, setMappings] = useState<Record<string, string>>({});
@@ -351,6 +352,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           copy_semesters: true,
           copy_classrooms: true,
           copy_teaching_assignments: copyTeaching,
+          copy_extracurricular_assignments: copyExtracurricularAssignments,
           copy_homeroom_assignments: copyHomeroom,
           copy_schedules: copySchedules,
         }),
@@ -682,6 +684,13 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                     setCopyTeaching(value);
                     if (!value) setCopySchedules(false);
                   }}
+                />
+                <CopyCard
+                  icon={<IconUsersGroup size={22} />}
+                  title="Penugasan ekstrakurikuler"
+                  detail="Pembina, lokasi, dan kuota; peserta dikosongkan"
+                  checked={copyExtracurricularAssignments}
+                  onChange={setCopyExtracurricularAssignments}
                 />
                 <CopyCard
                   icon={<IconSchool size={22} />}
