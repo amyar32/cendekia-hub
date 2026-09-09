@@ -19,7 +19,7 @@ const schema = z.object({
   teaching_assignment_id: z.string().uuid('Penugasan mengajar tidak valid.'),
   semester_id: z.string().uuid('Semester tidak valid.'),
   time_slot_id: z.string().uuid('Slot waktu tidak valid.'),
-  weekday: z.coerce.number().int().min(1).max(6),
+  weekday: z.coerce.number().int().min(1).max(7),
 });
 
 type Assignment = {
@@ -30,6 +30,20 @@ type Assignment = {
   academic_year_id: string;
   semester_id: string | null;
 };
+
+function activeWeekdays(schoolId: string) {
+  const row = db().prepare('SELECT schedule_weekdays FROM schools WHERE id=?').get(schoolId) as
+    { schedule_weekdays: string } | undefined;
+  try {
+    const weekdays = z
+      .array(z.number().int().min(1).max(7))
+      .min(1)
+      .parse(JSON.parse(row?.schedule_weekdays || '[1,2,3,4,5]'));
+    return [...new Set(weekdays)];
+  } catch {
+    return [1, 2, 3, 4, 5];
+  }
+}
 
 function requireAssignment(schoolId: string, id: string) {
   const assignment = db()
@@ -44,6 +58,8 @@ function requireAssignment(schoolId: string, id: string) {
 }
 
 function validateSchedule(schoolId: string, id: string, data: z.infer<typeof schema>) {
+  if (!activeWeekdays(schoolId).includes(data.weekday))
+    throw new HttpError(400, 'Hari tersebut tidak aktif pada pengaturan jadwal.');
   const assignment = requireAssignment(schoolId, data.teaching_assignment_id);
   const semester = requireSemester(schoolId, data.semester_id);
   if (semester.academic_year_id !== assignment.academic_year_id)

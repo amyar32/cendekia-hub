@@ -202,15 +202,6 @@ export function SchoolSettings({
               allowDeselect={false}
               disabled={!writable}
             />
-            <TextInput
-              label="Batas waktu cek-in"
-              description="Cek-in setelah jam ini otomatis ditandai terlambat."
-              type="time"
-              value={form.checkin_late_after}
-              onChange={(event) => setField('checkin_late_after', event.currentTarget.value)}
-              required
-              disabled={!writable}
-            />
           </SimpleGrid>
           <Textarea
             label="Alamat"

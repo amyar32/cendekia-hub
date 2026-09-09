@@ -2,7 +2,7 @@
 
 import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -75,7 +75,9 @@ type ScheduleResponse = {
   options: Record<string, CopyOption[]>;
 };
 
-const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+const weekdayOptions = days.map((label, index) => ({ value: String(index + 1), label }));
+const weekdayName = (weekday: number) => days[weekday - 1] || '';
 const emptySlotForm = {
   name: '',
   start_time: '',
@@ -116,6 +118,9 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
   const [slotEditing, setSlotEditing] = useState<Slot | null | undefined>(undefined);
   const [slotRemoving, setSlotRemoving] = useState<Slot | null>(null);
   const [slotForm, setSlotForm] = useState(emptySlotForm);
+  const [activeWeekdays, setActiveWeekdays] = useState([1, 2, 3, 4, 5]);
+  const [weekdaysLoading, setWeekdaysLoading] = useState(true);
+  const [savingWeekdays, setSavingWeekdays] = useState(false);
 
   const reload = useCallback(() => setRevision((value) => value + 1), []);
   const reloadSlots = useCallback(() => setSlotRevision((value) => value + 1), []);
@@ -165,6 +170,19 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
     return () => controller.abort();
   }, [slotRevision]);
 
+  useEffect(() => {
+    jsonRequest<{ weekdays: number[] }>('/api/modules/schedules/settings')
+      .then((result) => setActiveWeekdays(result.weekdays))
+      .catch((error: unknown) =>
+        notifications.show({
+          color: 'red',
+          title: 'Pengaturan hari gagal dimuat',
+          message: error instanceof Error ? error.message : 'Koneksi gagal.',
+        }),
+      )
+      .finally(() => setWeekdaysLoading(false));
+  }, []);
+
   const entryMap = useMemo(() => {
     const map = new Map<string, Entry[]>();
     for (const entry of data?.entries || []) {
@@ -199,6 +217,39 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
     setCell({ weekday, time_slot_id: timeSlotId });
     setEditing(entry || null);
     setAssignmentId(entry?.assignment_id || '');
+  }
+
+  async function saveWeekdays() {
+    setSavingWeekdays(true);
+    try {
+      const result = await jsonRequest<{ weekdays: number[] }>('/api/modules/schedules/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weekdays: activeWeekdays }),
+      });
+      setActiveWeekdays(result.weekdays);
+      notifications.show({
+        color: 'green',
+        title: 'Hari jadwal tersimpan',
+        message: 'Pilihan hari diterapkan untuk jadwal baru.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Gagal menyimpan',
+        message: error instanceof Error ? error.message : 'Koneksi gagal.',
+      });
+    } finally {
+      setSavingWeekdays(false);
+    }
+  }
+
+  function toggleWeekday(weekday: number) {
+    setActiveWeekdays((current) =>
+      current.includes(weekday)
+        ? current.filter((value) => value !== weekday)
+        : [...current, weekday].sort((a, b) => a - b),
+    );
   }
 
   async function saveSchedule(event: React.FormEvent) {
@@ -382,6 +433,9 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
           <Tabs.Tab value="slots" leftSection={<IconClock size={17} />}>
             Pengaturan Jam
           </Tabs.Tab>
+          <Tabs.Tab value="days" leftSection={<IconCalendarTime size={17} />}>
+            Pengaturan Hari
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="schedule" pt="lg">
@@ -488,13 +542,21 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
               </div>
             ) : (
               <div className={styles.gridScroll}>
-                <div className={styles.scheduleGrid}>
-                  <div className={`${styles.headerCell} ${styles.timeHeader}`}>WAKTU</div>
-                  {days.map((day) => (
-                    <div className={styles.headerCell} key={day}>
-                      {day}
-                    </div>
-                  ))}
+                <div
+                  className={styles.scheduleGrid}
+                  style={{ '--schedule-day-count': activeWeekdays.length } as CSSProperties}
+                >
+                  <div className={styles.gridHeader}>
+                    <div className={`${styles.headerCell} ${styles.timeHeader}`}>WAKTU</div>
+                    {activeWeekdays.map((weekday) => (
+                      <div
+                        className={`${styles.headerCell} ${weekday >= 6 ? styles.weekendHeader : ''}`}
+                        key={weekday}
+                      >
+                        {weekdayName(weekday)}
+                      </div>
+                    ))}
+                  </div>
                   {data.slots.map((slot) => (
                     <div className={styles.gridRow} key={slot.id}>
                       <div className={styles.timeCell}>
@@ -505,22 +567,22 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                           {slot.start_time}–{slot.end_time}
                         </Text>
                       </div>
-                      {days.map((day, index) => {
-                        const cellEntries = entryMap.get(`${index + 1}:${slot.id}`) || [];
+                      {activeWeekdays.map((weekday) => {
+                        const cellEntries = entryMap.get(`${weekday}:${slot.id}`) || [];
                         const entry = cellEntries[0];
                         const entryNames = [...new Set(cellEntries.map((item) => item.entry_name))];
                         if (slot.is_break)
                           return (
-                            <div className={styles.breakCell} key={day}>
+                            <div className={styles.breakCell} key={weekday}>
                               Istirahat
                             </div>
                           );
                         return (
                           <button
                             type="button"
-                            key={day}
-                            className={`${styles.scheduleCell} ${cellEntries.length ? styles.filledCell : ''}`}
-                            onClick={() => openCell(index + 1, slot.id, entry)}
+                            key={weekday}
+                            className={`${styles.scheduleCell} ${weekday >= 6 ? styles.weekendCell : ''} ${cellEntries.length ? styles.filledCell : ''}`}
+                            onClick={() => openCell(weekday, slot.id, entry)}
                             disabled={!writable || cellEntries.length > 1}
                           >
                             {cellEntries.length ? (
@@ -558,13 +620,13 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
             )}
             {!!semesterId && !!entityId && !!data?.slots.length && (
               <div className={styles.mobileSchedule}>
-                {days.map((day, index) => (
-                  <section className={styles.daySection} key={day}>
+                {activeWeekdays.map((weekday) => (
+                  <section className={styles.daySection} key={weekday}>
                     <Text className={styles.dayTitle} fw={700} size="sm">
-                      {day}
+                      {weekdayName(weekday)}
                     </Text>
                     {data.slots.map((slot) => {
-                      const cellEntries = entryMap.get(`${index + 1}:${slot.id}`) || [];
+                      const cellEntries = entryMap.get(`${weekday}:${slot.id}`) || [];
                       const entry = cellEntries[0];
                       const entryNames = [...new Set(cellEntries.map((item) => item.entry_name))];
                       return (
@@ -572,7 +634,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                           type="button"
                           key={slot.id}
                           className={`${styles.mobileSlot} ${cellEntries.length ? styles.filledCell : ''} ${slot.is_break ? styles.mobileBreak : ''}`}
-                          onClick={() => !slot.is_break && openCell(index + 1, slot.id, entry)}
+                          onClick={() => !slot.is_break && openCell(weekday, slot.id, entry)}
                           disabled={!writable || Boolean(slot.is_break) || cellEntries.length > 1}
                         >
                           <Box className={styles.mobileTime}>
@@ -614,6 +676,52 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
           <Text className={styles.note} variant="caption">
             Jadwal hanya memakai Penugasan Mengajar yang berlaku pada semester terpilih.
           </Text>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="days" pt="lg">
+          <Paper withBorder p="lg" pos="relative">
+            <LoadingOverlay visible={weekdaysLoading} />
+            <Stack gap="md">
+              <Stack gap={3}>
+                <Title order={3}>Hari aktif untuk jadwal</Title>
+                <Text size="sm" c="dimmed">
+                  Hanya hari yang dipilih yang tampil saat menyusun jadwal. Jadwal yang sudah ada
+                  tidak dihapus.
+                </Text>
+              </Stack>
+              <div className={styles.weekdayPicker} role="group" aria-label="Hari aktif jadwal">
+                {weekdayOptions.map((day) => {
+                  const weekday = Number(day.value);
+                  const active = activeWeekdays.includes(weekday);
+                  return (
+                    <button
+                      type="button"
+                      key={day.value}
+                      className={`${styles.weekdayCard} ${active ? styles.weekdayCardActive : ''}`}
+                      onClick={() => toggleWeekday(weekday)}
+                      aria-pressed={active}
+                      disabled={!writable || weekdaysLoading}
+                    >
+                      <span className={styles.weekdayInitial}>{day.label.slice(0, 3)}</span>
+                      <span className={styles.weekdayLabel}>{day.label}</span>
+                      <span className={styles.weekdayStatus}>{active ? 'Aktif' : 'Nonaktif'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {writable && (
+                <Group justify="flex-end">
+                  <Button
+                    loading={savingWeekdays}
+                    disabled={!activeWeekdays.length}
+                    onClick={saveWeekdays}
+                  >
+                    Simpan hari jadwal
+                  </Button>
+                </Group>
+              )}
+            </Stack>
+          </Paper>
         </Tabs.Panel>
 
         <Tabs.Panel value="slots" pt="lg">
@@ -712,7 +820,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
         <form onSubmit={saveSchedule}>
           <Stack>
             <Group gap="xs">
-              <Badge variant="light">{cell ? days[cell.weekday - 1] : ''}</Badge>
+              <Badge variant="light">{cell ? weekdayName(cell.weekday) : ''}</Badge>
               <Text size="sm" c="dimmed">
                 {data?.slots.find((slot) => slot.id === cell?.time_slot_id)?.name}
               </Text>
@@ -894,7 +1002,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
       >
         <Text size="sm">
           Jadwal <b>{data?.assignments.find((item) => item.value === assignmentId)?.label}</b> pada
-          hari {cell ? days[cell.weekday - 1] : ''}, slot{' '}
+          hari {cell ? weekdayName(cell.weekday) : ''}, slot{' '}
           {data?.slots.find((slot) => slot.id === cell?.time_slot_id)?.name} akan dihapus. Periksa
           kembali sebelum melanjutkan.
         </Text>

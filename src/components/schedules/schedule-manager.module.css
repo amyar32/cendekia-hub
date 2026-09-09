@@ -34,22 +34,30 @@
 
 .gridScroll {
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-color-border) transparent;
 }
 
 .scheduleGrid {
-  min-width: 1040px;
+  width: 100%;
+  min-width: calc(145px + (var(--schedule-day-count) * 145px));
 }
 
-.scheduleGrid > :first-child,
+.gridHeader {
+  display: flex;
+}
+
+.gridHeader > :first-child,
 .gridRow > :first-child {
   border-left: 0;
 }
 
 .headerCell {
-  display: inline-flex;
-  width: calc((100% - 145px) / 6);
+  display: flex;
+  width: calc((100% - 145px) / var(--schedule-day-count));
   min-width: 145px;
   height: 48px;
+  flex: 1 0 145px;
   align-items: center;
   justify-content: center;
   border-left: 1px solid var(--app-color-border);
@@ -58,12 +66,30 @@
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.weekendHeader {
+  color: var(--app-color-brand);
+  background: color-mix(in srgb, var(--app-color-brand-soft) 55%, var(--app-color-subtle));
 }
 
 .timeHeader,
 .timeCell {
   width: 145px;
   min-width: 145px;
+  flex: 0 0 145px;
+  position: sticky;
+  left: 0;
+}
+
+.timeHeader {
+  z-index: 3;
+}
+
+.timeCell {
+  z-index: 2;
+  box-shadow: 8px 0 14px -14px var(--app-color-text);
 }
 
 .gridRow {
@@ -82,11 +108,16 @@
 
 .scheduleCell,
 .breakCell {
-  width: calc((100% - 145px) / 6);
+  width: calc((100% - 145px) / var(--schedule-day-count));
   min-width: 145px;
+  flex: 1 0 145px;
   min-height: 108px;
   border: 0;
   border-left: 1px solid var(--app-color-border);
+}
+
+.weekendCell:not(.filledCell) {
+  background: color-mix(in srgb, var(--app-color-brand-soft) 18%, transparent);
 }
 
 .scheduleCell {
@@ -143,6 +174,87 @@
 .note {
   display: block;
   margin-top: 16px;
+}
+
+.weekdayPicker {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weekdayCard {
+  display: flex;
+  min-height: 116px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-color-subtle);
+  color: var(--app-color-muted);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.weekdayCard:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--app-color-brand) 45%, var(--app-color-border));
+  transform: translateY(-2px);
+}
+
+.weekdayCard:focus-visible {
+  outline: 2px solid var(--app-color-brand);
+  outline-offset: 2px;
+}
+
+.weekdayCard:disabled {
+  cursor: default;
+}
+
+.weekdayCardActive {
+  border-color: var(--app-color-brand);
+  background: var(--app-color-brand-soft);
+  color: var(--app-color-text);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--app-color-brand) 14%, transparent);
+}
+
+.weekdayInitial {
+  display: inline-flex;
+  min-width: 35px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--mantine-radius-sm);
+  background: var(--app-color-border);
+  color: var(--app-color-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.weekdayCardActive .weekdayInitial {
+  background: var(--app-color-brand);
+  color: white;
+}
+
+.weekdayLabel {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.weekdayStatus {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.weekdayCardActive .weekdayStatus {
+  color: var(--app-color-brand);
 }
 
 .mobileSchedule {
@@ -207,6 +319,15 @@
   .mobileSchedule {
     display: block;
     padding: 14px;
+  }
+
+  .weekdayPicker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .weekdayCard {
+    min-height: 102px;
+    padding: 12px;
   }
 
   .daySection + .daySection {
