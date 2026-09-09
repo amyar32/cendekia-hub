@@ -42,7 +42,7 @@ import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
 import classes from '@/components/academic/academic-entity-manager.module.css';
-import { StudentCardModal } from './student-card-modal';
+import { IdentityCardModal } from '@/components/identity-card/identity-card-modal';
 
 type Guardian = {
   name: string;
@@ -341,9 +341,10 @@ export function StudentManager({ writable }: { writable: boolean }) {
         </Table.ScrollContainer>
       </ModuleListLayout>
 
-      <StudentCardModal
+      <IdentityCardModal
         key={cardStudentId || 'closed'}
-        studentId={cardStudentId}
+        personId={cardStudentId}
+        personType="student"
         writable={writable}
         onClose={() => setCardStudentId(null)}
       />

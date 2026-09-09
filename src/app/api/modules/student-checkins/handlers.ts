@@ -20,7 +20,7 @@ const inputSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    await requireUser('student-checkins.read');
+    await requireUser('checkins.read');
     const schoolId = currentSchoolId();
     const url = new URL(request.url);
     const date = dateSchema.parse(
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     checkOrigin(request);
-    const actor = await requireUser('student-checkins.write');
+    const actor = await requireUser('checkins.write');
     const data = inputSchema.parse(await request.json());
     const schoolId = currentSchoolId();
     const student = db()

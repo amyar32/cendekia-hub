@@ -176,9 +176,9 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         if (method === 'POST')
           db()
             .prepare(
-              `INSERT INTO teachers(id,school_id,user_id,photo_url,employee_code,nip,name,gender,birth_date,phone,email,address,join_date,employment_status,is_active) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              `INSERT INTO teachers(id,school_id,user_id,photo_url,employee_code,nip,name,gender,birth_date,phone,email,address,join_date,employment_status,is_active,qr_token) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             )
-            .run(id, schoolId, ...args);
+            .run(id, schoolId, ...args, randomBytes(24).toString('hex'));
         else
           db()
             .prepare(

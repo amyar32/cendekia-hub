@@ -70,7 +70,7 @@ const icons = {
   promotions: IconArrowUp,
   schedules: IconCalendarTime,
   'student-attendance': IconClipboardCheck,
-  'student-checkins': IconLogin,
+  checkins: IconLogin,
   'extracurricular-attendance': IconBallFootball,
   'academic-reports': IconReportAnalytics,
 };

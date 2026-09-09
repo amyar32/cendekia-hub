@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -33,7 +33,7 @@ import {
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import { moduleMutation } from '@/hooks/use-module-list';
 import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
-import styles from './student-checkin-manager.module.css';
+import styles from './checkin-manager.module.css';
 
 type Row = {
   id: string;
@@ -47,7 +47,17 @@ type Row = {
 type Option = { value: string; label: string };
 const today = () => new Date().toLocaleDateString('en-CA');
 
-export function StudentCheckinManager({ writable }: { writable: boolean }) {
+export function CheckinManager({
+  writable,
+  personType = 'student',
+  embedded = false,
+}: {
+  writable: boolean;
+  personType?: 'student' | 'teacher';
+  embedded?: boolean;
+}) {
+  const isTeacher = personType === 'teacher';
+  const endpoint = isTeacher ? '/api/modules/teacher-checkins' : '/api/modules/student-checkins';
   const [date, setDate] = useState(today);
   const [classId, setClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<Option[]>([]);
@@ -58,35 +68,36 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [pendingCheckin, setPendingCheckin] = useState<{
-    student: Row;
+    person: Row;
     status: 'present' | 'late';
   } | null>(null);
+  const scrollPositionRef = useRef<{ left: number; top: number } | null>(null);
 
-  const reload = async () => {
-    setLoading(true);
+  const reload = async ({ showLoading = true } = {}) => {
+    if (showLoading) setLoading(true);
     try {
       const params = new URLSearchParams({ date });
-      if (classId) params.set('class_id', classId);
-      const response = await fetch(`/api/modules/student-checkins?${params}`);
+      if (classId && !isTeacher) params.set('class_id', classId);
+      const response = await fetch(`${endpoint}?${params}`);
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      setClasses(result.options.class_id);
-      setClassId(result.selected.class_id || null);
+      setClasses(result.options?.class_id || []);
+      if (!isTeacher) setClassId(result.selected?.class_id || null);
       setRows(result.rows);
       setError('');
     } catch (cause) {
       setRows([]);
       setError(cause instanceof Error ? cause.message : 'Gagal memuat data cek-in.');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams({ date });
-    if (classId) params.set('class_id', classId);
-    fetch(`/api/modules/student-checkins?${params}`, { signal: controller.signal })
+    if (classId && !isTeacher) params.set('class_id', classId);
+    fetch(`${endpoint}?${params}`, { signal: controller.signal })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error);
@@ -94,8 +105,8 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
       })
       .then((result) => {
         if (controller.signal.aborted) return;
-        setClasses(result.options.class_id);
-        setClassId(result.selected.class_id || null);
+        setClasses(result.options?.class_id || []);
+        if (!isTeacher) setClassId(result.selected?.class_id || null);
         setRows(result.rows);
         setError('');
       })
@@ -108,7 +119,7 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [date, classId]);
+  }, [date, classId, endpoint, isTeacher]);
 
   const visibleRows = useMemo(
     () =>
@@ -131,22 +142,23 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
       ),
     [rows],
   );
-  const checkin = async (student: Row, status: 'present' | 'late') => {
+  const checkin = async (person: Row, status: 'present' | 'late') => {
     if (saving || !writable) return;
-    setSaving(student.id);
+    scrollPositionRef.current = { left: window.scrollX, top: window.scrollY };
+    setSaving(person.id);
     try {
-      await moduleMutation('/api/modules/student-checkins', 'POST', {
-        student_id: student.id,
+      await moduleMutation(endpoint, 'POST', {
+        [isTeacher ? 'teacher_id' : 'student_id']: person.id,
         attendance_date: date,
         status,
-        note: student.note || '',
+        note: person.note || '',
       });
       notifications.show({
         title: status === 'present' ? 'Cek-in berhasil' : 'Keterlambatan dicatat',
-        message: student.name,
+        message: person.name,
         color: status === 'present' ? 'green' : 'yellow',
       });
-      await reload();
+      await reload({ showLoading: false });
       setPendingCheckin(null);
     } catch (cause) {
       notifications.show({
@@ -156,31 +168,43 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
       });
     } finally {
       setSaving(null);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const position = scrollPositionRef.current;
+          if (position) window.scrollTo(position.left, position.top);
+          scrollPositionRef.current = null;
+        });
+      });
     }
   };
-  const requestCheckin = (student: Row, status: 'present' | 'late') => {
-    if (student.status && student.status !== status) setPendingCheckin({ student, status });
-    else void checkin(student, status);
+  const requestCheckin = (person: Row, status: 'present' | 'late') => {
+    if (!saving) setPendingCheckin({ person, status });
   };
 
   return (
     <>
-      <PageHeading
-        eyebrow="KEHADIRAN HARIAN"
-        title="Cek-in siswa"
-        description="Catat kedatangan siswa, pantau keterlambatan, dan periksa kehadiran harian per rombel."
-        action={
-          writable ? (
-            <Button
-              component={Link}
-              href="/student-checkins/scanner"
-              leftSection={<IconQrcode size={18} />}
-            >
-              Buka scanner
-            </Button>
-          ) : undefined
-        }
-      />
+      {!embedded && (
+        <PageHeading
+          eyebrow="KEHADIRAN HARIAN"
+          title={`Check-in ${isTeacher ? 'guru' : 'murid'}`}
+          description={
+            isTeacher
+              ? 'Catat kedatangan guru, pantau keterlambatan, dan periksa kehadiran harian.'
+              : 'Catat kedatangan murid, pantau keterlambatan, dan periksa kehadiran harian per rombel.'
+          }
+          action={
+            writable ? (
+              <Button
+                component={Link}
+                href="/checkins/scanner"
+                leftSection={<IconQrcode size={18} />}
+              >
+                Buka scanner
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
       <Paper withBorder p="lg" mb="md" className={styles.controlPanel}>
         <Group justify="space-between" align="end" wrap="wrap">
           <Group align="end">
@@ -202,21 +226,23 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
               leftSection={<IconCalendar size={16} />}
               w={220}
             />
-            <Select
-              label="Rombel"
-              placeholder="Pilih rombel"
-              data={classes}
-              value={classId}
-              disabled={saving !== null || loading}
-              onChange={(value) => {
-                if (value !== classId) {
-                  setLoading(true);
-                  setClassId(value);
-                }
-              }}
-              searchable
-              w={280}
-            />
+            {!isTeacher && (
+              <Select
+                label="Rombel"
+                placeholder="Pilih rombel"
+                data={classes}
+                value={classId}
+                disabled={saving !== null || loading}
+                onChange={(value) => {
+                  if (value !== classId) {
+                    setLoading(true);
+                    setClassId(value);
+                  }
+                }}
+                searchable
+                w={280}
+              />
+            )}
           </Group>
           <Button
             variant="default"
@@ -238,11 +264,11 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
           <div>
             <Title order={3}>Daftar kedatangan</Title>
             <Text size="sm" c="dimmed">
-              Klik Hadir atau Terlambat saat siswa tiba di sekolah.
+              Klik Hadir atau Terlambat saat {isTeacher ? 'guru' : 'siswa'} tiba di sekolah.
             </Text>
           </div>
           <Text size="sm" c="dimmed">
-            {rows.length} siswa terdaftar
+            {rows.length} {isTeacher ? 'guru' : 'siswa'} terdaftar
           </Text>
         </Group>
         <SimpleGrid cols={{ base: 1, xs: 3 }} className={styles.summaryGrid} mb="lg">
@@ -288,7 +314,7 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
         </SimpleGrid>
         <Group mb="md" grow align="end">
           <TextInput
-            placeholder="Cari nama atau NIS..."
+            placeholder={`Cari nama atau ${isTeacher ? 'kode pegawai' : 'NIS'}...`}
             leftSection={<IconSearch size={16} />}
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
@@ -310,15 +336,15 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
           </Group>
         ) : visibleRows.length === 0 ? (
           <Alert color="gray" icon={<IconUsers size={18} />}>
-            Tidak ada siswa aktif pada rombel ini.
+            {isTeacher ? 'Tidak ada guru aktif.' : 'Tidak ada siswa aktif pada rombel ini.'}
           </Alert>
         ) : (
           <Table.ScrollContainer minWidth={680} className={styles.checkinTable}>
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>NIS</Table.Th>
-                  <Table.Th>Nama siswa</Table.Th>
+                  <Table.Th>{isTeacher ? 'Kode pegawai' : 'NIS'}</Table.Th>
+                  <Table.Th>Nama {isTeacher ? 'guru' : 'siswa'}</Table.Th>
                   <Table.Th>Status cek-in</Table.Th>
                   <Table.Th>Waktu</Table.Th>
                   <Table.Th>Catatan</Table.Th>
@@ -326,9 +352,9 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {visibleRows.map((student) => (
-                  <Table.Tr key={student.id}>
-                    <Table.Td>{student.nis}</Table.Td>
+                {visibleRows.map((person) => (
+                  <Table.Tr key={person.id}>
+                    <Table.Td>{person.nis}</Table.Td>
                     <Table.Td>
                       <Group gap="sm" wrap="nowrap">
                         <ThemeIcon
@@ -338,27 +364,27 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
                           radius="xl"
                           variant="light"
                           color={
-                            student.status === 'late'
+                            person.status === 'late'
                               ? 'yellow'
-                              : student.status === 'present'
+                              : person.status === 'present'
                                 ? 'blue'
                                 : 'gray'
                           }
                         >
-                          {student.name.slice(0, 1).toUpperCase()}
+                          {person.name.slice(0, 1).toUpperCase()}
                         </ThemeIcon>
                         <Text size="xs" fw={600}>
-                          {student.name}
+                          {person.name}
                         </Text>
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      {student.status ? (
+                      {person.status ? (
                         <Badge
-                          color={student.status === 'present' ? 'blue' : 'yellow'}
+                          color={person.status === 'present' ? 'blue' : 'yellow'}
                           variant="light"
                         >
-                          {student.status === 'present' ? 'Hadir' : 'Terlambat'}
+                          {person.status === 'present' ? 'Hadir' : 'Terlambat'}
                         </Badge>
                       ) : (
                         <Text size="xs" c="dimmed">
@@ -368,18 +394,18 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
                     </Table.Td>
                     <Table.Td>
                       <Text size="xs">
-                        {student.checked_in_at
+                        {person.checked_in_at
                           ? new Intl.DateTimeFormat('id-ID', {
                               hour: '2-digit',
                               minute: '2-digit',
                               timeZone: 'Asia/Jakarta',
-                            }).format(new Date(`${student.checked_in_at}Z`))
+                            }).format(new Date(`${person.checked_in_at}Z`))
                           : '—'}
                       </Text>
                     </Table.Td>
                     <Table.Td>
                       <Text size="xs" c="dimmed">
-                        {student.note || '—'}
+                        {person.note || '—'}
                       </Text>
                     </Table.Td>
                     <Table.Td>
@@ -388,22 +414,22 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
                           <>
                             <Button
                               size="xs"
-                              variant={student.status === 'present' ? 'filled' : 'light'}
+                              variant={person.status === 'present' ? 'filled' : 'light'}
                               leftSection={<IconCheck size={14} />}
-                              loading={saving === student.id}
-                              disabled={saving !== null && saving !== student.id}
-                              onClick={() => requestCheckin(student, 'present')}
+                              loading={saving === person.id}
+                              disabled={saving !== null && saving !== person.id}
+                              onClick={() => requestCheckin(person, 'present')}
                             >
                               Hadir
                             </Button>
                             <Button
                               size="xs"
                               color="yellow"
-                              variant={student.status === 'late' ? 'filled' : 'light'}
+                              variant={person.status === 'late' ? 'filled' : 'light'}
                               leftSection={<IconClock size={14} />}
-                              loading={saving === student.id}
-                              disabled={saving !== null && saving !== student.id}
-                              onClick={() => requestCheckin(student, 'late')}
+                              loading={saving === person.id}
+                              disabled={saving !== null && saving !== person.id}
+                              onClick={() => requestCheckin(person, 'late')}
                             >
                               Terlambat
                             </Button>
@@ -421,18 +447,28 @@ export function StudentCheckinManager({ writable }: { writable: boolean }) {
       <ConfirmationDialog
         opened={pendingCheckin !== null}
         onClose={() => setPendingCheckin(null)}
-        title="Ubah status cek-in?"
-        confirmLabel="Ubah status"
-        color="yellow"
+        title="Konfirmasi check-in"
+        confirmLabel={pendingCheckin?.status === 'present' ? 'Tandai hadir' : 'Tandai terlambat'}
+        color={pendingCheckin?.status === 'present' ? 'blue' : 'yellow'}
         loading={saving !== null}
         onConfirm={() => {
-          if (pendingCheckin) return checkin(pendingCheckin.student, pendingCheckin.status);
+          if (pendingCheckin) return checkin(pendingCheckin.person, pendingCheckin.status);
         }}
       >
         <Text size="sm">
-          <b>{pendingCheckin?.student.name}</b> pada tanggal {date} sudah tercatat{' '}
-          {pendingCheckin?.student.status === 'present' ? 'hadir' : 'terlambat'}. Status akan diubah
-          menjadi <b>{pendingCheckin?.status === 'present' ? 'hadir' : 'terlambat'}</b>.
+          {pendingCheckin?.person.status ? (
+            <>
+              Status <b>{pendingCheckin.person.name}</b> pada tanggal {date} akan diubah dari{' '}
+              <b>{pendingCheckin.person.status === 'present' ? 'hadir' : 'terlambat'}</b> menjadi{' '}
+              <b>{pendingCheckin.status === 'present' ? 'hadir' : 'terlambat'}</b>.
+            </>
+          ) : (
+            <>
+              Tandai <b>{pendingCheckin?.person.name}</b> sebagai{' '}
+              <b>{pendingCheckin?.status === 'present' ? 'hadir' : 'terlambat'}</b> untuk tanggal{' '}
+              {date}?
+            </>
+          )}
         </Text>
       </ConfirmationDialog>
     </>

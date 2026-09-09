@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react';
 
-export function StudentCardPrintTrigger() {
+/** Print control that waits for all card assets to load before opening the print dialog. */
+export function CardPrintTrigger() {
   useEffect(() => {
     let cancelled = false;
     let timer = 0;

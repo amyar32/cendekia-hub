@@ -412,6 +412,44 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(teachers.rows[0].employee_code, 'GR-001');
   assert.equal(teachers.rows[0].gender_label, 'Laki-laki');
   assert.equal(teachers.rows[0].photo_url, teacherPhoto.url);
+  res = await api(`/api/modules/teachers/${teacher.id}/card`);
+  assert.equal(res.status, 200);
+  const firstTeacherCard = await res.json();
+  assert.match(firstTeacherCard.qr_value, /^cendekia:teacher-checkin:[0-9a-f]{48}$/);
+  assert.equal(firstTeacherCard.qr_token, undefined);
+  res = await api(`/teacher-cards/${teacher.id}/print`);
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /Budi Santoso/);
+  res = await api(`/api/modules/teachers/${teacher.id}/card`, 'POST');
+  assert.equal(res.status, 200);
+  const replacementTeacherCard = await res.json();
+  assert.notEqual(replacementTeacherCard.qr_value, firstTeacherCard.qr_value);
+  res = await api('/api/modules/checkins/scanner', 'POST', {
+    code: firstTeacherCard.qr_value,
+  });
+  assert.equal(res.status, 404);
+  res = await api('/api/modules/checkins/scanner', 'POST', {
+    code: replacementTeacherCard.qr_value,
+  });
+  assert.equal(res.status, 201);
+  const scannedTeacher = await res.json();
+  assert.equal(scannedTeacher.outcome, 'success');
+  assert.equal(scannedTeacher.person_type, 'teacher');
+  assert.equal(scannedTeacher.student.name, 'Budi Santoso');
+  res = await api('/api/modules/checkins/scanner', 'POST', {
+    code: replacementTeacherCard.qr_value,
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).outcome, 'duplicate');
+  res = await api('/api/modules/checkins/scanner');
+  assert.equal(res.status, 200);
+  const teacherCheckinDashboard = await res.json();
+  assert.equal(teacherCheckinDashboard.summary.total, 1);
+  res = await api(`/api/modules/teacher-checkins?date=${teacherCheckinDashboard.date}`);
+  assert.equal(res.status, 200);
+  const teacherCheckinList = await res.json();
+  assert.equal(teacherCheckinList.rows[0].name, 'Budi Santoso');
+  assert.ok(teacherCheckinList.rows[0].checkin_id);
   res = await api('/api/modules/teaching-assignments', 'POST', {
     teacher_id: teacher.id,
     subject_id: subject.id,
@@ -719,32 +757,33 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   const replacementCard = await res.json();
   assert.notEqual(replacementCard.qr_value, firstCard.qr_value);
   assert.equal(
-    (await api('/api/modules/student-checkins/scanner', 'POST', { code: student.nis })).status,
+    (await api('/api/modules/checkins/scanner', 'POST', { code: student.nis })).status,
     400,
   );
   assert.equal(
     (
-      await api('/api/modules/student-checkins/scanner', 'POST', {
+      await api('/api/modules/checkins/scanner', 'POST', {
         code: firstCard.qr_value,
       })
     ).status,
     404,
   );
-  res = await api('/api/modules/student-checkins/scanner', 'POST', {
+  res = await api('/api/modules/checkins/scanner', 'POST', {
     code: replacementCard.qr_value,
   });
   assert.equal(res.status, 201);
   const scanned = await res.json();
   assert.equal(scanned.outcome, 'success');
+  assert.equal(scanned.person_type, 'student');
   assert.equal(scanned.student.name, 'Ayu Cendekia');
-  res = await api('/api/modules/student-checkins/scanner', 'POST', {
+  res = await api('/api/modules/checkins/scanner', 'POST', {
     code: replacementCard.qr_value,
   });
   assert.equal(res.status, 200);
   assert.equal((await res.json()).outcome, 'duplicate');
-  res = await api('/api/modules/student-checkins/scanner');
+  res = await api('/api/modules/checkins/scanner');
   assert.equal(res.status, 200);
-  assert.equal((await res.json()).summary.total, 1);
+  assert.equal((await res.json()).summary.total, 2);
   const cleanupDb = new Database(join(dir, 'test.sqlite'));
   cleanupDb.prepare('DELETE FROM student_checkins WHERE student_id=?').run(student.id);
   cleanupDb.close();

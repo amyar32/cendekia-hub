@@ -4,6 +4,8 @@ import {
   AcademicEntityManager,
   type AcademicEntityConfig,
 } from '@/components/academic/academic-entity-manager';
+import { useState } from 'react';
+import { IdentityCardModal } from '@/components/identity-card/identity-card-modal';
 
 const teacher: AcademicEntityConfig = {
   endpoint: '/api/modules/teachers',
@@ -163,9 +165,25 @@ const homeroomAssignment: AcademicEntityConfig = {
   ],
 };
 
-export const TeacherManager = ({ writable }: { writable: boolean }) => (
-  <AcademicEntityManager config={teacher} writable={writable} />
-);
+export function TeacherManager({ writable }: { writable: boolean }) {
+  const [cardTeacherId, setCardTeacherId] = useState<string | null>(null);
+  return (
+    <>
+      <AcademicEntityManager
+        config={teacher}
+        writable={writable}
+        onCard={(row) => setCardTeacherId(row.id)}
+      />
+      <IdentityCardModal
+        key={cardTeacherId || 'closed'}
+        personId={cardTeacherId}
+        personType="teacher"
+        writable={writable}
+        onClose={() => setCardTeacherId(null)}
+      />
+    </>
+  );
+}
 export const TeachingAssignmentManager = ({ writable }: { writable: boolean }) => (
   <AcademicEntityManager config={teachingAssignment} writable={writable} />
 );

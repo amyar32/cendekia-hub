@@ -29,6 +29,7 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **Akademik:** tahun ajaran, semester, tingkat, rombel, mata pelajaran, guru, penugasan mengajar, dan wali kelas.
 - **Ekstrakurikuler:** master program, penugasan pembina, peserta, kuota, lokasi, serta jadwal berbasis slot waktu sekolah yang dapat disalin sebagai draft ke tahun ajaran berikutnya.
 - **Murid:** identitas, wali, dokumen, riwayat rombel, proses kenaikan kelas massal yang dapat dibatalkan, serta laporan historis.
+- **Check-in gerbang:** satu scanner untuk kartu QR murid dan guru, daftar bertab, pencatatan manual, deteksi keterlambatan otomatis, rotasi QR, dan kartu identitas siap cetak.
 - **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
 - **Dashboard:** statistik dan aktivitas aktual, sesuai akses pengguna.

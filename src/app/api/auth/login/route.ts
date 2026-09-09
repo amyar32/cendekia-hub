@@ -54,11 +54,11 @@ export async function POST(request: Request) {
     await createSession(user.id);
     const permissions = JSON.parse(user.permissions) as string[];
     const scannerOnly =
-      permissions.includes('student-checkins.write') && !permissions.includes('dashboard.read');
+      permissions.includes('checkins.write') && !permissions.includes('dashboard.read');
     return Response.json({
       ok: true,
       must_change_password: Boolean(user.must_change_password),
-      redirect_to: scannerOnly ? '/student-checkins/scanner' : '/',
+      redirect_to: scannerOnly ? '/checkins/scanner' : '/',
     });
   } catch (error) {
     return failure(error);

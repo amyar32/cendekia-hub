@@ -21,7 +21,12 @@ import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 import styles from './checkin-scanner.module.css';
 
 type Student = { name: string; nis: string; photo_url: string; class_name: string };
-type Recent = Student & { id: string; status: 'present' | 'late'; checked_in_at: string };
+type Recent = Student & {
+  id: string;
+  status: 'present' | 'late';
+  checked_in_at: string;
+  person_type: 'student' | 'teacher';
+};
 type Summary = { total: number; present: number; late: number };
 type ScanResult = {
   outcome: 'success' | 'duplicate';
@@ -30,6 +35,7 @@ type ScanResult = {
   checked_in_at: string;
   summary: Summary;
   recent: Recent[];
+  person_type: 'student' | 'teacher';
 };
 type Config = {
   school: { name: string; logo_url: string; timezone: string };
@@ -42,6 +48,7 @@ type Config = {
 const emptySummary = { total: 0, present: 0, late: 0 };
 
 export function CheckinScanner({ operatorName }: { operatorName: string }) {
+  const endpoint = '/api/modules/checkins/scanner';
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -62,7 +69,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
 
   useEffect(() => {
     queueMicrotask(() => setSound(localStorage.getItem('checkin-scanner-sound') !== 'off'));
-    fetch('/api/modules/student-checkins/scanner')
+    fetch(endpoint)
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error);
@@ -78,7 +85,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
       );
     const timer = setInterval(() => setClock(new Date()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [endpoint]);
 
   const beep = useCallback((kind: 'success' | 'warning' | 'error') => {
     if (localStorage.getItem('checkin-scanner-sound') === 'off') return;
@@ -104,7 +111,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
       lastScanRef.current = { code, at: now };
       setError('');
       try {
-        const response = await fetch('/api/modules/student-checkins/scanner', {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, manual }),
@@ -129,13 +136,14 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
         }, 700);
       }
     },
-    [beep],
+    [beep, endpoint],
   );
 
   useEffect(() => {
     let cancelled = false;
     let stream: MediaStream | null = null;
     let controls: IScannerControls | null = null;
+    const video = videoRef.current;
     const reader = new BrowserQRCodeReader();
     const constraints: MediaStreamConstraints = {
       video: deviceId
@@ -155,7 +163,6 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
     };
 
     async function startScanner() {
-      const video = videoRef.current;
       if (!video) return;
 
       try {
@@ -200,7 +207,6 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
       controls?.stop();
       if (controlsRef.current === controls) controlsRef.current = null;
       stream?.getTracks().forEach((track) => track.stop());
-      const video = videoRef.current;
       if (video?.srcObject === stream) {
         video.pause();
         video.srcObject = null;
@@ -262,7 +268,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
           )}
           <div>
             <Text className={styles.school}>{config?.school.name || 'Cendekia Hub'}</Text>
-            <Text className={styles.subtitle}>GERBANG KEHADIRAN SISWA</Text>
+            <Text className={styles.subtitle}>GERBANG KEHADIRAN SEKOLAH</Text>
           </div>
         </Group>
         <div className={styles.clock}>
@@ -315,7 +321,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
             {!result && !error && (
               <div className={styles.prompt}>
                 <IconCamera size={22} />
-                <span>Arahkan QR kartu siswa ke kotak</span>
+                <span>Arahkan QR kartu murid atau guru ke kotak</span>
               </div>
             )}
             {cameraError && (
@@ -351,9 +357,10 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
                           ? 'Cek-in terlambat'
                           : 'Selamat datang!'}
                     </Text>
-                    <Text className={styles.studentName}>{result.student.name}</Text>
+                    <Text className={styles.personName}>{result.student.name}</Text>
                     <Text className={styles.resultMessage}>
-                      {result.student.nis} · {result.student.class_name}
+                      {result.person_type === 'teacher' ? 'Guru' : 'Murid'} · {result.student.nis} ·{' '}
+                      {result.student.class_name}
                     </Text>
                     <div className={styles.resultTime}>
                       {result.outcome === 'success' ? <IconCheck /> : <IconClock />}
@@ -408,7 +415,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
               <Text>Baru saja hadir</Text>
               <span>Diperbarui otomatis</span>
             </div>
-            <Link href="/student-checkins">Lihat daftar</Link>
+            <Link href="/checkins">Lihat daftar</Link>
           </div>
           <div className={styles.recentList}>
             {recent.length ? (
@@ -420,7 +427,8 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
                   <div>
                     <Text>{item.name}</Text>
                     <span>
-                      {item.class_name || 'Tanpa rombel'} · {item.nis}
+                      {item.person_type === 'teacher' ? 'Guru' : item.class_name || 'Murid'} ·{' '}
+                      {item.nis}
                     </span>
                   </div>
                   <div className={styles.recentTime}>
@@ -436,14 +444,14 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
                 </div>
               ))
             ) : (
-              <div className={styles.empty}>Belum ada siswa yang cek-in hari ini.</div>
+              <div className={styles.empty}>Belum ada murid atau guru yang check-in hari ini.</div>
             )}
           </div>
           <form className={styles.manual} onSubmit={submitManual}>
             <IconKeyboard size={18} />
             <TextInput
               variant="unstyled"
-              placeholder="Ketik NIS jika kartu bermasalah"
+              placeholder="Ketik NIS atau kode pegawai jika kartu bermasalah"
               value={manualCode}
               onChange={(event) => setManualCode(event.currentTarget.value)}
             />

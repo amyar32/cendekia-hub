@@ -345,7 +345,7 @@
   font-size: 18px !important;
   font-weight: 800;
 }
-.studentName {
+.personName {
   font-size: clamp(28px, 4vw, 48px) !important;
   font-weight: 900;
   line-height: 1.12;
@@ -404,7 +404,7 @@
   .sidePanel {
     min-height: 440px;
   }
-  .studentName {
+  .personName {
     font-size: 30px !important;
   }
 }

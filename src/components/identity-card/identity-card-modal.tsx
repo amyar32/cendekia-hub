@@ -7,7 +7,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPrinter, IconRefresh } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
-import styles from './student-card-modal.module.css';
+import styles from './identity-card-modal.module.css';
 
 type Card = {
   id: string;
@@ -18,6 +18,9 @@ type Card = {
   birth_place: string;
   birth_date: string | null;
   address: string;
+  employee_code?: string;
+  nip?: string;
+  employment_status?: string;
   school_name: string;
   logo_url: string;
   qr_value: string;
@@ -37,25 +40,36 @@ function formatBirth(card: Card) {
   return [card.birth_place, date].filter(Boolean).join(', ') || '—';
 }
 
-export function StudentCardModal({
-  studentId,
-  writable,
-  onClose,
-}: {
-  studentId: string | null;
+export type IdentityCardType = 'student' | 'teacher';
+
+export type IdentityCardModalProps = {
+  personId: string | null;
+  personType: IdentityCardType;
   writable: boolean;
   onClose: () => void;
-}) {
+};
+
+/** A reusable identity-card preview for people who can check in with a QR code. */
+export function IdentityCardModal({
+  personId,
+  personType,
+  writable,
+  onClose,
+}: IdentityCardModalProps) {
+  const isTeacher = personType === 'teacher';
   const [card, setCard] = useState<Card | null>(null);
   const [qr, setQr] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
 
   async function load(method: 'GET' | 'POST' = 'GET') {
-    if (!studentId) return;
+    if (!personId) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/modules/students/${studentId}/card`, { method });
+      const response = await fetch(
+        `/api/modules/${isTeacher ? 'teachers' : 'students'}/${personId}/card`,
+        { method },
+      );
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       setCard(result);
@@ -85,14 +99,20 @@ export function StudentCardModal({
   }
 
   useEffect(() => {
-    if (studentId) void Promise.resolve().then(() => load());
-    // load is intentionally scoped to the selected student.
+    if (personId) void Promise.resolve().then(() => load());
+    // load is intentionally scoped to the selected person.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId]);
+  }, [personId]);
 
   return (
     <>
-      <Modal opened={Boolean(studentId)} onClose={onClose} title="Kartu siswa" centered size="xl">
+      <Modal
+        opened={Boolean(personId)}
+        onClose={onClose}
+        title={`Kartu ${isTeacher ? 'guru' : 'siswa'}`}
+        centered
+        size="xl"
+      >
         {loading && !card ? (
           <Group justify="center" py="xl">
             <Loader />
@@ -117,10 +137,12 @@ export function StudentCardModal({
                     )}
                     <div>
                       <Text className={styles.school}>{card.school_name}</Text>
-                      <Text className={styles.schoolCaption}>CENDEKIA HUB · STUDENT SERVICES</Text>
+                      <Text className={styles.schoolCaption}>
+                        CENDEKIA HUB · {isTeacher ? 'TEACHER' : 'STUDENT'} SERVICES
+                      </Text>
                     </div>
                   </div>
-                  <Text className={styles.cardLabel}>KARTU SISWA</Text>
+                  <Text className={styles.cardLabel}>KARTU {isTeacher ? 'GURU' : 'SISWA'}</Text>
                 </div>
                 <div className={styles.content}>
                   <div className={styles.photoColumn}>
@@ -131,21 +153,21 @@ export function StudentCardModal({
                       radius={18}
                       className={styles.photo}
                     />
-                    <Text className={styles.activeBadge}>SISWA AKTIF</Text>
+                    <Text className={styles.activeBadge}>{isTeacher ? 'GURU' : 'SISWA'} AKTIF</Text>
                   </div>
                   <div className={styles.identity}>
                     <Text className={styles.name}>{card.name}</Text>
                     <div className={styles.dataGrid}>
                       <div>
-                        <span>NIS</span>
-                        <strong>{card.nis}</strong>
+                        <span>{isTeacher ? 'KODE' : 'NIS'}</span>
+                        <strong>{isTeacher ? card.employee_code : card.nis}</strong>
                       </div>
                       <div>
-                        <span>NISN</span>
-                        <strong>{card.nisn || '—'}</strong>
+                        <span>{isTeacher ? 'NIP' : 'NISN'}</span>
+                        <strong>{isTeacher ? card.nip || '—' : card.nisn || '—'}</strong>
                       </div>
                       <div>
-                        <span>TTL</span>
+                        <span>{isTeacher ? 'LAHIR' : 'TTL'}</span>
                         <strong>{formatBirth(card)}</strong>
                       </div>
                       <div className={styles.address}>
@@ -156,19 +178,25 @@ export function StudentCardModal({
                   </div>
                   <div className={styles.qrWrap}>
                     {qr ? (
-                      <Image src={qr} alt="QR cek-in siswa" width={116} height={116} unoptimized />
+                      <Image
+                        src={qr}
+                        alt={`QR cek-in ${isTeacher ? 'guru' : 'siswa'}`}
+                        width={116}
+                        height={116}
+                        unoptimized
+                      />
                     ) : (
                       <Loader size="sm" />
                     )}
                     <Text>PINDAI UNTUK CEK-IN</Text>
-                    <span>{card.nis}</span>
+                    <span>{isTeacher ? card.employee_code : card.nis}</span>
                   </div>
                 </div>
                 <div className={styles.footer}>
                   <span>KARTU IDENTITAS RESMI</span>
                   <p>
-                    Kartu hanya berlaku untuk siswa yang namanya tercantum dan tidak dapat
-                    dipindahtangankan.
+                    Kartu hanya berlaku untuk {isTeacher ? 'guru' : 'siswa'} yang namanya tercantum
+                    dan tidak dapat dipindahtangankan.
                   </p>
                 </div>
               </div>
@@ -190,7 +218,11 @@ export function StudentCardModal({
               <Button
                 leftSection={<IconPrinter size={17} />}
                 onClick={() =>
-                  window.open(`/student-cards/${card.id}/print`, '_blank', 'noopener,noreferrer')
+                  window.open(
+                    `/${isTeacher ? 'teacher-cards' : 'student-cards'}/${card.id}/print`,
+                    '_blank',
+                    'noopener,noreferrer',
+                  )
                 }
               >
                 Cetak kartu

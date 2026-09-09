@@ -32,6 +32,7 @@ import {
   IconCopy,
   IconEye,
   IconFile,
+  IconId,
   IconPencil,
   IconSchool,
   IconTrash,
@@ -119,9 +120,11 @@ function formatDate(value: string) {
 export function AcademicEntityManager({
   config,
   writable,
+  onCard,
 }: {
   config: AcademicEntityConfig;
   writable: boolean;
+  onCard?: (row: AcademicRow) => void;
 }) {
   const [academicYearId, setAcademicYearId] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -369,6 +372,17 @@ export function AcademicEntityManager({
                   ))}
                   <Table.Td>
                     <Group gap={6} justify="flex-end">
+                      {onCard && (
+                        <ActionIcon
+                          aria-label={`Kartu ${row.name}`}
+                          title={`Buat kartu ${config.singular.toLowerCase()}`}
+                          variant="subtle"
+                          color="blue"
+                          onClick={() => onCard(row)}
+                        >
+                          <IconId size={17} />
+                        </ActionIcon>
+                      )}
                       {config.viewStudents && (
                         <ActionIcon
                           aria-label={`Lihat murid ${row.name}`}

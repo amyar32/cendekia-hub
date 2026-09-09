@@ -116,6 +116,7 @@ database.transaction(() => {
     ['G005', '199205142018021005', 'Fajar Hidayat, S.Kom.', 'male', 'contract'], ['G006', '199410102020121006', 'Intan Permata, S.Pd.', 'female', 'honorary'],
   ].map(([employee_code, nip, name, gender, employment_status]) => ({ id: id(), employee_code, nip, name, gender, employment_status }));
   for (const [index, teacher] of teachers.entries()) insert('teachers', { ...teacher, school_id: ids.school, user_id: index === 2 ? ids.teacherUser : null, photo_url: upload('teacher.photo', `foto-${teacher.employee_code}.png`, ids.admin), birth_date: `198${index}-05-12`, phone: `0812345678${index}`, email: index === 2 ? 'rizky.pratama@smkn1nusantara.sch.id' : `guru${index + 1}@smkn1nusantara.sch.id`, address: 'Bandung, Jawa Barat', join_date: `201${index}-07-01`, is_active: 1 });
+  database.exec("UPDATE teachers SET qr_token=lower(hex(randomblob(24))) WHERE qr_token=''");
   const slots = [['Jam ke-1', '07:00', '07:45', 1, 0], ['Jam ke-2', '07:45', '08:30', 2, 0], ['Istirahat', '08:30', '08:45', 3, 1], ['Jam ke-3', '08:45', '09:30', 4, 0], ['Jam ke-4', '09:30', '10:15', 5, 0], ['Jam ke-5', '10:15', '11:00', 6, 0]] as const;
   const slotRows = slots.map(([name, start_time, end_time, slot_order, is_break]) => ({ id: id(), name, start_time, end_time, slot_order, is_break }));
   for (const slot of slotRows) insert('schedule_time_slots', { ...slot, school_id: ids.school, is_active: 1 });

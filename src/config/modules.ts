@@ -37,9 +37,9 @@ export const permissions = [
   'student-attendance.write',
   'student-attendance.approve',
   'student-attendance.report',
-  'student-checkins.read',
-  'student-checkins.write',
-  'student-checkins.report',
+  'checkins.read',
+  'checkins.write',
+  'checkins.report',
   'extracurricular-attendance.read',
   'extracurricular-attendance.write',
   'extracurricular-attendance.approve',
@@ -65,7 +65,7 @@ export type ModuleKey =
   | 'promotions'
   | 'schedules'
   | 'student-attendance'
-  | 'student-checkins'
+  | 'checkins'
   | 'extracurricular-attendance'
   | 'academic-reports';
 export type CmsModule = {
@@ -127,11 +127,11 @@ export const modules: CmsModule[] = [
     group: 'Utama',
   },
   {
-    key: 'student-checkins',
-    label: 'Cek-in Siswa',
-    description: 'Catat kedatangan siswa ke sekolah dan status keterlambatannya.',
-    path: '/student-checkins',
-    permission: 'student-checkins.read',
+    key: 'checkins',
+    label: 'Check-in',
+    description: 'Catat kedatangan murid dan guru serta status keterlambatannya.',
+    path: '/checkins',
+    permission: 'checkins.read',
     group: 'Utama',
   },
   {
