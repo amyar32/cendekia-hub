@@ -876,16 +876,21 @@ export function OnboardingManager({
       )}
       <Paper withBorder className={styles.shell}>
         <div className={styles.stepperWrap}>
-          <Progress
-            value={readiness.length ? (readyCount / readiness.length) * 100 : 0}
-            size="xs"
-            mb="lg"
-          />
           <Stepper
             active={active}
             size="sm"
             allowNextStepsSelect={false}
-            classNames={{ steps: styles.stepperSteps, stepBody: styles.stepBody }}
+            onStepClick={(step) => {
+              if (step < active) setActive(step);
+            }}
+            classNames={{
+              steps: styles.stepperSteps,
+              step: styles.stepperStep,
+              separator: styles.stepperSeparator,
+              stepIcon: styles.stepperIcon,
+              stepCompletedIcon: styles.stepperCompletedIcon,
+              stepBody: styles.stepBody,
+            }}
           >
             <Stepper.Step
               label="Sekolah"
@@ -2383,8 +2388,8 @@ export function OnboardingManager({
                     <ThemeIcon
                       size={54}
                       radius="xl"
-                      variant="white"
-                      color={readyCount === readiness.length ? 'green' : 'blue'}
+                      variant="default"
+                      color="brand"
                       className={styles.readinessHeroIcon}
                     >
                       {readyCount === readiness.length ? (
@@ -2394,7 +2399,7 @@ export function OnboardingManager({
                       )}
                     </ThemeIcon>
                     <div>
-                      <Badge variant="white" color="dark" mb="sm">
+                      <Badge className={styles.readinessBadge} mb="sm">
                         Tahap akhir onboarding
                       </Badge>
                       <Title order={2} className={styles.readinessTitle}>
@@ -2422,7 +2427,7 @@ export function OnboardingManager({
                   value={(readyCount / readiness.length) * 100}
                   size="md"
                   radius="xl"
-                  color={readyCount === readiness.length ? 'green' : 'blue'}
+                  color="brand"
                   className={styles.readinessProgress}
                 />
               </Paper>
