@@ -171,12 +171,10 @@ export function PromotionManager({ writable }: { writable: boolean }) {
     const nextMappings: Record<string, string> = {};
     for (const sourceClass of result.source_classes) {
       if (sourceClass.level_order >= (result.max_grade_level || Number.MAX_SAFE_INTEGER)) continue;
-      const target = findMatchingClass(
-        sourceClass.name,
-        sourceClass.level_order + 1,
-        result.target_classes,
+      const targets = result.target_classes.filter(
+        (target) => target.level_order === sourceClass.level_order + 1,
       );
-      if (target) nextMappings[sourceClass.id] = target.value;
+      if (targets.length === 1) nextMappings[sourceClass.id] = targets[0].value;
     }
     setMappings(nextMappings);
     setActions(
@@ -244,6 +242,17 @@ export function PromotionManager({ writable }: { writable: boolean }) {
       ).length,
     [actions],
   );
+
+  const sourceClassesWithoutTarget = useMemo(() => {
+    if (!data) return 0;
+    return data.source_classes.filter(
+      (sourceClass) =>
+        sourceClass.level_order !== data.max_grade_level &&
+        !data.target_classes.some(
+          (targetClass) => targetClass.level_order === sourceClass.level_order + 1,
+        ),
+    ).length;
+  }, [data]);
 
   const isException = useCallback(
     (student: Student, action: Action) => {
@@ -809,8 +818,8 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 <Stack gap={5}>
                   <Title order={3}>Periksa pemetaan rombel</Title>
                   <Text c="dimmed" size="sm">
-                    Sistem merekomendasikan rombel pada tingkat berikutnya. Anda hanya perlu
-                    memperbaiki baris yang belum cocok.
+                    Rombel dipasangkan otomatis jika tingkat berikutnya hanya memiliki satu rombel.
+                    Jika pilihannya lebih dari satu, murid perlu dibagi pada langkah berikutnya.
                   </Text>
                 </Stack>
                 <Button
@@ -878,6 +887,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                           value: item.value,
                           label: item.label,
                         }));
+                      const needsDistribution = !graduating && targetOptions.length > 1;
                       const ready = graduating || Boolean(mappings[sourceClass.id]);
                       return (
                         <Table.Tr key={sourceClass.id}>
@@ -903,7 +913,11 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                             ) : (
                               <Select
                                 searchable
-                                placeholder="Pilih rombel tingkat berikutnya"
+                                placeholder={
+                                  needsDistribution
+                                    ? 'Atur per murid di langkah berikutnya'
+                                    : 'Pilih rombel tingkat berikutnya'
+                                }
                                 data={targetOptions}
                                 value={mappings[sourceClass.id] || ''}
                                 onChange={(value) => mapClass(sourceClass.id, value || '')}
@@ -912,7 +926,11 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                           </Table.Td>
                           <Table.Td>
                             <Badge variant="dot" color={ready ? 'green' : 'orange'}>
-                              {ready ? 'Siap' : 'Perlu dipilih'}
+                              {ready
+                                ? 'Siap'
+                                : needsDistribution
+                                  ? 'Perlu pembagian'
+                                  : 'Rombel belum tersedia'}
                             </Badge>
                           </Table.Td>
                         </Table.Tr>
@@ -923,9 +941,12 @@ export function PromotionManager({ writable }: { writable: boolean }) {
               </Table.ScrollContainer>
               <WizardActions
                 onBack={() => setActiveStep(0)}
-                onNext={() => setActiveStep(3)}
+                onNext={() => {
+                  if (missingTargets > 0) setShowExceptions(true);
+                  setActiveStep(3);
+                }}
                 nextLabel="Lanjutkan ke pengecualian"
-                disabled={missingTargets > 0}
+                disabled={sourceClassesWithoutTarget > 0}
               />
             </Stack>
           )}
@@ -935,8 +956,8 @@ export function PromotionManager({ writable }: { writable: boolean }) {
               <Stack gap={5}>
                 <Title order={3}>Atur pengecualian murid</Title>
                 <Text c="dimmed" size="sm">
-                  Semua murid mengikuti pemetaan rombel secara default. Buka daftar hanya jika ada
-                  hasil yang perlu diubah.
+                  Tentukan rombel tujuan untuk murid yang memerlukan pembagian, lalu sesuaikan hasil
+                  lainnya bila diperlukan.
                 </Text>
               </Stack>
               <SimpleGrid cols={{ base: 2, sm: 4 }}>
@@ -960,7 +981,11 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                       showExceptions ? <IconChevronUp size={17} /> : <IconChevronDown size={17} />
                     }
                   >
-                    {showExceptions ? 'Tutup daftar' : 'Atur pengecualian'}
+                    {showExceptions
+                      ? 'Tutup daftar'
+                      : missingTargets > 0
+                        ? 'Atur pembagian'
+                        : 'Atur pengecualian'}
                   </Button>
                 </Group>
               </Paper>
