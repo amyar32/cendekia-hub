@@ -166,6 +166,8 @@ export function PromotionManager({ writable }: { writable: boolean }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [previousYearChecked, setPreviousYearChecked] = useState(false);
+  const [previousYearConfirmed, setPreviousYearConfirmed] = useState(false);
   const [finalSummary, setFinalSummary] = useState<Record<string, number>>({});
 
   const initialiseActions = useCallback((result: PromotionData) => {
@@ -551,6 +553,105 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           </Group>
         </Paper>
       </Stack>
+    );
+
+  if (!previousYearConfirmed && data)
+    return (
+      <>
+        <PageHeading
+          eyebrow="PROSES TAHUNAN"
+          title="Pergantian Tahun Ajaran"
+          description="Pastikan tahun ajaran aktif benar-benar selesai sebelum menyiapkan periode berikutnya."
+        />
+
+        <Paper withBorder className={styles.warningPanel}>
+          <Stack gap="xl">
+            <Group wrap="nowrap" align="flex-start" gap="lg">
+              <ThemeIcon
+                size={58}
+                radius="xl"
+                variant="light"
+                color="brand"
+                className={styles.warningIcon}
+              >
+                <IconAlertTriangle size={30} />
+              </ThemeIcon>
+              <div>
+                <Badge color="brand" mb="sm">
+                  Konfirmasi sebelum melanjutkan
+                </Badge>
+                <Title order={2}>
+                  Pastikan tahun ajaran {data.active_academic_year.label} selesai
+                </Title>
+                <Text variant="description" mt={8} className={styles.warningDescription}>
+                  Pada akhir proses, sistem akan menutup penempatan murid di tahun ini, memindahkan
+                  status mereka ke tahun berikutnya, dan mengaktifkan tahun ajaran baru.
+                </Text>
+              </div>
+            </Group>
+
+            <SimpleGrid cols={{ base: 1, sm: 3 }}>
+              {[
+                {
+                  icon: <IconReportAnalytics size={21} />,
+                  title: 'Nilai dan rapor final',
+                  description: 'Pastikan penilaian serta laporan hasil belajar sudah diperiksa.',
+                },
+                {
+                  icon: <IconCalendarEvent size={21} />,
+                  title: 'Kehadiran sudah direkap',
+                  description: 'Pastikan data kehadiran dan kegiatan tahun berjalan sudah lengkap.',
+                },
+                {
+                  icon: <IconUsersGroup size={21} />,
+                  title: 'Status murid siap',
+                  description: 'Siapkan keputusan naik, tinggal kelas, lulus, atau keluar.',
+                },
+              ].map((item) => (
+                <Paper key={item.title} withBorder className={styles.warningItem}>
+                  <ThemeIcon variant="light" color="brand" size={38} radius="md">
+                    {item.icon}
+                  </ThemeIcon>
+                  <div>
+                    <Text fw={700} size="sm">
+                      {item.title}
+                    </Text>
+                    <Text variant="description" mt={4}>
+                      {item.description}
+                    </Text>
+                  </div>
+                </Paper>
+              ))}
+            </SimpleGrid>
+
+            <Paper withBorder className={styles.confirmationBox}>
+              <Checkbox
+                checked={previousYearChecked}
+                onChange={(event) => setPreviousYearChecked(event.currentTarget.checked)}
+                label={`Saya sudah memastikan tahun ajaran ${data.active_academic_year.label} telah selesai dan data akhirnya sudah benar.`}
+              />
+            </Paper>
+
+            <Group justify="space-between" className={styles.warningActions}>
+              <Button
+                component={Link}
+                href="/reports/academic"
+                variant="default"
+                leftSection={<IconReportAnalytics size={17} />}
+              >
+                Periksa laporan akademik
+              </Button>
+              <Button
+                disabled={!previousYearChecked}
+                rightSection={<IconArrowRight size={17} />}
+                onClick={() => setPreviousYearConfirmed(true)}
+              >
+                Mulai pergantian tahun
+              </Button>
+            </Group>
+          </Stack>
+        </Paper>
+      </>
     );
 
   return (
