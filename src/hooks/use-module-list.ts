@@ -7,7 +7,7 @@ export type ModuleListResponse<Row> = {
   rows: Row[];
   total: number;
   roles?: { id: string; name: string }[];
-  options?: Record<string, { value: string; label: string }[]>;
+  options?: Record<string, { value: string; label: string; is_required?: number | boolean }[]>;
   selected?: Record<string, string>;
 };
 

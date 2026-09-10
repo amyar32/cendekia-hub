@@ -2171,6 +2171,11 @@ export function OnboardingManager({
                                   ? {
                                       ...item,
                                       extracurricular_id: value || '',
+                                      quota: data.extracurriculars.find(
+                                        (extracurricular) => extracurricular.id === value,
+                                      )?.is_required
+                                        ? 0
+                                        : item.quota,
                                       student_ids: data.extracurriculars.find(
                                         (extracurricular) => extracurricular.id === value,
                                       )?.is_required
@@ -2241,21 +2246,25 @@ export function OnboardingManager({
                           className={styles.grow}
                           disabled={!writable}
                         />
-                        <NumberInput
-                          label="Kuota"
-                          value={assignment.quota}
-                          min={0}
-                          max={1000}
-                          onChange={(value) =>
-                            setExtracurricularAssignments((current) =>
-                              current.map((item, itemIndex) =>
-                                itemIndex === index ? { ...item, quota: value } : item,
-                              ),
-                            )
-                          }
-                          w={100}
-                          disabled={!writable}
-                        />
+                        {!data.extracurriculars.find(
+                          (extracurricular) => extracurricular.id === assignment.extracurricular_id,
+                        )?.is_required && (
+                          <NumberInput
+                            label="Kuota"
+                            value={assignment.quota}
+                            min={0}
+                            max={1000}
+                            onChange={(value) =>
+                              setExtracurricularAssignments((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, quota: value } : item,
+                                ),
+                              )
+                            }
+                            w={100}
+                            disabled={!writable}
+                          />
+                        )}
                         <Select
                           label="Status"
                           data={[
@@ -2303,7 +2312,7 @@ export function OnboardingManager({
                       )?.is_required ? (
                         <Alert color="blue" icon={<IconUsers size={18} />} mt="md">
                           Ekstrakurikuler wajib otomatis mencakup seluruh {data.students.length}{' '}
-                          murid aktif. Peserta tidak perlu dipilih manual.
+                          murid aktif. Peserta dan kapasitas tidak perlu diatur manual.
                         </Alert>
                       ) : (
                         <MultiSelect

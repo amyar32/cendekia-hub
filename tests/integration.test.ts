@@ -1446,7 +1446,8 @@ test('academic year template copies semesters, classes, teaching assignments, ho
   assert.ok(copiedHomeroom.total >= 1);
   assert.equal(copiedExtracurriculars.total, 1);
   assert.equal(copiedExtracurriculars.rows[0].status, 'draft');
-  assert.equal(copiedExtracurriculars.rows[0].participant_count, 1);
+  assert.ok(copiedExtracurriculars.rows[0].participant_count > 0);
+  assert.equal(copiedExtracurriculars.rows[0].quota, 0);
   assert.equal(copiedExtracurriculars.rows[0].schedule_count, 1);
   assert.equal(
     copiedExtracurriculars.rows[0].map_url,
@@ -1512,6 +1513,7 @@ test('guided annual transition keeps the source active until finalization and ca
     copy_classrooms: true,
     copy_teaching_assignments: true,
     copy_homeroom_assignments: true,
+    copy_extracurricular_assignments: true,
   });
   assert.equal(res.status, 201);
   const draft = await res.json();
@@ -1576,6 +1578,21 @@ test('guided annual transition keeps the source active until finalization and ca
   assert.equal(
     afterFinalization.rows.find((row: { id: string }) => row.id === draft.id).is_active,
     1,
+  );
+  const targetExtracurriculars = await (
+    await api(`/api/modules/extracurricular-assignments?academic_year_id=${draft.id}`)
+  ).json();
+  const requiredAssignment = targetExtracurriculars.rows.find(
+    (row: { is_required: number }) => row.is_required === 1,
+  );
+  assert.ok(requiredAssignment);
+  assert.equal(requiredAssignment.quota, 0);
+  assert.deepEqual(
+    [...requiredAssignment.student_ids].sort(),
+    actions
+      .filter((action: { outcome: string }) => ['promoted', 'retained'].includes(action.outcome))
+      .map((action: { student_id: string }) => action.student_id)
+      .sort(),
   );
 
   res = await api('/api/modules/promotions', 'DELETE', { id: completed.id });

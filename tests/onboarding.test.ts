@@ -295,6 +295,7 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
   assert.equal(state.counts.homeroom_assignments, 6);
   assert.equal(state.counts.extracurricular_assignments, 1);
   assert.equal(state.extracurricular_assignments[0].status, 'active');
+  assert.equal(state.extracurricular_assignments[0].quota, 0);
   assert.deepEqual(
     [...state.extracurricular_assignments[0].student_ids].sort(),
     state.students.map((student: { id: string }) => student.id).sort(),

@@ -300,12 +300,6 @@ const assignmentsSchema = z
           message: 'Daftar peserta memuat murid yang sama.',
           path: ['extracurricular_assignments', index, 'student_ids'],
         });
-      if (assignment.quota > 0 && assignment.student_ids.length > assignment.quota)
-        context.addIssue({
-          code: 'custom',
-          message: 'Jumlah peserta melebihi kuota.',
-          path: ['extracurricular_assignments', index, 'student_ids'],
-        });
     });
   });
 const completeSchema = z.object({ action: z.literal('complete') });
@@ -1109,6 +1103,7 @@ export async function POST(request: Request) {
             const participantIds = extracurricular.is_required
               ? activeStudentIds
               : assignment.student_ids;
+            const quota = extracurricular.is_required ? 0 : assignment.quota;
             const activeStudentIdSet = new Set(activeStudentIds);
             for (const studentId of participantIds)
               if (!activeStudentIdSet.has(studentId))
@@ -1116,7 +1111,7 @@ export async function POST(request: Request) {
                   400,
                   'Semua peserta harus merupakan murid aktif pada tahun ajaran berjalan.',
                 );
-            if (assignment.quota > 0 && participantIds.length > assignment.quota)
+            if (quota > 0 && participantIds.length > quota)
               throw new HttpError(400, 'Jumlah peserta ekstrakurikuler melebihi kuota.');
             const periodId = semesterId(assignment.semester_id);
             const existing = assignment.id
@@ -1149,7 +1144,7 @@ export async function POST(request: Request) {
                   assignment.teacher_id,
                   periodId,
                   assignment.location,
-                  assignment.quota,
+                  quota,
                   assignment.status,
                   id,
                 );
@@ -1168,7 +1163,7 @@ export async function POST(request: Request) {
                   periodId,
                   assignment.location,
                   '',
-                  assignment.quota,
+                  quota,
                   assignment.status,
                 );
             db().prepare('DELETE FROM extracurricular_participants WHERE assignment_id=?').run(id);

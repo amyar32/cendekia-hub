@@ -1197,6 +1197,11 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                                   ? {
                                       ...item,
                                       extracurricular_id: value || '',
+                                      quota: data.extracurriculars.find(
+                                        (extracurricular) => extracurricular.id === value,
+                                      )?.is_required
+                                        ? 0
+                                        : item.quota,
                                       student_ids: data.extracurriculars.find(
                                         (extracurricular) => extracurricular.id === value,
                                       )?.is_required
@@ -1264,20 +1269,24 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                           }
                           className={styles.grow}
                         />
-                        <NumberInput
-                          label="Kuota"
-                          min={0}
-                          max={1000}
-                          value={assignment.quota}
-                          onChange={(value) =>
-                            setExtracurricularAssignments((current) =>
-                              current.map((item, itemIndex) =>
-                                itemIndex === index ? { ...item, quota: value } : item,
-                              ),
-                            )
-                          }
-                          w={110}
-                        />
+                        {!data.extracurriculars.find(
+                          (extracurricular) => extracurricular.id === assignment.extracurricular_id,
+                        )?.is_required && (
+                          <NumberInput
+                            label="Kuota"
+                            min={0}
+                            max={1000}
+                            value={assignment.quota}
+                            onChange={(value) =>
+                              setExtracurricularAssignments((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, quota: value } : item,
+                                ),
+                              )
+                            }
+                            w={110}
+                          />
+                        )}
                         <Select
                           label="Status"
                           data={[
@@ -1316,7 +1325,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                       )?.is_required ? (
                         <Alert color="blue" icon={<IconUsers size={18} />} mt="md">
                           Ekstrakurikuler wajib otomatis mencakup seluruh {data.students.length}{' '}
-                          murid aktif. Peserta tidak perlu dipilih manual.
+                          murid aktif. Peserta dan kapasitas tidak perlu diatur manual.
                         </Alert>
                       ) : (
                         <MultiSelect

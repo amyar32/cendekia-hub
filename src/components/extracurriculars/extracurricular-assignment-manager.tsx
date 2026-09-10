@@ -5,6 +5,7 @@ import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirm
 import { useState } from 'react';
 import {
   ActionIcon,
+  Alert,
   Anchor,
   Badge,
   Box,
@@ -22,7 +23,7 @@ import {
   ThemeIcon,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconPencil, IconTrash, IconUsersGroup } from '@tabler/icons-react';
+import { IconCheck, IconPencil, IconTrash, IconUsers, IconUsersGroup } from '@tabler/icons-react';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
 
@@ -45,6 +46,7 @@ type Assignment = {
   participant_count: number;
   schedule_count: number;
   student_ids: string[];
+  is_required: number | boolean;
 };
 
 type AssignmentForm = {
@@ -89,6 +91,10 @@ export function ExtracurricularAssignmentManager({ writable }: { writable: boole
   const [removing, setRemoving] = useState<Assignment | null>(null);
   const [form, setForm] = useState<AssignmentForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const selectedExtracurricular = list.options?.extracurricular_id?.find(
+    (item) => item.value === form.extracurricular_id,
+  );
+  const isRequired = Boolean(selectedExtracurricular?.is_required ?? editing?.is_required);
 
   function openEditor(row: Assignment | null) {
     setForm(
@@ -99,7 +105,7 @@ export function ExtracurricularAssignmentManager({ writable }: { writable: boole
             semester_id: row.semester_id || 'all',
             location: row.location,
             map_url: row.map_url,
-            quota: row.quota,
+            quota: row.is_required ? 0 : row.quota,
             status: row.status,
             student_ids: row.student_ids,
           }
@@ -236,7 +242,7 @@ export function ExtracurricularAssignmentManager({ writable }: { writable: boole
                   <Table.Td>
                     <Text size="xs">
                       {row.participant_count}
-                      {row.quota ? ` / ${row.quota}` : ''}
+                      {!row.is_required && row.quota ? ` / ${row.quota}` : ''}
                     </Text>
                   </Table.Td>
                   <Table.Td>
@@ -305,7 +311,19 @@ export function ExtracurricularAssignmentManager({ writable }: { writable: boole
                 searchable
                 data={list.options?.extracurricular_id || []}
                 value={form.extracurricular_id || null}
-                onChange={(value) => setForm({ ...form, extracurricular_id: value || '' })}
+                onChange={(value) => {
+                  const option = list.options?.extracurricular_id?.find(
+                    (item) => item.value === value,
+                  );
+                  setForm({
+                    ...form,
+                    extracurricular_id: value || '',
+                    quota: option?.is_required ? 0 : form.quota,
+                    student_ids: option?.is_required
+                      ? (list.options?.student_ids || []).map((student) => student.value)
+                      : [],
+                  });
+                }}
               />
               <Select
                 label="Pembina"
@@ -348,37 +366,46 @@ export function ExtracurricularAssignmentManager({ writable }: { writable: boole
               />
               <TextInput
                 label="Link Google Maps"
-                description="Opsional, gunakan tautan lokasi dari Google Maps."
                 inputWrapperOrder={inputWrapperOrder}
                 placeholder="https://maps.google.com/..."
                 value={form.map_url}
                 maxLength={1000}
                 onChange={(event) => setForm({ ...form, map_url: event.currentTarget.value })}
               />
-              <NumberInput
-                label="Kuota peserta"
-                description="Isi 0 jika tidak dibatasi"
-                inputWrapperOrder={inputWrapperOrder}
-                min={0}
-                max={1000}
-                allowDecimal={false}
-                value={form.quota}
-                onChange={(value) => setForm({ ...form, quota: value })}
-              />
+              {!isRequired && (
+                <NumberInput
+                  label="Kuota peserta"
+                  description="Isi 0 jika tidak dibatasi"
+                  inputWrapperOrder={inputWrapperOrder}
+                  min={0}
+                  max={1000}
+                  allowDecimal={false}
+                  value={form.quota}
+                  onChange={(value) => setForm({ ...form, quota: value })}
+                />
+              )}
             </SimpleGrid>
 
-            <MultiSelect
-              label="Peserta"
-              description="Hanya murid aktif yang sudah memiliki rombel pada tahun ajaran ini."
-              inputWrapperOrder={inputWrapperOrder}
-              searchable
-              clearable
-              hidePickedOptions
-              data={list.options?.student_ids || []}
-              value={form.student_ids}
-              onChange={(student_ids) => setForm({ ...form, student_ids })}
-              nothingFoundMessage="Murid tidak ditemukan"
-            />
+            {isRequired ? (
+              <Alert color="blue" icon={<IconUsers size={18} />}>
+                Ekstrakurikuler wajib otomatis mencakup seluruh{' '}
+                {list.options?.student_ids?.length || 0} murid aktif. Peserta dan kapasitas tidak
+                perlu diatur manual.
+              </Alert>
+            ) : (
+              <MultiSelect
+                label="Peserta"
+                description="Hanya murid aktif yang sudah memiliki rombel pada tahun ajaran ini."
+                inputWrapperOrder={inputWrapperOrder}
+                searchable
+                clearable
+                hidePickedOptions
+                data={list.options?.student_ids || []}
+                value={form.student_ids}
+                onChange={(student_ids) => setForm({ ...form, student_ids })}
+                nothingFoundMessage="Murid tidak ditemukan"
+              />
+            )}
           </Stack>
           <Group justify="flex-end" mt="xl">
             <Button variant="default" disabled={saving} onClick={() => setEditing(undefined)}>

@@ -126,7 +126,12 @@ export async function POST(request: Request) {
         );
       const students = db()
         .prepare(
-          `SELECT s.id,s.nis,s.name,COALESCE(c.name,'—') AS class_name FROM extracurricular_participants ep JOIN students s ON s.id=ep.student_id LEFT JOIN class_memberships cm ON cm.student_id=s.id AND cm.academic_year_id=? AND cm.status='active' LEFT JOIN classes c ON c.id=cm.class_id WHERE ep.assignment_id=? ORDER BY class_name,s.name`,
+          `SELECT s.id,s.nis,s.name,c.name AS class_name
+           FROM extracurricular_participants ep
+           JOIN students s ON s.id=ep.student_id AND s.is_active=1
+           JOIN class_memberships cm ON cm.student_id=s.id AND cm.academic_year_id=? AND cm.status='active'
+           JOIN classes c ON c.id=cm.class_id
+           WHERE ep.assignment_id=? ORDER BY class_name,s.name`,
         )
         .all(schedule.academic_year_id, schedule.assignment_id) as {
         id: string;

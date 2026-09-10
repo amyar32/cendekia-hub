@@ -619,8 +619,10 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           if (copy.copy_extracurricular_assignments) {
             const assignments = db()
               .prepare(
-                `SELECT ea.id,ea.extracurricular_id,ea.teacher_id,ea.location,ea.map_url,ea.quota,s.period
+                `SELECT ea.id,ea.extracurricular_id,ea.teacher_id,ea.location,ea.map_url,ea.quota,
+                        e.is_required,s.period
                  FROM extracurricular_assignments ea
+                 JOIN extracurriculars e ON e.id=ea.extracurricular_id
                  LEFT JOIN semesters s ON s.id=ea.semester_id
                  WHERE ea.academic_year_id=?`,
               )
@@ -631,6 +633,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
               location: string;
               map_url: string;
               quota: number;
+              is_required: number;
               period: number | null;
             }>;
             const insertAssignment = db().prepare(
@@ -659,14 +662,31 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
                 targetAssignmentSemesterId ?? null,
                 assignment.location,
                 assignment.map_url,
-                assignment.quota,
+                assignment.is_required ? 0 : assignment.quota,
               );
               if (inserted.changes) {
-                const participants = db()
-                  .prepare(
-                    'SELECT student_id FROM extracurricular_participants WHERE assignment_id=?',
-                  )
-                  .all(assignment.id) as Array<{ student_id: string }>;
+                const participants = assignment.is_required
+                  ? (db()
+                      .prepare(
+                        `SELECT DISTINCT s.id AS student_id FROM students s
+                         JOIN class_memberships cm ON cm.student_id=s.id
+                         WHERE s.school_id=? AND s.is_active=1 AND cm.academic_year_id=?
+                           AND cm.status='active'`,
+                      )
+                      .all(schoolId, copy.copy_from_academic_year_id) as Array<{
+                      student_id: string;
+                    }>)
+                  : (db()
+                      .prepare(
+                        `SELECT ep.student_id FROM extracurricular_participants ep
+                         JOIN students s ON s.id=ep.student_id AND s.is_active=1
+                         JOIN class_memberships cm ON cm.student_id=s.id
+                           AND cm.academic_year_id=? AND cm.status='active'
+                         WHERE ep.assignment_id=?`,
+                      )
+                      .all(copy.copy_from_academic_year_id, assignment.id) as Array<{
+                      student_id: string;
+                    }>);
                 for (const participant of participants)
                   insertParticipant.run(randomUUID(), targetAssignmentId, participant.student_id);
               }

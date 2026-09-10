@@ -95,6 +95,49 @@ function academicYear(schoolId: string, id: string) {
   return year;
 }
 
+function reconcileExtracurricularParticipants(schoolId: string, academicYearId: string) {
+  const activeStudentIds = (
+    db()
+      .prepare(
+        `SELECT DISTINCT s.id FROM students s
+         JOIN class_memberships cm ON cm.student_id=s.id
+         WHERE s.school_id=? AND s.is_active=1 AND cm.academic_year_id=? AND cm.status='active'
+         ORDER BY s.name`,
+      )
+      .all(schoolId, academicYearId) as Array<{ id: string }>
+  ).map((student) => student.id);
+
+  db()
+    .prepare(
+      `DELETE FROM extracurricular_participants
+       WHERE assignment_id IN (
+         SELECT id FROM extracurricular_assignments WHERE academic_year_id=?
+       ) AND student_id NOT IN (
+         SELECT s.id FROM students s
+         JOIN class_memberships cm ON cm.student_id=s.id
+         WHERE s.school_id=? AND s.is_active=1 AND cm.academic_year_id=? AND cm.status='active'
+       )`,
+    )
+    .run(academicYearId, schoolId, academicYearId);
+
+  const requiredAssignments = db()
+    .prepare(
+      `SELECT ea.id FROM extracurricular_assignments ea
+       JOIN extracurriculars e ON e.id=ea.extracurricular_id
+       WHERE ea.academic_year_id=? AND e.school_id=? AND e.is_required=1`,
+    )
+    .all(academicYearId, schoolId) as Array<{ id: string }>;
+  const insertParticipant = db().prepare(
+    `INSERT OR IGNORE INTO extracurricular_participants(id,assignment_id,student_id)
+     VALUES(?,?,?)`,
+  );
+  for (const assignment of requiredAssignments) {
+    db().prepare('UPDATE extracurricular_assignments SET quota=0 WHERE id=?').run(assignment.id);
+    for (const studentId of activeStudentIds)
+      insertParticipant.run(randomUUID(), assignment.id, studentId);
+  }
+}
+
 export async function GET(request: Request) {
   try {
     await requireUser('promotions.read');
@@ -526,6 +569,7 @@ export async function POST(request: Request) {
           const participantIds = extracurricular?.is_required
             ? activeStudentIds
             : assignment.student_ids;
+          const quota = extracurricular?.is_required ? 0 : assignment.quota;
           if (new Set(participantIds).size !== participantIds.length)
             throw new HttpError(400, 'Daftar peserta memuat murid yang sama.');
           for (const studentId of participantIds)
@@ -534,7 +578,7 @@ export async function POST(request: Request) {
                 400,
                 'Semua peserta harus merupakan murid aktif pada tahun ajaran sebelumnya.',
               );
-          if (assignment.quota > 0 && participantIds.length > assignment.quota)
+          if (quota > 0 && participantIds.length > quota)
             throw new HttpError(400, 'Jumlah peserta ekstrakurikuler melebihi kuota.');
           const semesterId = periodId(assignment.semester_id);
           const existing = assignment.id
@@ -554,7 +598,7 @@ export async function POST(request: Request) {
                 assignment.teacher_id,
                 semesterId,
                 assignment.location,
-                assignment.quota,
+                quota,
                 assignment.status,
                 assignmentId,
               );
@@ -573,7 +617,7 @@ export async function POST(request: Request) {
                 semesterId,
                 assignment.location,
                 '',
-                assignment.quota,
+                quota,
                 assignment.status,
               );
           db()
@@ -762,6 +806,7 @@ export async function POST(request: Request) {
         summary[action.outcome]++;
       }
       if (input.activate_target) {
+        reconcileExtracurricularParticipants(schoolId, targetYear.id);
         db()
           .prepare(
             "UPDATE academic_years SET is_active=0,updated_at=datetime('now') WHERE school_id=?",

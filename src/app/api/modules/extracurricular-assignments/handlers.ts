@@ -35,12 +35,6 @@ const schema = z
         message: 'Daftar peserta memuat murid yang sama.',
         path: ['student_ids'],
       });
-    if (data.quota > 0 && data.student_ids.length > data.quota)
-      context.addIssue({
-        code: 'custom',
-        message: 'Jumlah peserta melebihi kuota.',
-        path: ['student_ids'],
-      });
   });
 
 type AssignmentRow = {
@@ -75,8 +69,9 @@ function validateRelations(
 ) {
   requireAcademicYear(schoolId, academicYearId);
   const extracurricular = db()
-    .prepare('SELECT id,is_active FROM extracurriculars WHERE id=? AND school_id=?')
-    .get(data.extracurricular_id, schoolId) as { id: string; is_active: number } | undefined;
+    .prepare('SELECT id,is_active,is_required FROM extracurriculars WHERE id=? AND school_id=?')
+    .get(data.extracurricular_id, schoolId) as
+    { id: string; is_active: number; is_required: number } | undefined;
   if (!extracurricular || (!extracurricular.is_active && data.status !== 'completed'))
     throw new HttpError(400, 'Ekstrakurikuler tidak aktif atau tidak valid.');
   const teacher = db()
@@ -93,7 +88,22 @@ function validateRelations(
       throw new HttpError(400, 'Semester tidak berada pada tahun ajaran yang dipilih.');
   }
 
-  for (const studentId of data.student_ids) {
+  const activeStudentIds = (
+    db()
+      .prepare(
+        `SELECT DISTINCT s.id FROM students s
+         JOIN class_memberships cm ON cm.student_id=s.id
+         WHERE s.school_id=? AND s.is_active=1 AND cm.academic_year_id=? AND cm.status='active'
+         ORDER BY s.name`,
+      )
+      .all(schoolId, academicYearId) as Array<{ id: string }>
+  ).map((student) => student.id);
+  const participantIds = extracurricular.is_required ? activeStudentIds : data.student_ids;
+  const quota = extracurricular.is_required ? 0 : data.quota;
+  if (quota > 0 && participantIds.length > quota)
+    throw new HttpError(400, 'Jumlah peserta ekstrakurikuler melebihi kuota.');
+
+  for (const studentId of participantIds) {
     const membership = db()
       .prepare(
         `SELECT s.id FROM students s JOIN class_memberships cm ON cm.student_id=s.id
@@ -151,7 +161,7 @@ function validateRelations(
           'Lokasi sudah digunakan ekstrakurikuler lain pada waktu tersebut.',
         );
     }
-    for (const studentId of data.student_ids) {
+    for (const studentId of participantIds) {
       const extracurricularConflict = db()
         .prepare(
           `SELECT es.id FROM extracurricular_schedules es
@@ -182,7 +192,7 @@ function validateRelations(
     }
   }
 
-  return assignmentSemesterId;
+  return { assignmentSemesterId, participantIds, quota };
 }
 
 export async function GET(request: Request) {
@@ -203,7 +213,7 @@ export async function GET(request: Request) {
       (e.name LIKE ? OR t.name LIKE ? OR ea.location LIKE ?)`;
     const baseRows = db()
       .prepare(
-        `SELECT ea.*,e.name AS extracurricular_name,e.code AS extracurricular_code,
+        `SELECT ea.*,e.name AS extracurricular_name,e.code AS extracurricular_code,e.is_required,
                 t.name AS teacher_name,ay.name AS academic_year_name,
                 COALESCE(sm.name,'Semua Semester') AS semester_name,
                 CASE ea.status WHEN 'draft' THEN 'Draft' WHEN 'active' THEN 'Aktif' ELSE 'Selesai' END AS status_label,
@@ -254,7 +264,7 @@ export async function GET(request: Request) {
           academic_year_id: academicYearOptions(schoolId),
           extracurricular_id: db()
             .prepare(
-              `SELECT id AS value,code || ' — ' || name AS label FROM extracurriculars WHERE school_id=? AND is_active=1 ORDER BY name`,
+              `SELECT id AS value,code || ' — ' || name AS label,is_required FROM extracurriculars WHERE school_id=? AND is_active=1 ORDER BY name`,
             )
             .all(schoolId),
           teacher_id: db()
@@ -293,7 +303,11 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         method === 'POST'
           ? data.academic_year_id || activeAcademicYear(schoolId).id
           : previous!.academic_year_id;
-      const semesterId = validateRelations(schoolId, id, academicYearId, data);
+      const {
+        assignmentSemesterId: semesterId,
+        participantIds,
+        quota,
+      } = validateRelations(schoolId, id, academicYearId, data);
       const args = [
         data.extracurricular_id,
         data.teacher_id,
@@ -301,7 +315,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         semesterId,
         data.location,
         data.map_url,
-        data.quota,
+        quota,
         data.status,
       ];
       if (method === 'POST')
@@ -321,7 +335,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       const insertParticipant = db().prepare(
         `INSERT INTO extracurricular_participants(id,assignment_id,student_id) VALUES(?,?,?)`,
       );
-      for (const studentId of data.student_ids) insertParticipant.run(randomUUID(), id, studentId);
+      for (const studentId of participantIds) insertParticipant.run(randomUUID(), id, studentId);
       audit(
         actor.email,
         method === 'POST' ? 'create' : 'update',
@@ -334,9 +348,9 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           semester_id: semesterId,
           location: data.location,
           map_url: data.map_url,
-          quota: data.quota,
+          quota,
           status: data.status,
-          participant_count: data.student_ids.length,
+          participant_count: participantIds.length,
         },
       );
     })();
