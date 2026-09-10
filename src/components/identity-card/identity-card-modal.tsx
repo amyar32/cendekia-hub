@@ -17,10 +17,11 @@ type Card = {
   photo_url: string;
   birth_place: string;
   birth_date: string | null;
+  blood_type: string;
   address: string;
+  card_expires_at?: string | null;
   employee_code?: string;
   nip?: string;
-  employment_status?: string;
   school_name: string;
   logo_url: string;
   school_npsn: string;
@@ -39,12 +40,24 @@ const birthDateFormatter = new Intl.DateTimeFormat('id-ID', {
   year: 'numeric',
   timeZone: 'UTC',
 });
+const expiryDateFormatter = new Intl.DateTimeFormat('id-ID', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
 
 function formatBirth(card: Card) {
   const date = card.birth_date
     ? birthDateFormatter.format(new Date(`${card.birth_date}T00:00:00Z`))
     : '';
   return [card.birth_place, date].filter(Boolean).join(', ') || '—';
+}
+
+function formatExpiry(value?: string | null) {
+  return value
+    ? `Berlaku: ${expiryDateFormatter.format(new Date(`${value}T00:00:00Z`))}`
+    : 'Berlaku: —';
 }
 
 export type IdentityCardType = 'student' | 'teacher';
@@ -131,15 +144,7 @@ export function IdentityCardModal({
                 card={card}
                 personType={personType}
                 qr={qr}
-                photoCaption={
-                  isTeacher
-                    ? {
-                        permanent: 'Guru tetap',
-                        contract: 'Guru kontrak',
-                        honorary: 'Guru honorer',
-                      }[card.employment_status || ''] || '—'
-                    : undefined
-                }
+                photoCaption={isTeacher ? undefined : formatExpiry(card.card_expires_at)}
                 fields={[
                   {
                     label: isTeacher ? 'Kode' : 'NIS',
@@ -150,6 +155,7 @@ export function IdentityCardModal({
                     value: isTeacher ? card.nip || '' : card.nisn,
                   },
                   { label: isTeacher ? 'Lahir' : 'TTL', value: formatBirth(card) },
+                  { label: 'G.Darah', value: card.blood_type },
                   {
                     label: 'Alamat',
                     value: card.address,

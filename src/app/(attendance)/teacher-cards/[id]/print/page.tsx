@@ -24,8 +24,8 @@ export default async function TeacherCardPrintPage({ params }: Params) {
   if (!parsedId.success) notFound();
   const card = db()
     .prepare(
-      `SELECT t.id,t.employee_code,t.nip,t.name,t.photo_url,t.birth_date,t.join_date,t.address,
-        t.employment_status,t.qr_token,school.name AS school_name,school.logo_url,
+      `SELECT t.id,t.employee_code,t.nip,t.name,t.photo_url,t.birth_date,t.join_date,t.blood_type,t.address,
+        t.qr_token,school.name AS school_name,school.logo_url,
         school.npsn AS school_npsn,school.phone AS school_phone,
         school.email AS school_email,school.address AS school_address,
         school.principal_name,school.principal_nip,school.principal_signature_url
@@ -41,8 +41,8 @@ export default async function TeacherCardPrintPage({ params }: Params) {
         photo_url: string;
         birth_date: string | null;
         join_date: string | null;
+        blood_type: string;
         address: string;
-        employment_status: 'permanent' | 'contract' | 'honorary';
         qr_token: string;
         school_name: string;
         logo_url: string;
@@ -70,12 +70,6 @@ export default async function TeacherCardPrintPage({ params }: Params) {
           timeZone: 'UTC',
         }).format(new Date(`${value}T00:00:00Z`))
       : '—';
-  const employment = {
-    permanent: 'Guru tetap',
-    contract: 'Guru kontrak',
-    honorary: 'Guru honorer',
-  }[card.employment_status];
-
   return (
     <main className={styles.page}>
       <div className={styles.toolbar}>
@@ -91,11 +85,11 @@ export default async function TeacherCardPrintPage({ params }: Params) {
           card={card}
           personType="teacher"
           qr={qr}
-          photoCaption={employment}
           fields={[
             { label: 'Kode', value: card.employee_code },
             { label: 'NIP', value: card.nip },
             { label: 'Lahir', value: formatDate(card.birth_date) },
+            { label: 'G.Darah', value: card.blood_type },
             { label: 'Alamat', value: card.address },
           ]}
         />

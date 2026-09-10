@@ -31,6 +31,7 @@ const schema = z.object({
   name: z.string().trim().min(2, 'Nama minimal 2 karakter.').max(100),
   gender: z.enum(['male', 'female'], { error: 'Jenis kelamin wajib dipilih.' }),
   birth_date: optionalDate.default(''),
+  blood_type: z.enum(['', 'A', 'B', 'AB', 'O']).default(''),
   phone: z.string().trim().max(30).default(''),
   email: z
     .union([z.literal(''), z.email('Email tidak valid.')])
@@ -166,6 +167,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           data.name,
           data.gender,
           data.birth_date || null,
+          data.blood_type,
           data.phone,
           data.email,
           data.address,
@@ -176,13 +178,13 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         if (method === 'POST')
           db()
             .prepare(
-              `INSERT INTO teachers(id,school_id,user_id,photo_url,employee_code,nip,name,gender,birth_date,phone,email,address,join_date,employment_status,is_active,qr_token) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              `INSERT INTO teachers(id,school_id,user_id,photo_url,employee_code,nip,name,gender,birth_date,blood_type,phone,email,address,join_date,employment_status,is_active,qr_token) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             )
             .run(id, schoolId, ...args, randomBytes(24).toString('hex'));
         else
           db()
             .prepare(
-              `UPDATE teachers SET user_id=?,photo_url=?,employee_code=?,nip=?,name=?,gender=?,birth_date=?,phone=?,email=?,address=?,join_date=?,employment_status=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
+              `UPDATE teachers SET user_id=?,photo_url=?,employee_code=?,nip=?,name=?,gender=?,birth_date=?,blood_type=?,phone=?,email=?,address=?,join_date=?,employment_status=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
             )
             .run(...args, id, schoolId);
 

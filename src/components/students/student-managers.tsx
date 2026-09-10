@@ -69,6 +69,7 @@ type StudentForm = {
   gender: string;
   birth_date: string;
   birth_place: string;
+  blood_type: string;
   address: string;
   phone: string;
   email: string;
@@ -104,6 +105,7 @@ const emptyForm = (): StudentForm => ({
   gender: '',
   birth_date: '',
   birth_place: '',
+  blood_type: '',
   address: '',
   phone: '',
   email: '',
@@ -142,6 +144,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
             gender: row.gender,
             birth_date: row.birth_date || '',
             birth_place: row.birth_place || '',
+            blood_type: row.blood_type || '',
             address: row.address || '',
             phone: row.phone || '',
             email: row.email || '',
@@ -257,6 +260,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 <Table.Th>FOTO</Table.Th>
                 <Table.Th>NIS</Table.Th>
                 <Table.Th>NAMA</Table.Th>
+                <Table.Th>GOL. DARAH</Table.Th>
                 <Table.Th>WALI UTAMA</Table.Th>
                 <Table.Th>ROMBEL AKTIF</Table.Th>
                 <Table.Th>DOKUMEN</Table.Th>
@@ -286,6 +290,9 @@ export function StudentManager({ writable }: { writable: boolean }) {
                     <Text size="xs" fw={600}>
                       {row.name}
                     </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs">{row.blood_type || '—'}</Text>
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs">{row.guardian_name || '—'}</Text>
@@ -432,6 +439,15 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 value={form.birth_date}
                 disabled={disabled}
                 onChange={(value) => setForm({ ...form, birth_date: value || '' })}
+              />
+              <Select
+                label="Golongan darah"
+                placeholder="Pilih golongan darah (opsional)"
+                clearable
+                value={form.blood_type}
+                disabled={disabled}
+                data={['A', 'B', 'AB', 'O']}
+                onChange={(value) => setForm({ ...form, blood_type: value || '' })}
               />
               <TextInput
                 label="Nomor telepon"

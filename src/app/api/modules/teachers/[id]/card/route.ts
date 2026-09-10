@@ -10,8 +10,8 @@ type Context = { params: Promise<{ id: string }> };
 function getCard(id: string, schoolId: string) {
   return db()
     .prepare(
-      `SELECT t.id,t.employee_code,t.nip,t.name,t.photo_url,t.birth_date,t.address,
-        t.employment_status,t.qr_token,school.name AS school_name,school.logo_url,
+      `SELECT t.id,t.employee_code,t.nip,t.name,t.photo_url,t.birth_date,t.blood_type,t.address,
+        t.qr_token,school.name AS school_name,school.logo_url,
         school.npsn AS school_npsn,school.phone AS school_phone,
         school.email AS school_email,school.address AS school_address,
         school.principal_name,school.principal_nip,school.principal_signature_url

@@ -71,13 +71,34 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
     code: 'SDUC',
     npsn: '12345678',
     address: 'Jalan Pendidikan Nomor 1',
+    email: '',
+    phone: '',
+    logo_url: '',
+    principal_nip: '',
+    principal_signature_url: '',
+    timezone: 'Asia/Jakarta',
+  });
+  assert.equal(response.status, 400);
+
+  response = await api('/api/modules/onboarding', 'POST', {
+    action: 'profile',
+    education_level: 'sd',
+    name: 'SD Uji Cendekia',
+    code: 'SDUC',
+    npsn: '12345678',
+    address: 'Jalan Pendidikan Nomor 1',
     email: 'admin@sd-uji.test',
     phone: '0215550101',
     logo_url: '',
+    principal_name: 'Dr. Kepala Sekolah',
+    principal_nip: '198001012005011001',
+    principal_signature_url: '',
     timezone: 'Asia/Jakarta',
-    checkin_late_after: '07:15',
   });
   assert.equal(response.status, 200);
+  let state = await response.json();
+  assert.equal(state.school.principal_name, 'Dr. Kepala Sekolah');
+  assert.equal(state.school.principal_nip, '198001012005011001');
 
   response = await api('/api/modules/onboarding', 'POST', {
     action: 'grades',
@@ -89,7 +110,7 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
     })),
   });
   assert.equal(response.status, 200);
-  let state = await response.json();
+  state = await response.json();
   assert.equal(state.grades.length, 6);
 
   response = await api('/api/modules/onboarding', 'POST', {
@@ -150,6 +171,7 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
 
   response = await api('/api/modules/onboarding', 'POST', {
     action: 'schedule',
+    checkin_late_after: '07:10',
     weekdays: [1, 2, 3, 4, 5],
     slots: [
       {
@@ -169,6 +191,8 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
     ],
   });
   assert.equal(response.status, 200);
+  state = await response.json();
+  assert.equal(state.school.checkin_late_after, '07:10');
 
   response = await api('/api/modules/onboarding/import?level=sd&simulation=1');
   assert.equal(response.status, 200);
@@ -233,6 +257,7 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
         location: 'Lapangan sekolah',
         quota: 32,
         status: 'active',
+        student_ids: [state.students[0].id],
       },
     ],
   });
@@ -260,8 +285,8 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
         teacher_id: state.teachers[0].id,
         semester_id: 'all',
         location: 'Lapangan sekolah',
-        quota: 32,
-        status: 'active',
+        quota: 0,
+        student_ids: [],
       },
     ],
   });
@@ -270,6 +295,11 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
   assert.equal(state.counts.teaching_assignments, 1);
   assert.equal(state.counts.homeroom_assignments, 6);
   assert.equal(state.counts.extracurricular_assignments, 1);
+  assert.equal(state.extracurricular_assignments[0].status, 'active');
+  assert.deepEqual(
+    [...state.extracurricular_assignments[0].student_ids].sort(),
+    state.students.map((student: { id: string }) => student.id).sort(),
+  );
   assert.equal(state.readiness.teaching_assignments, true);
   assert.equal(state.readiness.homeroom_assignments, true);
   assert.equal(state.readiness.extracurricular_assignments, true);

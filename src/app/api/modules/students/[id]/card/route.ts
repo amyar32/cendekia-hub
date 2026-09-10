@@ -10,13 +10,15 @@ type Context = { params: Promise<{ id: string }> };
 function getCard(id: string, schoolId: string) {
   return db()
     .prepare(
-      `SELECT s.id,s.nis,s.nisn,s.name,s.photo_url,s.birth_place,s.birth_date,s.address,
-        s.qr_token,
+      `SELECT s.id,s.nis,s.nisn,s.name,s.photo_url,s.birth_place,s.birth_date,s.blood_type,s.address,
+        s.qr_token,academic_year.end_date AS card_expires_at,
         school.name AS school_name,school.logo_url,school.npsn AS school_npsn,
         school.phone AS school_phone,school.email AS school_email,
         school.address AS school_address,school.principal_name,school.principal_nip,
         school.principal_signature_url
        FROM students s JOIN schools school ON school.id=s.school_id
+       LEFT JOIN academic_years academic_year
+         ON academic_year.school_id=s.school_id AND academic_year.is_active=1
        WHERE s.id=? AND s.school_id=?`,
     )
     .get(id, schoolId) as
@@ -28,8 +30,10 @@ function getCard(id: string, schoolId: string) {
         photo_url: string;
         birth_place: string;
         birth_date: string | null;
+        blood_type: string;
         address: string;
         qr_token: string;
+        card_expires_at: string | null;
         school_name: string;
         logo_url: string;
         school_npsn: string;

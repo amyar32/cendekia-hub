@@ -16,6 +16,20 @@ const optionalEmail = z
   .trim()
   .max(254)
   .refine((value) => !value || z.email().safeParse(value).success, 'Format email tidak valid.');
+const optionalUploadUrl = (label: string) =>
+  z
+    .string()
+    .trim()
+    .max(2048)
+    .refine((value) => {
+      if (!value || uploadIdFromUrl(value)) return true;
+      try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }, `Format URL ${label} tidak valid.`);
 
 const profileSchema = z.object({
   action: z.literal('profile'),
@@ -29,9 +43,11 @@ const profileSchema = z.object({
   address: z.string().trim().min(5, 'Alamat sekolah minimal 5 karakter.').max(1000),
   email: optionalEmail.default(''),
   phone: z.string().trim().max(30).default(''),
-  logo_url: z.string().trim().max(2048).default(''),
+  logo_url: optionalUploadUrl('logo').default(''),
+  principal_name: z.string().trim().min(2, 'Nama kepala sekolah minimal 2 karakter.').max(150),
+  principal_nip: z.string().trim().max(50).default(''),
+  principal_signature_url: optionalUploadUrl('tanda tangan').default(''),
   timezone: z.enum(['Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura']),
-  checkin_late_after: time,
 });
 
 const gradesSchema = z
@@ -177,6 +193,7 @@ const slotSchema = z
 const scheduleSchema = z
   .object({
     action: z.literal('schedule'),
+    checkin_late_after: time.default('07:15'),
     weekdays: z.array(z.coerce.number().int().min(1).max(7)).min(1).max(7),
     slots: z.array(slotSchema).min(1, 'Tambahkan minimal satu slot waktu.').max(30),
   })
@@ -232,7 +249,8 @@ const assignmentsSchema = z
           semester_id: assignmentSemester.default('all'),
           location: z.string().trim().max(100).default(''),
           quota: z.coerce.number().int().min(0).max(1000).default(0),
-          status: z.enum(['draft', 'active']).default('draft'),
+          status: z.enum(['draft', 'active']).default('active'),
+          student_ids: z.array(z.string().uuid('Murid tidak valid.')).max(1000).default([]),
         }),
       )
       .min(1, 'Tambahkan minimal satu penugasan ekstrakurikuler.')
@@ -276,6 +294,20 @@ const assignmentsSchema = z
         message: 'Ekstrakurikuler yang sama tidak boleh memiliki periode penugasan ganda.',
         path: ['extracurricular_assignments'],
       });
+    value.extracurricular_assignments.forEach((assignment, index) => {
+      if (new Set(assignment.student_ids).size !== assignment.student_ids.length)
+        context.addIssue({
+          code: 'custom',
+          message: 'Daftar peserta memuat murid yang sama.',
+          path: ['extracurricular_assignments', index, 'student_ids'],
+        });
+      if (assignment.quota > 0 && assignment.student_ids.length > assignment.quota)
+        context.addIssue({
+          code: 'custom',
+          message: 'Jumlah peserta melebihi kuota.',
+          path: ['extracurricular_assignments', index, 'student_ids'],
+        });
+    });
   });
 const completeSchema = z.object({ action: z.literal('complete') });
 const requestSchema = z.discriminatedUnion('action', [
@@ -297,6 +329,9 @@ type SchoolRow = Record<string, unknown> & {
   email: string;
   phone: string;
   logo_url: string;
+  principal_name: string;
+  principal_nip: string;
+  principal_signature_url: string;
   timezone: string;
   checkin_late_after: string;
   schedule_weekdays: string;
@@ -327,6 +362,7 @@ export function onboardingState() {
       extracurriculars: [],
       active_year: null,
       teachers: [],
+      students: [],
       teaching_assignments: [],
       homeroom_assignments: [],
       extracurricular_assignments: [],
@@ -407,6 +443,19 @@ export function onboardingState() {
       'SELECT id,employee_code,name FROM teachers WHERE school_id=? AND is_active=1 ORDER BY name',
     )
     .all(currentSchool.id);
+  const students = activeYear
+    ? db()
+        .prepare(
+          `SELECT s.id,s.nis,s.name,c.name AS class_name
+             FROM students s
+             JOIN class_memberships cm ON cm.student_id=s.id
+             JOIN classes c ON c.id=cm.class_id
+            WHERE s.school_id=? AND s.is_active=1 AND cm.academic_year_id=?
+              AND cm.status='active'
+            ORDER BY s.name`,
+        )
+        .all(currentSchool.id, activeYear.id)
+    : [];
   const teachingAssignments = activeYear
     ? db()
         .prepare(
@@ -430,8 +479,8 @@ export function onboardingState() {
         )
         .all(currentSchool.id, activeYear.id)
     : [];
-  const extracurricularAssignments = activeYear
-    ? db()
+  const extracurricularAssignmentRows = activeYear
+    ? (db()
         .prepare(
           `SELECT ea.id,ea.extracurricular_id,ea.teacher_id,
                   COALESCE(ea.semester_id,'all') AS semester_id,
@@ -441,8 +490,18 @@ export function onboardingState() {
             WHERE e.school_id=? AND ea.academic_year_id=? AND ea.status<>'completed'
             ORDER BY ea.created_at`,
         )
-        .all(currentSchool.id, activeYear.id)
+        .all(currentSchool.id, activeYear.id) as Array<Record<string, unknown> & { id: string }>)
     : [];
+  const extracurricularAssignments = extracurricularAssignmentRows.map((assignment) => ({
+    ...assignment,
+    student_ids: (
+      db()
+        .prepare(
+          'SELECT student_id FROM extracurricular_participants WHERE assignment_id=? ORDER BY created_at',
+        )
+        .all(assignment.id) as Array<{ student_id: string }>
+    ).map((participant) => participant.student_id),
+  }));
   const counts = {
     teachers: count('teachers', currentSchool.id),
     students: count('students', currentSchool.id),
@@ -472,6 +531,7 @@ export function onboardingState() {
     extracurriculars,
     active_year: activeYear ? { ...activeYear, semesters, classrooms } : null,
     teachers,
+    students,
     teaching_assignments: teachingAssignments,
     homeroom_assignments: homeroomAssignments,
     extracurricular_assignments: extracurricularAssignments,
@@ -531,13 +591,21 @@ export async function POST(request: Request) {
 
     db().transaction(() => {
       if (input.action === 'profile') {
-        const logoId = uploadIdFromUrl(input.logo_url);
-        if (
-          input.logo_url &&
-          (!logoId ||
-            !db().prepare("SELECT id FROM uploads WHERE id=? AND scope='school.logo'").get(logoId))
-        )
-          throw new HttpError(400, 'Logo hasil upload tidak valid.');
+        for (const item of [
+          { url: input.logo_url, scope: 'school.logo', label: 'Logo' },
+          {
+            url: input.principal_signature_url,
+            scope: 'school.principal-signature',
+            label: 'Tanda tangan',
+          },
+        ]) {
+          const uploadId = uploadIdFromUrl(item.url);
+          if (
+            uploadId &&
+            !db().prepare('SELECT id FROM uploads WHERE id=? AND scope=?').get(uploadId, item.scope)
+          )
+            throw new HttpError(400, `${item.label} hasil upload tidak valid.`);
+        }
         schoolId ||= randomUUID();
         const previous = school();
         if (
@@ -553,7 +621,8 @@ export async function POST(request: Request) {
           db()
             .prepare(
               `UPDATE schools SET name=?,code=?,npsn=?,address=?,email=?,phone=?,logo_url=?,
-                      timezone=?,checkin_late_after=?,education_level=?,is_active=1,updated_at=datetime('now') WHERE id=?`,
+                      principal_name=?,principal_nip=?,principal_signature_url=?,timezone=?,
+                      education_level=?,is_active=1,updated_at=datetime('now') WHERE id=?`,
             )
             .run(
               input.name,
@@ -563,16 +632,19 @@ export async function POST(request: Request) {
               input.email,
               input.phone,
               input.logo_url,
+              input.principal_name,
+              input.principal_nip,
+              input.principal_signature_url,
               input.timezone,
-              input.checkin_late_after,
               input.education_level,
               schoolId,
             );
         else
           db()
             .prepare(
-              `INSERT INTO schools(id,name,code,npsn,address,email,phone,logo_url,timezone,
-                      checkin_late_after,education_level,is_active) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)`,
+              `INSERT INTO schools(id,name,code,npsn,address,email,phone,logo_url,principal_name,
+                      principal_nip,principal_signature_url,timezone,education_level,is_active)
+                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
             )
             .run(
               schoolId,
@@ -583,8 +655,10 @@ export async function POST(request: Request) {
               input.email,
               input.phone,
               input.logo_url,
+              input.principal_name,
+              input.principal_nip,
+              input.principal_signature_url,
               input.timezone,
-              input.checkin_late_after,
               input.education_level,
             );
       } else {
@@ -824,8 +898,14 @@ export async function POST(request: Request) {
           }
         } else if (input.action === 'schedule') {
           db()
-            .prepare("UPDATE schools SET schedule_weekdays=?,updated_at=datetime('now') WHERE id=?")
-            .run(JSON.stringify([...input.weekdays].sort((a, b) => a - b)), schoolId);
+            .prepare(
+              "UPDATE schools SET schedule_weekdays=?,checkin_late_after=?,updated_at=datetime('now') WHERE id=?",
+            )
+            .run(
+              JSON.stringify([...input.weekdays].sort((a, b) => a - b)),
+              input.checkin_late_after,
+              schoolId,
+            );
           for (const slot of input.slots) {
             const existing = slot.id
               ? db()
@@ -1023,14 +1103,36 @@ export async function POST(request: Request) {
                 .get(assignment.teacher_id, schoolId)
             )
               throw new HttpError(400, 'Pembina tidak aktif atau tidak valid.');
-            if (
-              !db()
-                .prepare(
-                  'SELECT id FROM extracurriculars WHERE id=? AND school_id=? AND is_active=1',
-                )
-                .get(assignment.extracurricular_id, schoolId)
-            )
+            const extracurricular = db()
+              .prepare(
+                'SELECT id,is_required FROM extracurriculars WHERE id=? AND school_id=? AND is_active=1',
+              )
+              .get(assignment.extracurricular_id, schoolId) as
+              { id: string; is_required: number } | undefined;
+            if (!extracurricular)
               throw new HttpError(400, 'Ekstrakurikuler penugasan tidak aktif atau tidak valid.');
+            const activeStudentIds = (
+              db()
+                .prepare(
+                  `SELECT s.id FROM students s
+                   JOIN class_memberships cm ON cm.student_id=s.id
+                   WHERE s.school_id=? AND s.is_active=1 AND cm.academic_year_id=?
+                     AND cm.status='active' ORDER BY s.name`,
+                )
+                .all(schoolId, activeYear.id) as Array<{ id: string }>
+            ).map((student) => student.id);
+            const participantIds = extracurricular.is_required
+              ? activeStudentIds
+              : assignment.student_ids;
+            const activeStudentIdSet = new Set(activeStudentIds);
+            for (const studentId of participantIds)
+              if (!activeStudentIdSet.has(studentId))
+                throw new HttpError(
+                  400,
+                  'Semua peserta harus merupakan murid aktif pada tahun ajaran berjalan.',
+                );
+            if (assignment.quota > 0 && participantIds.length > assignment.quota)
+              throw new HttpError(400, 'Jumlah peserta ekstrakurikuler melebihi kuota.');
             const periodId = semesterId(assignment.semester_id);
             const existing = assignment.id
               ? db()
@@ -1084,6 +1186,12 @@ export async function POST(request: Request) {
                   assignment.quota,
                   assignment.status,
                 );
+            db().prepare('DELETE FROM extracurricular_participants WHERE assignment_id=?').run(id);
+            const insertParticipant = db().prepare(
+              'INSERT INTO extracurricular_participants(id,assignment_id,student_id) VALUES(?,?,?)',
+            );
+            for (const studentId of participantIds)
+              insertParticipant.run(randomUUID(), id, studentId);
           }
         } else {
           const current = onboardingState();

@@ -20,6 +20,7 @@ const teacherImportSchema = z.object({
   nip: z.string().trim().max(30),
   nama: z.string().trim().min(2).max(100),
   gender: z.enum(['male', 'female']),
+  golongan_darah: z.enum(['', 'A', 'B', 'AB', 'O']),
   email: z.union([z.literal(''), z.email()]),
   telepon: z.string().trim().max(30),
   employment_status: z.enum(['permanent', 'contract', 'honorary']),
@@ -29,6 +30,7 @@ const studentImportSchema = z.object({
   nisn: z.string().trim().max(30),
   nama: z.string().trim().min(2).max(100),
   gender: z.enum(['male', 'female']),
+  golongan_darah: z.enum(['', 'A', 'B', 'AB', 'O']),
   tanggal_lahir: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
   tempat_lahir: z.string().trim().max(100),
   nama_rombel: z.string().trim().min(1).max(50),
@@ -81,6 +83,11 @@ function normalizeEmployment(value: string) {
   return '';
 }
 
+function normalizeBloodType(value: string) {
+  const normalized = value.toUpperCase();
+  return ['', 'A', 'B', 'AB', 'O'].includes(normalized) ? normalized : '';
+}
+
 function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academicYearId: string) {
   const teacherSheet = workbook.getWorksheet('Guru');
   const studentSheet = workbook.getWorksheet('Murid');
@@ -99,6 +106,7 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
     'nip',
     'nama',
     'jenis_kelamin',
+    'golongan_darah',
     'email',
     'telepon',
     'status_kepegawaian',
@@ -106,10 +114,13 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
     const messages: string[] = [];
     const code = source.data.kode_pegawai.toUpperCase();
     const gender = normalizeGender(source.data.jenis_kelamin);
+    const bloodType = normalizeBloodType(source.data.golongan_darah);
     const employment = normalizeEmployment(source.data.status_kepegawaian);
     if (!code) messages.push('Kode pegawai wajib diisi.');
     if (!source.data.nama) messages.push('Nama guru wajib diisi.');
     if (!gender) messages.push('Jenis kelamin harus Laki-laki atau Perempuan.');
+    if (source.data.golongan_darah && !bloodType)
+      messages.push('Golongan darah harus A, B, AB, atau O.');
     if (!employment) messages.push('Status harus Tetap, Kontrak, atau Honorer.');
     if (source.data.email && !z.email().safeParse(source.data.email).success)
       messages.push('Format email tidak valid.');
@@ -123,7 +134,13 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
       row: source.row,
       status: messages.length ? 'error' : exists ? 'warning' : 'valid',
       messages: messages.length ? messages : exists ? ['Guru sudah ada dan akan dilewati.'] : [],
-      data: { ...source.data, kode_pegawai: code, gender, employment_status: employment },
+      data: {
+        ...source.data,
+        kode_pegawai: code,
+        gender,
+        golongan_darah: bloodType,
+        employment_status: employment,
+      },
     });
   }
 
@@ -132,6 +149,7 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
     'nisn',
     'nama',
     'jenis_kelamin',
+    'golongan_darah',
     'tanggal_lahir',
     'tempat_lahir',
     'nama_rombel',
@@ -141,10 +159,13 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
     const messages: string[] = [];
     const nis = source.data.nis.toUpperCase();
     const gender = normalizeGender(source.data.jenis_kelamin);
+    const bloodType = normalizeBloodType(source.data.golongan_darah);
     const classroomName = source.data.nama_rombel.toLowerCase();
     if (!nis) messages.push('NIS wajib diisi.');
     if (!source.data.nama) messages.push('Nama murid wajib diisi.');
     if (!gender) messages.push('Jenis kelamin harus Laki-laki atau Perempuan.');
+    if (source.data.golongan_darah && !bloodType)
+      messages.push('Golongan darah harus A, B, AB, atau O.');
     if (!classroomName || !classNames.has(classroomName))
       messages.push('Nama rombel tidak ditemukan.');
     if (source.data.tanggal_lahir && !/^\d{4}-\d{2}-\d{2}$/.test(source.data.tanggal_lahir))
@@ -159,7 +180,7 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
       row: source.row,
       status: messages.length ? 'error' : exists ? 'warning' : 'valid',
       messages: messages.length ? messages : exists ? ['Murid sudah ada dan akan dilewati.'] : [],
-      data: { ...source.data, nis, gender },
+      data: { ...source.data, nis, gender, golongan_darah: bloodType },
     });
   }
   return result;
@@ -216,6 +237,7 @@ async function template(level: Level, simulation: boolean, classroomNames: strin
     'nip',
     'nama',
     'jenis_kelamin',
+    'golongan_darah',
     'email',
     'telepon',
     'status_kepegawaian',
@@ -244,12 +266,13 @@ async function template(level: Level, simulation: boolean, classroomNames: strin
         `198${index % 10}0101201${index % 10}01100${index % 9}`,
         `${name}, S.Pd.`,
         index % 2 ? 'Perempuan' : 'Laki-laki',
+        ['A', 'B', 'AB', 'O'][index % 4],
         `guru${index + 1}@simulasi.sch.id`,
         `08123456${String(index).padStart(4, '0')}`,
         index % 5 === 0 ? 'Honorer' : index % 4 === 0 ? 'Kontrak' : 'Tetap',
       ]),
     );
-  styleSheet(teacher, [16, 24, 30, 18, 32, 18, 22]);
+  styleSheet(teacher, [16, 24, 30, 18, 18, 32, 18, 22]);
 
   const student = workbook.addWorksheet('Murid');
   student.addRow([
@@ -257,6 +280,7 @@ async function template(level: Level, simulation: boolean, classroomNames: strin
     'nisn',
     'nama',
     'jenis_kelamin',
+    'golongan_darah',
     'tanggal_lahir',
     'tempat_lahir',
     'nama_rombel',
@@ -270,6 +294,7 @@ async function template(level: Level, simulation: boolean, classroomNames: strin
         `0098${String(100000 + index)}`,
         name,
         index % 2 ? 'Laki-laki' : 'Perempuan',
+        ['A', 'B', 'AB', 'O'][index % 4],
         `${level === 'sd' ? 2015 : level === 'smp' ? 2012 : 2009}-${String((index % 9) + 1).padStart(2, '0')}-15`,
         'Bandung',
         classroomNames[index % classroomNames.length],
@@ -277,7 +302,7 @@ async function template(level: Level, simulation: boolean, classroomNames: strin
         `08137765${String(index).padStart(4, '0')}`,
       ]),
     );
-  styleSheet(student, [16, 18, 28, 18, 18, 20, 20, 28, 20]);
+  styleSheet(student, [16, 18, 28, 18, 18, 18, 20, 20, 28, 20]);
   return workbook.xlsx.writeBuffer();
 }
 
@@ -391,8 +416,8 @@ export async function POST(request: Request) {
         db()
           .prepare(
             `INSERT INTO teachers(id,school_id,user_id,photo_url,employee_code,nip,name,gender,
-                      birth_date,phone,email,address,join_date,employment_status,is_active,qr_token)
-                      VALUES(?,?,NULL,'',?,?,?,?,NULL,?,?, '',NULL,?,1,?)`,
+                      birth_date,blood_type,phone,email,address,join_date,employment_status,is_active,qr_token)
+                      VALUES(?,?,NULL,'',?,?,?,?,NULL,?,?,?, '',NULL,?,1,?)`,
           )
           .run(
             randomUUID(),
@@ -401,6 +426,7 @@ export async function POST(request: Request) {
             data.nip,
             data.nama,
             data.gender,
+            data.golongan_darah,
             data.telepon,
             String(data.email).toLowerCase(),
             data.employment_status,
@@ -429,8 +455,8 @@ export async function POST(request: Request) {
         db()
           .prepare(
             `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,
-                      address,phone,email,enrollment_date,is_active,qr_token)
-                      VALUES(?,?,'',?,?,?,?,?,?,'','','',?,1,?)`,
+                      blood_type,address,phone,email,enrollment_date,is_active,qr_token)
+                      VALUES(?,?,'',?,?,?,?,?,?,?,'','','',?,1,?)`,
           )
           .run(
             studentId,
@@ -441,6 +467,7 @@ export async function POST(request: Request) {
             data.gender,
             data.tanggal_lahir || null,
             data.tempat_lahir,
+            data.golongan_darah,
             year.start_date,
             randomBytes(24).toString('hex'),
           );

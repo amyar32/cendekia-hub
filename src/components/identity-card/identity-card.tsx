@@ -49,9 +49,9 @@ export function IdentityCard({
           <div className={styles.school}>
             <h1>{card.school_name}</h1>
             <p>
-              NPSN {card.school_npsn || '—'} · Tel. {card.school_phone || '—'}
+              NPSN: {card.school_npsn || '—'} · Tel: {card.school_phone || '—'} · Email:{' '}
+              {card.school_email || '—'}
             </p>
-            <p>Email: {card.school_email || '—'}</p>
             <p>{card.school_address || 'Alamat sekolah belum diatur'}</p>
           </div>
         </header>
@@ -70,7 +70,7 @@ export function IdentityCard({
             ) : (
               <div className={styles.photoFallback}>{card.name.slice(0, 2).toUpperCase()}</div>
             )}
-            {photoCaption && <span>{photoCaption}</span>}
+            {photoCaption && <span className={styles.photoCaption}>{photoCaption}</span>}
           </div>
           <div className={styles.identity}>
             <h2>{card.name}</h2>
@@ -78,7 +78,9 @@ export function IdentityCard({
               {fields.map((field) => (
                 <div key={field.label}>
                   <dt>{field.label}</dt>
-                  <dd>{field.value || '—'}</dd>
+                  <dd className={field.label === 'Alamat' ? styles.addressValue : undefined}>
+                    {field.value || '—'}
+                  </dd>
                 </div>
               ))}
             </dl>

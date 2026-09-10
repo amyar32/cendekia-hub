@@ -8,8 +8,10 @@ import {
   Box,
   Button,
   Checkbox,
+  Divider,
   FileButton,
   Group,
+  MultiSelect,
   NumberInput,
   Paper,
   Progress,
@@ -18,6 +20,7 @@ import {
   Stack,
   Stepper,
   Table,
+  Tabs,
   Text,
   TextInput,
   Textarea,
@@ -71,6 +74,7 @@ type ExtracurricularAssignment = {
   location: string;
   quota: number | string;
   status: 'draft' | 'active';
+  student_ids: string[];
 };
 type Semester = {
   id?: string;
@@ -141,6 +145,7 @@ export type OnboardingData = {
     classrooms: Array<Classroom & { is_active: number; grade_name: string }>;
   };
   teachers: Array<{ id: string; employee_code: string; name: string }>;
+  students: Array<{ id: string; nis: string; name: string; class_name: string }>;
   teaching_assignments: TeachingAssignment[];
   homeroom_assignments: HomeroomAssignment[];
   extracurricular_assignments: ExtracurricularAssignment[];
@@ -367,6 +372,60 @@ function onboardingStep(data: OnboardingData) {
   return incomplete === -1 ? 7 : incomplete;
 }
 
+function ImportPreviewTable({ rows, sheet }: { rows: ImportRow[]; sheet: ImportRow['sheet'] }) {
+  const visibleRows = rows.filter((row) => row.sheet === sheet).slice(0, 100);
+  const isStudent = sheet === 'Murid';
+  return (
+    <>
+      <Table.ScrollContainer minWidth={isStudent ? 780 : 680}>
+        <Table>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Baris</Table.Th>
+              <Table.Th>{isStudent ? 'NIS' : 'Kode pegawai'}</Table.Th>
+              <Table.Th>Nama</Table.Th>
+              {isStudent && <Table.Th>Rombel</Table.Th>}
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Catatan</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {visibleRows.map((row) => (
+              <Table.Tr key={`${row.sheet}-${row.row}`}>
+                <Table.Td>{row.row}</Table.Td>
+                <Table.Td>
+                  {String(isStudent ? row.data.nis || '' : row.data.kode_pegawai || '')}
+                </Table.Td>
+                <Table.Td>{String(row.data.nama || '')}</Table.Td>
+                {isStudent && <Table.Td>{String(row.data.nama_rombel || '')}</Table.Td>}
+                <Table.Td>
+                  <Badge
+                    color={
+                      row.status === 'valid' ? 'green' : row.status === 'warning' ? 'orange' : 'red'
+                    }
+                  >
+                    {row.status === 'valid'
+                      ? 'Valid'
+                      : row.status === 'warning'
+                        ? 'Dilewati'
+                        : 'Error'}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>{row.messages.join(' ') || 'Siap diimpor'}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+      {rows.filter((row) => row.sheet === sheet).length > 100 && (
+        <Text variant="caption">
+          Menampilkan 100 dari {rows.filter((row) => row.sheet === sheet).length} baris.
+        </Text>
+      )}
+    </>
+  );
+}
+
 export function OnboardingManager({
   writable,
   initialData,
@@ -387,6 +446,9 @@ export function OnboardingManager({
     email: String(initialData.school?.email || ''),
     phone: String(initialData.school?.phone || ''),
     logo_url: String(initialData.school?.logo_url || ''),
+    principal_name: String(initialData.school?.principal_name || ''),
+    principal_nip: String(initialData.school?.principal_nip || ''),
+    principal_signature_url: String(initialData.school?.principal_signature_url || ''),
     timezone: String(initialData.school?.timezone || 'Asia/Jakarta'),
     checkin_late_after: String(initialData.school?.checkin_late_after || '07:15'),
   }));
@@ -472,6 +534,9 @@ export function OnboardingManager({
         email: String(school.email || ''),
         phone: String(school.phone || ''),
         logo_url: String(school.logo_url || ''),
+        principal_name: String(school.principal_name || ''),
+        principal_nip: String(school.principal_nip || ''),
+        principal_signature_url: String(school.principal_signature_url || ''),
         timezone: String(school.timezone || 'Asia/Jakarta'),
         checkin_late_after: String(school.checkin_late_after || '07:15'),
       });
@@ -613,15 +678,17 @@ export function OnboardingManager({
   }
 
   function addExtracurricularAssignment() {
+    const extracurricular = data.extracurriculars[0];
     setExtracurricularAssignments((current) => [
       ...current,
       {
-        extracurricular_id: data.extracurriculars[0]?.id || '',
+        extracurricular_id: extracurricular?.id || '',
         teacher_id: data.teachers[0]?.id || '',
         semester_id: 'all',
         location: '',
         quota: 0,
-        status: 'draft',
+        status: 'active',
+        student_ids: extracurricular?.is_required ? data.students.map((student) => student.id) : [],
       },
     ]);
   }
@@ -936,17 +1003,6 @@ export function OnboardingManager({
                   onChange={(event) => setProfile({ ...profile, phone: event.currentTarget.value })}
                   disabled={!writable}
                 />
-                <TimePicker
-                  label="Batas keterlambatan"
-                  value={profile.checkin_late_after}
-                  onChange={(value) => setProfile({ ...profile, checkin_late_after: value })}
-                  format="24h"
-                  withDropdown
-                  minutesStep={5}
-                  hoursInputLabel="Jam batas keterlambatan"
-                  minutesInputLabel="Menit batas keterlambatan"
-                  disabled={!writable}
-                />
               </SimpleGrid>
               <Textarea
                 label="Alamat lengkap"
@@ -962,6 +1018,44 @@ export function OnboardingManager({
                 scope="school.logo"
                 value={profile.logo_url}
                 onChange={(value) => setProfile({ ...profile, logo_url: value })}
+                disabled={!writable}
+              />
+              <Divider />
+              <div>
+                <Title order={4}>Informasi kepala sekolah</Title>
+                <Text variant="description" mt={5}>
+                  Nama, NIP, dan tanda tangan ini akan dicantumkan pada kartu siswa dan guru.
+                </Text>
+              </div>
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <TextInput
+                  label="Nama kepala sekolah"
+                  placeholder="Nama lengkap beserta gelar"
+                  value={profile.principal_name}
+                  onChange={(event) =>
+                    setProfile({ ...profile, principal_name: event.currentTarget.value })
+                  }
+                  maxLength={150}
+                  required
+                  disabled={!writable}
+                />
+                <TextInput
+                  label="NIP kepala sekolah"
+                  placeholder="Opsional"
+                  value={profile.principal_nip}
+                  onChange={(event) =>
+                    setProfile({ ...profile, principal_nip: event.currentTarget.value })
+                  }
+                  maxLength={50}
+                  disabled={!writable}
+                />
+              </SimpleGrid>
+              <ImageUploader
+                label="Tanda tangan kepala sekolah"
+                description="Disarankan PNG dengan latar transparan. Maksimal 5 MB."
+                scope="school.principal-signature"
+                value={profile.principal_signature_url}
+                onChange={(value) => setProfile({ ...profile, principal_signature_url: value })}
                 disabled={!writable}
               />
               <WizardActions
@@ -1500,6 +1594,19 @@ export function OnboardingManager({
                   pelajaran.
                 </Text>
               </div>
+              <TimePicker
+                label="Batas keterlambatan"
+                description="Kehadiran setelah waktu ini akan ditandai terlambat."
+                value={profile.checkin_late_after}
+                onChange={(value) => setProfile({ ...profile, checkin_late_after: value })}
+                format="24h"
+                withDropdown
+                minutesStep={5}
+                hoursInputLabel="Jam batas keterlambatan"
+                minutesInputLabel="Menit batas keterlambatan"
+                required
+                disabled={!writable}
+              />
               <div className={styles.weekdays}>
                 {weekdays.map((day, index) => (
                   <button
@@ -1651,7 +1758,17 @@ export function OnboardingManager({
                 setActive={setActive}
                 saving={saving}
                 writable={writable}
-                onSave={() => saveAction({ action: 'schedule', weekdays: activeDays, slots }, 5)}
+                onSave={() =>
+                  saveAction(
+                    {
+                      action: 'schedule',
+                      checkin_late_after: profile.checkin_late_after,
+                      weekdays: activeDays,
+                      slots,
+                    },
+                    5,
+                  )
+                }
               />
             </Stack>
           )}
@@ -1751,53 +1868,22 @@ export function OnboardingManager({
                       </Paper>
                     ))}
                   </SimpleGrid>
-                  <Table.ScrollContainer minWidth={760}>
-                    <Table>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Sheet</Table.Th>
-                          <Table.Th>Baris</Table.Th>
-                          <Table.Th>Data</Table.Th>
-                          <Table.Th>Status</Table.Th>
-                          <Table.Th>Catatan</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {importRows.slice(0, 100).map((row) => (
-                          <Table.Tr key={`${row.sheet}-${row.row}`}>
-                            <Table.Td>{row.sheet}</Table.Td>
-                            <Table.Td>{row.row}</Table.Td>
-                            <Table.Td>
-                              <Text size="xs" lineClamp={1}>
-                                {String(row.data.nama || row.data.nama_rombel || '')}
-                              </Text>
-                            </Table.Td>
-                            <Table.Td>
-                              <Badge
-                                color={
-                                  row.status === 'valid'
-                                    ? 'green'
-                                    : row.status === 'warning'
-                                      ? 'orange'
-                                      : 'red'
-                                }
-                              >
-                                {row.status === 'valid'
-                                  ? 'Valid'
-                                  : row.status === 'warning'
-                                    ? 'Dilewati'
-                                    : 'Error'}
-                              </Badge>
-                            </Table.Td>
-                            <Table.Td>{row.messages.join(' ') || 'Siap diimpor'}</Table.Td>
-                          </Table.Tr>
-                        ))}
-                      </Table.Tbody>
-                    </Table>
-                  </Table.ScrollContainer>
-                  {importRows.length > 100 && (
-                    <Text variant="caption">Menampilkan 100 dari {importRows.length} baris.</Text>
-                  )}
+                  <Tabs defaultValue="students" keepMounted={false}>
+                    <Tabs.List mb="md">
+                      <Tabs.Tab value="students">
+                        Murid ({importRows.filter((row) => row.sheet === 'Murid').length})
+                      </Tabs.Tab>
+                      <Tabs.Tab value="teachers">
+                        Guru ({importRows.filter((row) => row.sheet === 'Guru').length})
+                      </Tabs.Tab>
+                    </Tabs.List>
+                    <Tabs.Panel value="students">
+                      <ImportPreviewTable rows={importRows} sheet="Murid" />
+                    </Tabs.Panel>
+                    <Tabs.Panel value="teachers">
+                      <ImportPreviewTable rows={importRows} sheet="Guru" />
+                    </Tabs.Panel>
+                  </Tabs>
                   <Group justify="flex-end">
                     <Button
                       onClick={commitImport}
@@ -2071,7 +2157,7 @@ export function OnboardingManager({
                   <div>
                     <Text fw={700}>Penugasan ekstrakurikuler</Text>
                     <Text variant="description">
-                      Tetapkan pembina, periode, lokasi, kuota, dan status awal program.
+                      Tetapkan pembina, periode, peserta, lokasi, kuota, dan status awal program.
                     </Text>
                   </div>
                 </Group>
@@ -2090,7 +2176,15 @@ export function OnboardingManager({
                             setExtracurricularAssignments((current) =>
                               current.map((item, itemIndex) =>
                                 itemIndex === index
-                                  ? { ...item, extracurricular_id: value || '' }
+                                  ? {
+                                      ...item,
+                                      extracurricular_id: value || '',
+                                      student_ids: data.extracurriculars.find(
+                                        (extracurricular) => extracurricular.id === value,
+                                      )?.is_required
+                                        ? data.students.map((student) => student.id)
+                                        : [],
+                                    }
                                   : item,
                               ),
                             )
@@ -2183,7 +2277,7 @@ export function OnboardingManager({
                                 itemIndex === index
                                   ? {
                                       ...item,
-                                      status: (value || 'draft') as 'draft' | 'active',
+                                      status: (value || 'active') as 'draft' | 'active',
                                     }
                                   : item,
                               ),
@@ -2212,6 +2306,36 @@ export function OnboardingManager({
                           <IconTrash size={16} />
                         </Button>
                       </Group>
+                      {data.extracurriculars.find(
+                        (extracurricular) => extracurricular.id === assignment.extracurricular_id,
+                      )?.is_required ? (
+                        <Alert color="blue" icon={<IconUsers size={18} />} mt="md">
+                          Ekstrakurikuler wajib otomatis mencakup seluruh {data.students.length}{' '}
+                          murid aktif. Peserta tidak perlu dipilih manual.
+                        </Alert>
+                      ) : (
+                        <MultiSelect
+                          label="Murid/peserta"
+                          placeholder="Pilih murid peserta ekstrakurikuler"
+                          description={`${assignment.student_ids.length} peserta dipilih${Number(assignment.quota) > 0 ? ` dari kuota ${assignment.quota}` : ''}.`}
+                          data={data.students.map((student) => ({
+                            value: student.id,
+                            label: `${student.name} — ${student.nis} · ${student.class_name}`,
+                          }))}
+                          value={assignment.student_ids}
+                          onChange={(student_ids) =>
+                            setExtracurricularAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, student_ids } : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          clearable
+                          mt="md"
+                          disabled={!writable}
+                        />
+                      )}
                     </Paper>
                   ))}
                   {!extracurricularAssignments.length && (

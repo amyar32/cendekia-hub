@@ -354,6 +354,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     name: 'Budi Santoso',
     gender: 'male',
     birth_date: '1988-01-01',
+    blood_type: 'O',
     phone: '081234567890',
     email: 'budi@cendekia.test',
     address: 'Jalan Pendidikan 2',
@@ -408,6 +409,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
         name: 'Budi Santoso',
         gender: 'male',
         birth_date: '1988-01-01',
+        blood_type: 'O',
         phone: '081234567890',
         email: 'budi@cendekia.test',
         address: 'Jalan Pendidikan 2',
@@ -424,6 +426,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(teachers.total, 1);
   assert.equal(teachers.rows[0].employee_code, 'GR-001');
   assert.equal(teachers.rows[0].gender_label, 'Laki-laki');
+  assert.equal(teachers.rows[0].blood_type, 'O');
   assert.equal(teachers.rows[0].photo_url, teacherPhoto.url);
   res = await api(`/api/modules/teachers/${teacher.id}/card`);
   assert.equal(res.status, 200);
@@ -431,6 +434,8 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.match(firstTeacherCard.qr_value, /^cendekia:teacher-checkin:[0-9a-f]{48}$/);
   assert.equal(firstTeacherCard.qr_token, undefined);
   assert.equal(firstTeacherCard.school_npsn, '12345678');
+  assert.equal(firstTeacherCard.blood_type, 'O');
+  assert.equal(firstTeacherCard.card_expires_at, undefined);
   assert.equal(firstTeacherCard.principal_name, 'Dr. Ratna Puspita, M.Pd.');
   assert.equal(firstTeacherCard.principal_signature_url, uploadedPrincipalSignature.url);
   res = await api(`/teacher-cards/${teacher.id}/print`);
@@ -691,6 +696,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     gender: 'female',
     birth_date: '2012-05-20',
     birth_place: 'Makassar',
+    blood_type: 'AB',
     address: 'Jalan Pelajar 1',
     phone: '081200000001',
     email: 'ayu@cendekia.test',
@@ -720,6 +726,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     gender: 'female',
     birth_date: '2012-05-20',
     birth_place: 'Makassar',
+    blood_type: 'AB',
     address: 'Jalan Pelajar 1',
     phone: '081200000001',
     email: 'ayu@cendekia.test',
@@ -758,6 +765,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(completeStudent.guardian_name, 'Ibu Ayu');
   assert.equal(completeStudent.document_count, 1);
   assert.equal(completeStudent.photo_url, studentPhoto.url);
+  assert.equal(completeStudent.blood_type, 'AB');
   assert.equal(completeStudent.current_class_name, '7A');
   assert.equal(completeStudent.history[0].status_label, 'Aktif');
   res = await api(`/api/modules/students/${student.id}/card`);
@@ -766,6 +774,8 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.match(firstCard.qr_value, /^cendekia:checkin:[0-9a-f]{48}$/);
   assert.equal(firstCard.qr_token, undefined);
   assert.equal(firstCard.school_npsn, '12345678');
+  assert.equal(firstCard.blood_type, 'AB');
+  assert.equal(firstCard.card_expires_at, '2027-06-30');
   assert.equal(firstCard.principal_name, 'Dr. Ratna Puspita, M.Pd.');
   assert.equal(firstCard.principal_signature_url, uploadedPrincipalSignature.url);
   res = await api(`/student-cards/${student.id}/print`);

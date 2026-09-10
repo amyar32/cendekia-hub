@@ -49,6 +49,7 @@ const schema = z
     gender: z.enum(['male', 'female'], { error: 'Jenis kelamin wajib dipilih.' }),
     birth_date: optionalDate.default(''),
     birth_place: z.string().trim().max(100).default(''),
+    blood_type: z.enum(['', 'A', 'B', 'AB', 'O']).default(''),
     address: z.string().trim().max(500).default(''),
     phone: z.string().trim().max(30).default(''),
     email: z.union([z.literal(''), z.email('Email tidak valid.')]).default(''),
@@ -140,7 +141,7 @@ export async function GET(request: Request) {
     const rows = db()
       .prepare(
         `SELECT s.id,s.school_id,s.photo_url,s.nis,s.nisn,s.name,s.gender,s.birth_date,s.birth_place,
-          s.address,s.phone,s.email,s.enrollment_date,s.is_active,s.created_at,s.updated_at,
+          s.blood_type,s.address,s.phone,s.email,s.enrollment_date,s.is_active,s.created_at,s.updated_at,
           CASE s.gender WHEN 'male' THEN 'Laki-laki' ELSE 'Perempuan' END AS gender_label
        FROM students s WHERE ${where} ORDER BY s.is_active DESC,s.name LIMIT 10 OFFSET ?`,
       )
@@ -216,6 +217,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         data.gender,
         data.birth_date || null,
         data.birth_place,
+        data.blood_type,
         data.address,
         data.phone,
         data.email,
@@ -225,14 +227,14 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       if (method === 'POST')
         db()
           .prepare(
-            `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,address,phone,email,enrollment_date,is_active,qr_token)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,blood_type,address,phone,email,enrollment_date,is_active,qr_token)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
           .run(id, schoolId, ...args, randomBytes(24).toString('hex'));
       else
         db()
           .prepare(
-            `UPDATE students SET photo_url=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,address=?,phone=?,email=?,enrollment_date=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
+            `UPDATE students SET photo_url=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,blood_type=?,address=?,phone=?,email=?,enrollment_date=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
           )
           .run(...args, id, schoolId);
 
