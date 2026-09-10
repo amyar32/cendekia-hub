@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import {
   Alert,
@@ -433,6 +434,7 @@ export function OnboardingManager({
   writable: boolean;
   initialData: OnboardingData;
 }) {
+  const router = useRouter();
   const selectedLevel = onboardingLevel(initialData);
   const [data, setData] = useState<OnboardingData>(initialData);
   const [active, setActive] = useState(() => onboardingStep(initialData));
@@ -627,15 +629,20 @@ export function OnboardingManager({
       if (next !== undefined) setActive(next);
       notifications.show({
         color: 'green',
-        title: 'Progres tersimpan',
-        message: 'Konfigurasi onboarding berhasil diperbarui.',
+        title: body.action === 'complete' ? 'Onboarding selesai' : 'Progres tersimpan',
+        message:
+          body.action === 'complete'
+            ? 'Sekolah siap digunakan. Anda akan diarahkan ke ringkasan.'
+            : 'Konfigurasi onboarding berhasil diperbarui.',
       });
+      return true;
     } catch (error) {
       notifications.show({
         color: 'red',
         title: 'Gagal menyimpan',
         message: error instanceof Error ? error.message : 'Koneksi gagal.',
       });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -2501,7 +2508,12 @@ export function OnboardingManager({
                   ))}
                 </SimpleGrid>
               </Paper>
-              {readyCount === readiness.length ? (
+              {data.school?.onboarding_completed_at ? (
+                <Alert color="green" icon={<IconCheck size={18} />}>
+                  Onboarding sekolah telah selesai. Seluruh modul siap digunakan dari halaman
+                  ringkasan.
+                </Alert>
+              ) : readyCount === readiness.length ? (
                 <Alert color="green" icon={<IconCheck size={18} />}>
                   Seluruh komponen sistem siap. Onboarding dapat diselesaikan.
                 </Alert>
@@ -2520,25 +2532,35 @@ export function OnboardingManager({
                   Kembali
                 </Button>
                 <Group>
-                  <Button component={Link} href="/" variant="light">
-                    Ke ringkasan
-                  </Button>
-                  <Button
-                    leftSection={<IconCheck size={16} />}
-                    onClick={async () => {
-                      await saveAction({ action: 'complete' });
-                      publishAcademicContext({
-                        academic_year: data?.active_year?.name || null,
-                        semester:
-                          data?.active_year?.semesters.find((semester) => semester.is_active)
-                            ?.name || null,
-                      });
-                    }}
-                    loading={saving}
-                    disabled={!writable || readyCount !== readiness.length}
-                  >
-                    Selesaikan onboarding
-                  </Button>
+                  {data.school?.onboarding_completed_at ? (
+                    <Button component={Link} href="/" rightSection={<IconArrowRight size={16} />}>
+                      Buka ringkasan
+                    </Button>
+                  ) : (
+                    <>
+                      <Button component={Link} href="/" variant="light">
+                        Ke ringkasan
+                      </Button>
+                      <Button
+                        leftSection={<IconCheck size={16} />}
+                        onClick={async () => {
+                          const completed = await saveAction({ action: 'complete' });
+                          if (!completed) return;
+                          publishAcademicContext({
+                            academic_year: data?.active_year?.name || null,
+                            semester:
+                              data?.active_year?.semesters.find((semester) => semester.is_active)
+                                ?.name || null,
+                          });
+                          router.replace('/');
+                        }}
+                        loading={saving}
+                        disabled={!writable || readyCount !== readiness.length}
+                      >
+                        Selesaikan onboarding
+                      </Button>
+                    </>
+                  )}
                 </Group>
               </Group>
             </Stack>
