@@ -9,7 +9,11 @@ export default async function Page() {
   return (
     <PromotionManager
       writable={
-        can(user.permissions, 'promotions.write') && can(user.permissions, 'academic-years.write')
+        can(user.permissions, 'promotions.write') &&
+        can(user.permissions, 'academic-years.write') &&
+        can(user.permissions, 'teaching-assignments.write') &&
+        can(user.permissions, 'homeroom-assignments.write') &&
+        can(user.permissions, 'extracurricular-assignments.write')
       }
     />
   );

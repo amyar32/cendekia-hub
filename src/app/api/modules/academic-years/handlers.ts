@@ -642,6 +642,10 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
               `INSERT OR IGNORE INTO extracurricular_schedules
                (id,assignment_id,semester_id,time_slot_id,weekday) VALUES(?,?,?,?,?)`,
             );
+            const insertParticipant = db().prepare(
+              `INSERT OR IGNORE INTO extracurricular_participants
+               (id,assignment_id,student_id) VALUES(?,?,?)`,
+            );
             for (const assignment of assignments) {
               const targetAssignmentSemesterId =
                 assignment.period == null ? null : semesterByPeriod.get(assignment.period);
@@ -657,6 +661,15 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
                 assignment.map_url,
                 assignment.quota,
               );
+              if (inserted.changes) {
+                const participants = db()
+                  .prepare(
+                    'SELECT student_id FROM extracurricular_participants WHERE assignment_id=?',
+                  )
+                  .all(assignment.id) as Array<{ student_id: string }>;
+                for (const participant of participants)
+                  insertParticipant.run(randomUUID(), targetAssignmentId, participant.student_id);
+              }
               if (!inserted.changes || !copy.copy_extracurricular_schedules) continue;
               const schedules = db()
                 .prepare(

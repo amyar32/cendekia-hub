@@ -30,6 +30,51 @@ const createClassSchema = z.object({
 const updateClassSchema = createClassSchema.extend({
   id: z.string().uuid('Rombel tidak valid.'),
 });
+const assignmentSemester = z.union([
+  z.literal('all'),
+  z.string().uuid('Semester penugasan tidak valid.'),
+]);
+const transitionAssignmentsSchema = z.object({
+  action: z.literal('assignments'),
+  target_academic_year_id: z.string().uuid('Tahun ajaran tujuan tidak valid.'),
+  teaching_assignments: z
+    .array(
+      z.object({
+        id: z.string().uuid().optional(),
+        teacher_id: z.string().uuid('Guru tidak valid.'),
+        subject_id: z.string().uuid('Mata pelajaran tidak valid.'),
+        class_id: z.string().uuid('Rombel tidak valid.'),
+        semester_id: assignmentSemester.default('all'),
+      }),
+    )
+    .min(1, 'Tambahkan minimal satu penugasan mata pelajaran.')
+    .max(500),
+  homeroom_assignments: z
+    .array(
+      z.object({
+        id: z.string().uuid().optional(),
+        teacher_id: z.string().uuid('Wali kelas tidak valid.'),
+        class_id: z.string().uuid('Rombel wali kelas tidak valid.'),
+      }),
+    )
+    .min(1, 'Tambahkan minimal satu wali kelas.')
+    .max(100),
+  extracurricular_assignments: z
+    .array(
+      z.object({
+        id: z.string().uuid().optional(),
+        extracurricular_id: z.string().uuid('Ekstrakurikuler tidak valid.'),
+        teacher_id: z.string().uuid('Pembina tidak valid.'),
+        semester_id: assignmentSemester.default('all'),
+        location: z.string().trim().max(100).default(''),
+        quota: z.coerce.number().int().min(0).max(1000).default(0),
+        status: z.enum(['draft', 'active']).default('active'),
+        student_ids: z.array(z.string().uuid('Murid tidak valid.')).max(1000).default([]),
+      }),
+    )
+    .min(1, 'Tambahkan minimal satu penugasan ekstrakurikuler.')
+    .max(100),
+});
 
 type AcademicYearRow = {
   id: string;
@@ -129,6 +174,46 @@ export async function GET(request: Request) {
             )
             .get(schoolId, sourceYear.id, targetYear.id)
         : undefined;
+    const semesters = targetYear
+      ? db()
+          .prepare('SELECT id,name,period FROM semesters WHERE academic_year_id=? ORDER BY period')
+          .all(targetYear.id)
+      : [];
+    const teachingAssignments = targetYear
+      ? db()
+          .prepare(
+            `SELECT id,teacher_id,subject_id,class_id,COALESCE(semester_id,'all') AS semester_id
+             FROM teaching_assignments WHERE academic_year_id=? ORDER BY created_at,id`,
+          )
+          .all(targetYear.id)
+      : [];
+    const homeroomAssignments = targetYear
+      ? db()
+          .prepare(
+            `SELECT id,teacher_id,class_id FROM homeroom_assignments
+             WHERE academic_year_id=? ORDER BY created_at,id`,
+          )
+          .all(targetYear.id)
+      : [];
+    const extracurricularAssignments = targetYear
+      ? db()
+          .prepare(
+            `SELECT id,extracurricular_id,teacher_id,COALESCE(semester_id,'all') AS semester_id,
+                    location,quota,status FROM extracurricular_assignments
+             WHERE academic_year_id=? AND status<>'completed' ORDER BY created_at,id`,
+          )
+          .all(targetYear.id)
+          .map((assignment) => ({
+            ...(assignment as Record<string, unknown> & { id: string }),
+            student_ids: (
+              db()
+                .prepare(
+                  'SELECT student_id FROM extracurricular_participants WHERE assignment_id=? ORDER BY created_at',
+                )
+                .all((assignment as { id: string }).id) as Array<{ student_id: string }>
+            ).map((participant) => participant.student_id),
+          }))
+      : [];
 
     return Response.json(
       {
@@ -155,6 +240,25 @@ export async function GET(request: Request) {
         source_classes: sourceClasses,
         target_classes: targetClasses,
         students,
+        semesters,
+        teachers: db()
+          .prepare(
+            'SELECT id,employee_code,name FROM teachers WHERE school_id=? AND is_active=1 ORDER BY name',
+          )
+          .all(schoolId),
+        subjects: db()
+          .prepare(
+            'SELECT id,code,name FROM subjects WHERE school_id=? AND is_active=1 ORDER BY name',
+          )
+          .all(schoolId),
+        extracurriculars: db()
+          .prepare(
+            'SELECT id,code,name,is_required FROM extracurriculars WHERE school_id=? AND is_active=1 ORDER BY name',
+          )
+          .all(schoolId),
+        teaching_assignments: teachingAssignments,
+        homeroom_assignments: homeroomAssignments,
+        extracurricular_assignments: extracurricularAssignments,
         grade_options: gradeOptions(schoolId),
         last_batch: lastBatch || null,
         max_grade_level: (
@@ -238,7 +342,258 @@ export async function POST(request: Request) {
     checkOrigin(request);
     const actor = await requireUser('promotions.write');
     const schoolId = currentSchoolId();
-    const input = schema.parse(await request.json());
+    const body = await request.json();
+    if (body.action === 'assignments') {
+      await requireUser('teaching-assignments.write');
+      await requireUser('homeroom-assignments.write');
+      await requireUser('extracurricular-assignments.write');
+      const input = transitionAssignmentsSchema.parse(body);
+      const activeYear = activeAcademicYear(schoolId);
+      const targetYear = academicYear(schoolId, input.target_academic_year_id);
+      if (targetYear.is_active || targetYear.start_date <= activeYear.start_date)
+        throw new HttpError(
+          400,
+          'Penugasan hanya dapat diatur pada draft tahun ajaran berikutnya.',
+        );
+
+      const teacherIds = new Set(
+        (
+          db()
+            .prepare('SELECT id FROM teachers WHERE school_id=? AND is_active=1')
+            .all(schoolId) as Array<{ id: string }>
+        ).map((item) => item.id),
+      );
+      const subjectIds = new Set(
+        (
+          db()
+            .prepare('SELECT id FROM subjects WHERE school_id=? AND is_active=1')
+            .all(schoolId) as Array<{ id: string }>
+        ).map((item) => item.id),
+      );
+      const extracurricularIds = new Set(
+        (
+          db()
+            .prepare('SELECT id FROM extracurriculars WHERE school_id=? AND is_active=1')
+            .all(schoolId) as Array<{ id: string }>
+        ).map((item) => item.id),
+      );
+      const classIds = new Set(
+        (
+          db()
+            .prepare(
+              'SELECT id FROM classes WHERE school_id=? AND academic_year_id=? AND is_active=1',
+            )
+            .all(schoolId, targetYear.id) as Array<{ id: string }>
+        ).map((item) => item.id),
+      );
+      const semesterIds = new Set(
+        (
+          db()
+            .prepare('SELECT id FROM semesters WHERE academic_year_id=?')
+            .all(targetYear.id) as Array<{ id: string }>
+        ).map((item) => item.id),
+      );
+      const activeStudentIds = (
+        db()
+          .prepare(
+            `SELECT s.id FROM students s
+             JOIN class_memberships cm ON cm.student_id=s.id
+             WHERE s.school_id=? AND s.is_active=1 AND cm.academic_year_id=?
+               AND cm.status='active' ORDER BY s.name`,
+          )
+          .all(schoolId, activeYear.id) as Array<{ id: string }>
+      ).map((student) => student.id);
+      const activeStudentIdSet = new Set(activeStudentIds);
+      const periodId = (value: string) => {
+        if (value === 'all') return null;
+        if (!semesterIds.has(value)) throw new HttpError(400, 'Semester penugasan tidak valid.');
+        return value;
+      };
+      const ensureTeacher = (id: string) => {
+        if (!teacherIds.has(id)) throw new HttpError(400, 'Guru tidak aktif atau tidak valid.');
+      };
+
+      if (input.homeroom_assignments.length !== classIds.size)
+        throw new HttpError(400, 'Tetapkan tepat satu wali kelas untuk setiap rombel tahun baru.');
+      if (new Set(input.homeroom_assignments.map((item) => item.class_id)).size !== classIds.size)
+        throw new HttpError(400, 'Setiap rombel harus memiliki satu wali kelas yang berbeda.');
+      if (
+        new Set(input.homeroom_assignments.map((item) => item.teacher_id)).size !==
+        input.homeroom_assignments.length
+      )
+        throw new HttpError(400, 'Satu guru hanya dapat menjadi wali untuk satu rombel.');
+
+      db().transaction(() => {
+        const existingTeaching = db()
+          .prepare('SELECT * FROM teaching_assignments WHERE academic_year_id=?')
+          .all(targetYear.id) as Array<Record<string, unknown> & { id: string }>;
+        const submittedTeachingIds = new Set(
+          input.teaching_assignments.flatMap((item) => item.id || []),
+        );
+        for (const existing of existingTeaching)
+          if (!submittedTeachingIds.has(existing.id)) {
+            db()
+              .prepare('DELETE FROM class_schedules WHERE teaching_assignment_id=?')
+              .run(existing.id);
+            db().prepare('DELETE FROM teaching_assignments WHERE id=?').run(existing.id);
+          }
+        for (const assignment of input.teaching_assignments) {
+          ensureTeacher(assignment.teacher_id);
+          if (!subjectIds.has(assignment.subject_id))
+            throw new HttpError(400, 'Mata pelajaran tidak aktif atau tidak valid.');
+          if (!classIds.has(assignment.class_id))
+            throw new HttpError(400, 'Rombel penugasan tidak berada pada tahun ajaran baru.');
+          const semesterId = periodId(assignment.semester_id);
+          const existing = assignment.id
+            ? existingTeaching.find((item) => item.id === assignment.id)
+            : undefined;
+          if (assignment.id && !existing)
+            throw new HttpError(404, 'Penugasan mata pelajaran tidak ditemukan.');
+          if (existing) {
+            const changed =
+              existing.teacher_id !== assignment.teacher_id ||
+              existing.subject_id !== assignment.subject_id ||
+              existing.class_id !== assignment.class_id ||
+              existing.semester_id !== semesterId;
+            if (changed)
+              db()
+                .prepare('DELETE FROM class_schedules WHERE teaching_assignment_id=?')
+                .run(existing.id);
+            db()
+              .prepare(
+                `UPDATE teaching_assignments SET teacher_id=?,subject_id=?,class_id=?,semester_id=?,
+                 updated_at=datetime('now') WHERE id=?`,
+              )
+              .run(
+                assignment.teacher_id,
+                assignment.subject_id,
+                assignment.class_id,
+                semesterId,
+                existing.id,
+              );
+          } else
+            db()
+              .prepare(
+                `INSERT INTO teaching_assignments
+                 (id,teacher_id,subject_id,class_id,academic_year_id,semester_id)
+                 VALUES(?,?,?,?,?,?)`,
+              )
+              .run(
+                randomUUID(),
+                assignment.teacher_id,
+                assignment.subject_id,
+                assignment.class_id,
+                targetYear.id,
+                semesterId,
+              );
+        }
+
+        db()
+          .prepare('DELETE FROM homeroom_assignments WHERE academic_year_id=?')
+          .run(targetYear.id);
+        const insertHomeroom = db().prepare(
+          `INSERT INTO homeroom_assignments(id,teacher_id,class_id,academic_year_id)
+           VALUES(?,?,?,?)`,
+        );
+        for (const assignment of input.homeroom_assignments) {
+          ensureTeacher(assignment.teacher_id);
+          if (!classIds.has(assignment.class_id))
+            throw new HttpError(400, 'Rombel wali kelas tidak berada pada tahun ajaran baru.');
+          insertHomeroom.run(
+            randomUUID(),
+            assignment.teacher_id,
+            assignment.class_id,
+            targetYear.id,
+          );
+        }
+
+        const existingExtracurricular = db()
+          .prepare('SELECT id FROM extracurricular_assignments WHERE academic_year_id=?')
+          .all(targetYear.id) as Array<{ id: string }>;
+        const submittedExtracurricularIds = new Set(
+          input.extracurricular_assignments.flatMap((item) => item.id || []),
+        );
+        for (const existing of existingExtracurricular)
+          if (!submittedExtracurricularIds.has(existing.id))
+            db().prepare('DELETE FROM extracurricular_assignments WHERE id=?').run(existing.id);
+        for (const assignment of input.extracurricular_assignments) {
+          ensureTeacher(assignment.teacher_id);
+          if (!extracurricularIds.has(assignment.extracurricular_id))
+            throw new HttpError(400, 'Ekstrakurikuler tidak aktif atau tidak valid.');
+          const extracurricular = db()
+            .prepare('SELECT is_required FROM extracurriculars WHERE id=? AND school_id=?')
+            .get(assignment.extracurricular_id, schoolId) as { is_required: number } | undefined;
+          const participantIds = extracurricular?.is_required
+            ? activeStudentIds
+            : assignment.student_ids;
+          if (new Set(participantIds).size !== participantIds.length)
+            throw new HttpError(400, 'Daftar peserta memuat murid yang sama.');
+          for (const studentId of participantIds)
+            if (!activeStudentIdSet.has(studentId))
+              throw new HttpError(
+                400,
+                'Semua peserta harus merupakan murid aktif pada tahun ajaran sebelumnya.',
+              );
+          if (assignment.quota > 0 && participantIds.length > assignment.quota)
+            throw new HttpError(400, 'Jumlah peserta ekstrakurikuler melebihi kuota.');
+          const semesterId = periodId(assignment.semester_id);
+          const existing = assignment.id
+            ? existingExtracurricular.find((item) => item.id === assignment.id)
+            : undefined;
+          if (assignment.id && !existing)
+            throw new HttpError(404, 'Penugasan ekstrakurikuler tidak ditemukan.');
+          const assignmentId = existing?.id || randomUUID();
+          if (existing)
+            db()
+              .prepare(
+                `UPDATE extracurricular_assignments SET extracurricular_id=?,teacher_id=?,
+                 semester_id=?,location=?,quota=?,status=?,updated_at=datetime('now') WHERE id=?`,
+              )
+              .run(
+                assignment.extracurricular_id,
+                assignment.teacher_id,
+                semesterId,
+                assignment.location,
+                assignment.quota,
+                assignment.status,
+                assignmentId,
+              );
+          else
+            db()
+              .prepare(
+                `INSERT INTO extracurricular_assignments
+                 (id,extracurricular_id,teacher_id,academic_year_id,semester_id,location,map_url,quota,status)
+                 VALUES(?,?,?,?,?,?,?,?,?)`,
+              )
+              .run(
+                assignmentId,
+                assignment.extracurricular_id,
+                assignment.teacher_id,
+                targetYear.id,
+                semesterId,
+                assignment.location,
+                '',
+                assignment.quota,
+                assignment.status,
+              );
+          db()
+            .prepare('DELETE FROM extracurricular_participants WHERE assignment_id=?')
+            .run(assignmentId);
+          const insertParticipant = db().prepare(
+            'INSERT INTO extracurricular_participants(id,assignment_id,student_id) VALUES(?,?,?)',
+          );
+          for (const studentId of participantIds)
+            insertParticipant.run(randomUUID(), assignmentId, studentId);
+        }
+        audit(actor.email, 'update', 'annual-transition-assignments', targetYear.id, {
+          teaching_assignments: input.teaching_assignments.length,
+          homeroom_assignments: input.homeroom_assignments.length,
+          extracurricular_assignments: input.extracurricular_assignments.length,
+        });
+      })();
+      return Response.json({ ok: true });
+    }
+    const input = schema.parse(body);
     if (!input.activate_target && input.actions.length === 0)
       throw new HttpError(400, 'Pilih minimal satu murid.');
     const sourceYear = academicYear(schoolId, input.source_academic_year_id);

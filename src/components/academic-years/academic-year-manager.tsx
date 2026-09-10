@@ -430,7 +430,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                     />
                     <Checkbox
                       label="Salin penugasan ekstrakurikuler"
-                      description="Pembina, lokasi, dan kuota disalin sebagai draft; peserta dikosongkan"
+                      description="Pembina, lokasi, kuota, dan peserta disalin sebagai draft"
                       checked={form.copy_extracurricular_assignments}
                       disabled={!form.copy_semesters}
                       onChange={(event) => {

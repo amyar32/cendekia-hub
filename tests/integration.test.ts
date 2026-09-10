@@ -1446,7 +1446,7 @@ test('academic year template copies semesters, classes, teaching assignments, ho
   assert.ok(copiedHomeroom.total >= 1);
   assert.equal(copiedExtracurriculars.total, 1);
   assert.equal(copiedExtracurriculars.rows[0].status, 'draft');
-  assert.equal(copiedExtracurriculars.rows[0].participant_count, 0);
+  assert.equal(copiedExtracurriculars.rows[0].participant_count, 1);
   assert.equal(copiedExtracurriculars.rows[0].schedule_count, 1);
   assert.equal(
     copiedExtracurriculars.rows[0].map_url,

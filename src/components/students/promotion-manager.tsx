@@ -13,6 +13,8 @@ import {
   Group,
   Loader,
   Modal,
+  MultiSelect,
+  NumberInput,
   Pagination,
   Paper,
   Select,
@@ -42,6 +44,8 @@ import {
   IconReportAnalytics,
   IconSchool,
   IconSearch,
+  IconTrash,
+  IconUsers,
   IconUsersGroup,
 } from '@tabler/icons-react';
 import 'dayjs/locale/id';
@@ -76,6 +80,24 @@ type Student = {
 };
 type Outcome = 'promoted' | 'retained' | 'graduated' | 'withdrawn';
 type Action = { student_id: string; outcome: Outcome; target_class_id: string };
+type TeachingAssignment = {
+  id?: string;
+  teacher_id: string;
+  subject_id: string;
+  class_id: string;
+  semester_id: string;
+};
+type HomeroomAssignment = { id?: string; teacher_id: string; class_id: string };
+type ExtracurricularAssignment = {
+  id?: string;
+  extracurricular_id: string;
+  teacher_id: string;
+  semester_id: string;
+  location: string;
+  quota: number | string;
+  status: 'draft' | 'active';
+  student_ids: string[];
+};
 type PromotionData = {
   active_academic_year: AcademicYearOption;
   target_academic_year: AcademicYearOption | null;
@@ -84,6 +106,18 @@ type PromotionData = {
   draft_years: Option[];
   source_classes: SourceClass[];
   target_classes: TargetClass[];
+  semesters: Array<{ id: string; name: string; period: number }>;
+  teachers: Array<{ id: string; employee_code: string; name: string }>;
+  subjects: Array<{ id: string; code: string; name: string }>;
+  extracurriculars: Array<{
+    id: string;
+    code: string;
+    name: string;
+    is_required: number | boolean;
+  }>;
+  teaching_assignments: TeachingAssignment[];
+  homeroom_assignments: HomeroomAssignment[];
+  extracurricular_assignments: ExtracurricularAssignment[];
   grade_options: GradeOption[];
   students: Student[];
   max_grade_level: number | null;
@@ -94,6 +128,7 @@ const EXCEPTION_PAGE_SIZE = 20;
 const transitionSteps = [
   { label: 'Tahun baru', description: 'Periode' },
   { label: 'Salin struktur', description: 'Data akademik' },
+  { label: 'Penugasan', description: 'Guru & pembina' },
   { label: 'Pemetaan', description: 'Rombel tujuan' },
   { label: 'Pengecualian', description: 'Per murid' },
   { label: 'Tinjau', description: 'Finalisasi' },
@@ -152,6 +187,11 @@ export function PromotionManager({ writable }: { writable: boolean }) {
   const [copySchedules, setCopySchedules] = useState(true);
   const [mappings, setMappings] = useState<Record<string, string>>({});
   const [actions, setActions] = useState<Record<string, Action>>({});
+  const [teachingAssignments, setTeachingAssignments] = useState<TeachingAssignment[]>([]);
+  const [homeroomAssignments, setHomeroomAssignments] = useState<HomeroomAssignment[]>([]);
+  const [extracurricularAssignments, setExtracurricularAssignments] = useState<
+    ExtracurricularAssignment[]
+  >([]);
   const [showExceptions, setShowExceptions] = useState(false);
   const [exceptionQuery, setExceptionQuery] = useState('');
   const [exceptionClass, setExceptionClass] = useState<string | null>(null);
@@ -204,6 +244,9 @@ export function PromotionManager({ writable }: { writable: boolean }) {
         const result = (await response.json()) as PromotionData & { error?: string };
         if (!response.ok) throw new Error(result.error);
         setData(result);
+        setTeachingAssignments(result.teaching_assignments);
+        setHomeroomAssignments(result.homeroom_assignments);
+        setExtracurricularAssignments(result.extracurricular_assignments);
         if (!targetYearId) setYearForm(suggestedYear(result.active_academic_year));
         else if (!preserveProgress) initialiseActions(result);
       } catch (error) {
@@ -291,6 +334,100 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           next[student.id] = { ...next[student.id], target_class_id: targetClassId };
       return next;
     });
+  }
+
+  function addTeachingAssignment() {
+    setTeachingAssignments((current) => [
+      ...current,
+      {
+        teacher_id: data?.teachers[0]?.id || '',
+        subject_id: data?.subjects[0]?.id || '',
+        class_id: data?.target_classes[0]?.value || '',
+        semester_id: 'all',
+      },
+    ]);
+  }
+
+  function addHomeroomAssignment() {
+    const assignedClasses = new Set(homeroomAssignments.map((item) => item.class_id));
+    const assignedTeachers = new Set(homeroomAssignments.map((item) => item.teacher_id));
+    setHomeroomAssignments((current) => [
+      ...current,
+      {
+        teacher_id:
+          data?.teachers.find((teacher) => !assignedTeachers.has(teacher.id))?.id ||
+          data?.teachers[0]?.id ||
+          '',
+        class_id:
+          data?.target_classes.find((classroom) => !assignedClasses.has(classroom.value))?.value ||
+          data?.target_classes[0]?.value ||
+          '',
+      },
+    ]);
+  }
+
+  function addExtracurricularAssignment() {
+    setExtracurricularAssignments((current) => [
+      ...current,
+      {
+        extracurricular_id: data?.extracurriculars[0]?.id || '',
+        teacher_id: data?.teachers[0]?.id || '',
+        semester_id: 'all',
+        location: '',
+        quota: 0,
+        status: 'active',
+        student_ids: data?.extracurriculars[0]?.is_required
+          ? data.students.map((student) => student.id)
+          : [],
+      },
+    ]);
+  }
+
+  async function saveAssignments() {
+    if (!data?.target_academic_year) return;
+    const assignedClasses = new Set(homeroomAssignments.map((item) => item.class_id));
+    if (
+      homeroomAssignments.length !== data.target_classes.length ||
+      assignedClasses.size !== data.target_classes.length
+    ) {
+      notifications.show({
+        color: 'red',
+        title: 'Wali kelas belum lengkap',
+        message: 'Tetapkan tepat satu wali kelas untuk setiap rombel tahun ajaran baru.',
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch('/api/modules/promotions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'assignments',
+          target_academic_year_id: data.target_academic_year.value,
+          teaching_assignments: teachingAssignments,
+          homeroom_assignments: homeroomAssignments,
+          extracurricular_assignments: extracurricularAssignments,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      await load(data.target_academic_year.value, true);
+      setActiveStep(3);
+      notifications.show({
+        color: 'green',
+        title: 'Penugasan tersimpan',
+        message: 'Penugasan guru, wali kelas, dan pembina tahun ajaran baru sudah diperbarui.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Penugasan gagal disimpan',
+        message: error instanceof Error ? error.message : 'Koneksi gagal.',
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   function openClassEditor(target: TargetClass) {
@@ -498,8 +635,8 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           description="Siapkan tahun baru dan proses hasil akademik seluruh murid dalam satu alur."
         />
         <Alert color="orange" icon={<IconAlertTriangle size={18} />}>
-          Anda memerlukan izin menulis Tahun Ajaran dan Pergantian Tahun Ajaran untuk menjalankan
-          proses ini.
+          Anda memerlukan izin menulis Tahun Ajaran, Pergantian Tahun Ajaran, serta seluruh
+          penugasan guru dan pembina untuk menjalankan proses ini.
         </Alert>
       </>
     );
@@ -782,7 +919,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 <CopyCard
                   icon={<IconUsersGroup size={22} />}
                   title="Penugasan ekstrakurikuler"
-                  detail="Pembina, lokasi, dan kuota; peserta dikosongkan"
+                  detail="Pembina, lokasi, kuota, dan peserta"
                   checked={copyExtracurricularAssignments}
                   onChange={setCopyExtracurricularAssignments}
                 />
@@ -813,6 +950,414 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           )}
 
           {activeStep === 2 && data?.target_academic_year && (
+            <Stack gap="xl">
+              <Stack gap={5}>
+                <Title order={3}>Atur penugasan guru dan pembina</Title>
+                <Text c="dimmed" size="sm">
+                  Periksa hasil salinan dari tahun sebelumnya, lalu sesuaikan guru mata pelajaran,
+                  wali kelas, dan pembina untuk {data.target_academic_year.label}.
+                </Text>
+              </Stack>
+
+              <Paper withBorder p="lg">
+                <Group justify="space-between" mb="md">
+                  <div>
+                    <Text fw={700}>Penugasan mata pelajaran</Text>
+                    <Text variant="description">
+                      Tetapkan guru, mata pelajaran, rombel, dan periode.
+                    </Text>
+                  </div>
+                  <Button
+                    variant="light"
+                    size="xs"
+                    leftSection={<IconPlus size={15} />}
+                    onClick={addTeachingAssignment}
+                    disabled={
+                      !data.teachers.length || !data.subjects.length || !data.target_classes.length
+                    }
+                  >
+                    Tambah penugasan
+                  </Button>
+                </Group>
+                <Stack gap="sm">
+                  {teachingAssignments.map((assignment, index) => (
+                    <Paper withBorder p="md" key={assignment.id || index}>
+                      <Group align="flex-end" wrap="nowrap">
+                        <Select
+                          label="Guru"
+                          data={data.teachers.map((teacher) => ({
+                            value: teacher.id,
+                            label: `${teacher.name} — ${teacher.employee_code}`,
+                          }))}
+                          value={assignment.teacher_id}
+                          onChange={(value) =>
+                            setTeachingAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, teacher_id: value || '' } : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          className={styles.grow}
+                        />
+                        <Select
+                          label="Mata pelajaran"
+                          data={data.subjects.map((subject) => ({
+                            value: subject.id,
+                            label: `${subject.code} — ${subject.name}`,
+                          }))}
+                          value={assignment.subject_id}
+                          onChange={(value) =>
+                            setTeachingAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, subject_id: value || '' } : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          className={styles.grow}
+                        />
+                        <Select
+                          label="Rombel"
+                          data={data.target_classes}
+                          value={assignment.class_id}
+                          onChange={(value) =>
+                            setTeachingAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, class_id: value || '' } : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          className={styles.grow}
+                        />
+                        <Select
+                          label="Periode"
+                          data={[
+                            { value: 'all', label: 'Semua Semester' },
+                            ...data.semesters.map((semester) => ({
+                              value: semester.id,
+                              label: semester.name,
+                            })),
+                          ]}
+                          value={assignment.semester_id}
+                          onChange={(value) =>
+                            setTeachingAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, semester_id: value || 'all' }
+                                  : item,
+                              ),
+                            )
+                          }
+                          allowDeselect={false}
+                          className={styles.grow}
+                        />
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          size="lg"
+                          aria-label="Hapus penugasan mata pelajaran"
+                          onClick={() =>
+                            setTeachingAssignments((current) =>
+                              current.filter((_, itemIndex) => itemIndex !== index),
+                            )
+                          }
+                        >
+                          <IconTrash size={17} />
+                        </ActionIcon>
+                      </Group>
+                    </Paper>
+                  ))}
+                  {!teachingAssignments.length && (
+                    <Text variant="description">Belum ada penugasan mata pelajaran.</Text>
+                  )}
+                </Stack>
+              </Paper>
+
+              <Paper withBorder p="lg">
+                <Group justify="space-between" mb="md">
+                  <div>
+                    <Text fw={700}>Wali kelas</Text>
+                    <Text variant="description">
+                      Tetapkan satu wali untuk setiap rombel tahun baru.
+                    </Text>
+                  </div>
+                  <Group gap="sm">
+                    <Badge
+                      color={
+                        homeroomAssignments.length === data.target_classes.length
+                          ? 'green'
+                          : 'orange'
+                      }
+                    >
+                      {homeroomAssignments.length}/{data.target_classes.length} rombel
+                    </Badge>
+                    <Button
+                      variant="light"
+                      size="xs"
+                      leftSection={<IconPlus size={15} />}
+                      onClick={addHomeroomAssignment}
+                      disabled={
+                        !data.teachers.length ||
+                        homeroomAssignments.length >= data.target_classes.length
+                      }
+                    >
+                      Tambah wali kelas
+                    </Button>
+                  </Group>
+                </Group>
+                <Stack gap="sm">
+                  {homeroomAssignments.map((assignment, index) => (
+                    <Paper withBorder p="md" key={assignment.id || index}>
+                      <Group align="flex-end" wrap="nowrap">
+                        <Select
+                          label="Wali kelas"
+                          data={data.teachers.map((teacher) => ({
+                            value: teacher.id,
+                            label: `${teacher.name} — ${teacher.employee_code}`,
+                          }))}
+                          value={assignment.teacher_id}
+                          onChange={(value) =>
+                            setHomeroomAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, teacher_id: value || '' } : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          className={styles.grow}
+                        />
+                        <Select
+                          label="Rombel"
+                          data={data.target_classes}
+                          value={assignment.class_id}
+                          onChange={(value) =>
+                            setHomeroomAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, class_id: value || '' } : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          className={styles.grow}
+                        />
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          size="lg"
+                          aria-label="Hapus wali kelas"
+                          onClick={() =>
+                            setHomeroomAssignments((current) =>
+                              current.filter((_, itemIndex) => itemIndex !== index),
+                            )
+                          }
+                        >
+                          <IconTrash size={17} />
+                        </ActionIcon>
+                      </Group>
+                    </Paper>
+                  ))}
+                </Stack>
+              </Paper>
+
+              <Paper withBorder p="lg">
+                <Group justify="space-between" mb="md">
+                  <div>
+                    <Text fw={700}>Penugasan ekstrakurikuler</Text>
+                    <Text variant="description">
+                      Tetapkan pembina, periode, peserta, lokasi, kuota, dan status awal program.
+                    </Text>
+                  </div>
+                  <Button
+                    variant="light"
+                    size="xs"
+                    leftSection={<IconPlus size={15} />}
+                    onClick={addExtracurricularAssignment}
+                    disabled={!data.teachers.length || !data.extracurriculars.length}
+                  >
+                    Tambah pembina
+                  </Button>
+                </Group>
+                <Stack gap="sm">
+                  {extracurricularAssignments.map((assignment, index) => (
+                    <Paper withBorder p="md" key={assignment.id || index}>
+                      <Group align="flex-end" wrap="nowrap">
+                        <Select
+                          label="Ekstrakurikuler"
+                          data={data.extracurriculars.map((item) => ({
+                            value: item.id,
+                            label: `${item.code} — ${item.name}`,
+                          }))}
+                          value={assignment.extracurricular_id}
+                          onChange={(value) =>
+                            setExtracurricularAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      extracurricular_id: value || '',
+                                      student_ids: data.extracurriculars.find(
+                                        (extracurricular) => extracurricular.id === value,
+                                      )?.is_required
+                                        ? data.students.map((student) => student.id)
+                                        : [],
+                                    }
+                                  : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          className={styles.grow}
+                        />
+                        <Select
+                          label="Pembina"
+                          data={data.teachers.map((teacher) => ({
+                            value: teacher.id,
+                            label: `${teacher.name} — ${teacher.employee_code}`,
+                          }))}
+                          value={assignment.teacher_id}
+                          onChange={(value) =>
+                            setExtracurricularAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, teacher_id: value || '' } : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          className={styles.grow}
+                        />
+                        <Select
+                          label="Periode"
+                          data={[
+                            { value: 'all', label: 'Semua Semester' },
+                            ...data.semesters.map((semester) => ({
+                              value: semester.id,
+                              label: semester.name,
+                            })),
+                          ]}
+                          value={assignment.semester_id}
+                          onChange={(value) =>
+                            setExtracurricularAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, semester_id: value || 'all' }
+                                  : item,
+                              ),
+                            )
+                          }
+                          allowDeselect={false}
+                          className={styles.grow}
+                        />
+                        <TextInput
+                          label="Lokasi"
+                          placeholder="Lapangan sekolah"
+                          value={assignment.location}
+                          onChange={(event) =>
+                            setExtracurricularAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, location: event.currentTarget.value }
+                                  : item,
+                              ),
+                            )
+                          }
+                          className={styles.grow}
+                        />
+                        <NumberInput
+                          label="Kuota"
+                          min={0}
+                          max={1000}
+                          value={assignment.quota}
+                          onChange={(value) =>
+                            setExtracurricularAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, quota: value } : item,
+                              ),
+                            )
+                          }
+                          w={110}
+                        />
+                        <Select
+                          label="Status"
+                          data={[
+                            { value: 'active', label: 'Aktif' },
+                            { value: 'draft', label: 'Draft' },
+                          ]}
+                          value={assignment.status}
+                          onChange={(value) =>
+                            setExtracurricularAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, status: value as 'draft' | 'active' }
+                                  : item,
+                              ),
+                            )
+                          }
+                          allowDeselect={false}
+                          w={120}
+                        />
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          size="lg"
+                          aria-label="Hapus penugasan ekstrakurikuler"
+                          onClick={() =>
+                            setExtracurricularAssignments((current) =>
+                              current.filter((_, itemIndex) => itemIndex !== index),
+                            )
+                          }
+                        >
+                          <IconTrash size={17} />
+                        </ActionIcon>
+                      </Group>
+                      {data.extracurriculars.find(
+                        (extracurricular) => extracurricular.id === assignment.extracurricular_id,
+                      )?.is_required ? (
+                        <Alert color="blue" icon={<IconUsers size={18} />} mt="md">
+                          Ekstrakurikuler wajib otomatis mencakup seluruh {data.students.length}{' '}
+                          murid aktif. Peserta tidak perlu dipilih manual.
+                        </Alert>
+                      ) : (
+                        <MultiSelect
+                          label="Murid/peserta"
+                          placeholder="Pilih murid peserta ekstrakurikuler"
+                          description={`${assignment.student_ids.length} peserta dipilih${Number(assignment.quota) > 0 ? ` dari kuota ${assignment.quota}` : ''}. Daftar awal disalin dari tahun sebelumnya.`}
+                          data={data.students.map((student) => ({
+                            value: student.id,
+                            label: `${student.name} — ${student.nis} · ${student.source_class_name}`,
+                          }))}
+                          value={assignment.student_ids}
+                          onChange={(student_ids) =>
+                            setExtracurricularAssignments((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, student_ids } : item,
+                              ),
+                            )
+                          }
+                          searchable
+                          clearable
+                          mt="md"
+                        />
+                      )}
+                    </Paper>
+                  ))}
+                  {!extracurricularAssignments.length && (
+                    <Text variant="description">Belum ada penugasan ekstrakurikuler.</Text>
+                  )}
+                </Stack>
+              </Paper>
+
+              <WizardActions
+                onBack={() => setActiveStep(1)}
+                onNext={saveAssignments}
+                nextLabel="Simpan & lanjutkan ke pemetaan"
+                loading={saving || loading}
+              />
+            </Stack>
+          )}
+
+          {activeStep === 3 && data?.target_academic_year && (
             <Stack gap="xl">
               <Group justify="space-between" align="flex-end">
                 <Stack gap={5}>
@@ -940,10 +1485,10 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 </Table>
               </Table.ScrollContainer>
               <WizardActions
-                onBack={() => setActiveStep(0)}
+                onBack={() => setActiveStep(2)}
                 onNext={() => {
                   if (missingTargets > 0) setShowExceptions(true);
-                  setActiveStep(3);
+                  setActiveStep(4);
                 }}
                 nextLabel="Lanjutkan ke pengecualian"
                 disabled={sourceClassesWithoutTarget > 0}
@@ -951,7 +1496,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
             </Stack>
           )}
 
-          {activeStep === 3 && data && (
+          {activeStep === 4 && data && (
             <Stack gap="xl">
               <Stack gap={5}>
                 <Title order={3}>Atur pengecualian murid</Title>
@@ -1132,15 +1677,15 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 </Alert>
               )}
               <WizardActions
-                onBack={() => setActiveStep(2)}
-                onNext={() => setActiveStep(4)}
+                onBack={() => setActiveStep(3)}
+                onNext={() => setActiveStep(5)}
                 nextLabel="Tinjau hasil akhir"
                 disabled={missingTargets > 0}
               />
             </Stack>
           )}
 
-          {activeStep === 4 && data?.target_academic_year && (
+          {activeStep === 5 && data?.target_academic_year && (
             <Stack gap="xl">
               <Stack gap={5}>
                 <Title order={3}>Tinjau dan selesaikan</Title>
@@ -1186,7 +1731,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 aktif dan riwayat lama tetap tersimpan.
               </Alert>
               <WizardActions
-                onBack={() => setActiveStep(3)}
+                onBack={() => setActiveStep(4)}
                 onNext={finishTransition}
                 nextLabel={`Aktifkan ${data.target_academic_year.label} & proses murid`}
                 loading={saving}

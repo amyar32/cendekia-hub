@@ -86,6 +86,10 @@
   align-items: end;
 }
 
+.grow {
+  flex: 1;
+}
+
 .filterGrid :global(.mantine-InputWrapper-root) {
   width: 100%;
 }
@@ -177,12 +181,20 @@
     padding: 20px;
   }
 
+  .content :global(.mantine-Group-root) {
+    flex-wrap: wrap;
+  }
+
   .actions {
     align-items: stretch;
   }
 
   .actions button {
     flex: 1;
+  }
+
+  .grow {
+    flex-basis: 100%;
   }
 
   .warningPanel {

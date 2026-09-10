@@ -303,4 +303,39 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
   assert.equal(state.readiness.homeroom_assignments, true);
   assert.equal(state.readiness.extracurricular_assignments, true);
   assert.equal((await api('/api/modules/onboarding', 'POST', { action: 'complete' })).status, 409);
+
+  response = await api('/api/modules/academic-years', 'POST', {
+    name: '2027/2028',
+    start_date: '2027-07-01',
+    end_date: '2028-06-30',
+    is_active: false,
+    copy_from_academic_year_id: state.active_year.id,
+    copy_semesters: true,
+    copy_classrooms: true,
+    copy_teaching_assignments: true,
+    copy_homeroom_assignments: true,
+    copy_extracurricular_assignments: true,
+  });
+  assert.equal(response.status, 201);
+  const draft = await response.json();
+  response = await api(
+    `/api/modules/promotions?mode=transition&target_academic_year_id=${draft.id}`,
+  );
+  assert.equal(response.status, 200);
+  const transition = await response.json();
+  assert.ok(transition.teaching_assignments.length > 0);
+  assert.equal(transition.homeroom_assignments.length, transition.target_classes.length);
+  assert.ok(transition.extracurricular_assignments.length > 0);
+  assert.deepEqual(
+    [...transition.extracurricular_assignments[0].student_ids].sort(),
+    state.students.map((student: { id: string }) => student.id).sort(),
+  );
+  response = await api('/api/modules/promotions', 'POST', {
+    action: 'assignments',
+    target_academic_year_id: draft.id,
+    teaching_assignments: transition.teaching_assignments,
+    homeroom_assignments: transition.homeroom_assignments,
+    extracurricular_assignments: transition.extracurricular_assignments,
+  });
+  assert.equal(response.status, 200);
 });
