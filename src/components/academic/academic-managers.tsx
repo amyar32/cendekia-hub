@@ -166,27 +166,17 @@ const classroom: AcademicEntityConfig = {
     academic_year_id: '',
     grade_id: '',
     name: '',
-    capacity: 0,
     is_active: true,
   },
   fields: [
     { key: 'academic_year_id', label: 'Tahun ajaran', kind: 'select', required: true },
     { key: 'grade_id', label: 'Tingkat / kelas', kind: 'select', required: true },
     { key: 'name', label: 'Nama rombel', placeholder: 'Contoh: 7A', required: true },
-    {
-      key: 'capacity',
-      label: 'Kapasitas siswa',
-      kind: 'number',
-      min: 0,
-      max: 1000,
-      required: true,
-    },
   ],
   columns: [
     { key: 'name', label: 'NAMA' },
     { key: 'grade_name', label: 'TINGKAT' },
     { key: 'student_count', label: 'TERISI' },
-    { key: 'capacity', label: 'KAPASITAS' },
     { key: 'is_active', label: 'STATUS', kind: 'status' },
   ],
 };

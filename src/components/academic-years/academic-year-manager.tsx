@@ -43,7 +43,6 @@ type ClassroomForm = {
   grade_id: string;
   grade_name?: string;
   name: string;
-  capacity: number | string;
   is_active: boolean;
   student_count?: number;
 };
@@ -57,7 +56,6 @@ type AcademicYear = {
   semesters: Array<Omit<SemesterForm, 'is_active'> & { is_active: number }>;
   classrooms: Array<Omit<ClassroomForm, 'is_active'> & { is_active: number }>;
   student_count: number;
-  capacity: number;
 };
 type AcademicYearForm = {
   name: string;
@@ -188,7 +186,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
       <ModuleListLayout
         eyebrow="AKADEMIK"
         title="Tahun Ajaran"
-        description="Pantau periode, kesiapan struktur akademik, dan keterisian murid setiap tahun ajaran."
+        description="Pantau periode, kesiapan struktur akademik, dan jumlah murid setiap tahun ajaran."
         total={list.total}
         page={list.page}
         onPageChange={list.setPage}
@@ -200,7 +198,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
         onReload={list.reload}
         addLabel="Tambah tahun ajaran"
         onAdd={writable ? () => openEditor(null) : undefined}
-        note="Keterisian menghitung murid dengan penempatan aktif. Semester dan rombel dikelola dari menu Data Akademik."
+        note="Jumlah murid dihitung dari penempatan aktif. Semester dan rombel dikelola dari menu Data Akademik."
       >
         <Table.ScrollContainer minWidth={980}>
           <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
@@ -231,17 +229,9 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                   <Table.Td>{year.semesters.length}</Table.Td>
                   <Table.Td>{year.classrooms.length}</Table.Td>
                   <Table.Td>
-                    <Stack gap={2}>
-                      <Text fw={600} size="xs">
-                        {year.student_count} murid
-                        {year.capacity > 0 ? ` / ${year.capacity}` : ''}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {year.capacity > 0
-                          ? `${Math.round((year.student_count / year.capacity) * 100)}% terisi`
-                          : 'Kapasitas belum ditentukan'}
-                      </Text>
-                    </Stack>
+                    <Text fw={600} size="xs">
+                      {year.student_count} murid
+                    </Text>
                   </Table.Td>
                   <Table.Td>
                     <Badge variant="dot" color={year.is_active ? 'green' : 'gray'}>

@@ -163,7 +163,6 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
       classrooms: state.grades.map((grade: { id: string; name: string }) => ({
         grade_id: grade.id,
         name: grade.name.replace('Kelas ', ''),
-        capacity: 32,
       })),
     },
   });

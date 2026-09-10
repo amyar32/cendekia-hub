@@ -295,7 +295,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     academic_year_id: secondAcademicYear.id,
     grade_id: grade.id,
     name: '7A',
-    capacity: 32,
     is_active: true,
   });
   assert.equal(res.status, 201);
@@ -316,7 +315,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
         academic_year_id: secondAcademicYear.id,
         grade_id: '00000000-0000-4000-8000-000000000000',
         name: '7A',
-        capacity: 30,
         is_active: true,
       })
     ).status,
@@ -576,7 +574,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     academic_year_id: secondAcademicYear.id,
     grade_id: grade.id,
     name: '7C',
-    capacity: 32,
     is_active: true,
   });
   assert.equal(res.status, 201);
@@ -833,7 +830,6 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     academic_year_id: secondAcademicYear.id,
     grade_id: grade.id,
     name: '7B',
-    capacity: 32,
     is_active: true,
   });
   assert.equal(res.status, 201);
@@ -1161,7 +1157,6 @@ test('academic year context, bulk promotion, and historical reports', async () =
       {
         grade_id: sourceClass.grade_id,
         name: 'Rombel Tambahan',
-        capacity: 30,
         is_active: true,
       },
     ],
@@ -1543,7 +1538,6 @@ test('guided annual transition keeps the source active until finalization and ca
     target_academic_year_id: draft.id,
     grade_id: editableClass.grade_id,
     name: `${editableClass.name} Edit`,
-    capacity: editableClass.capacity + 1,
   });
   assert.equal(res.status, 200);
   const editedPreview = await (

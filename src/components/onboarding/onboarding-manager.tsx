@@ -85,7 +85,7 @@ type Semester = {
   end_date: string;
   is_active: boolean;
 };
-type Classroom = { id?: string; grade_id: string; name: string; capacity: number | string };
+type Classroom = { id?: string; grade_id: string; name: string };
 type Slot = {
   id?: string;
   name: string;
@@ -348,11 +348,10 @@ function onboardingAcademic(data: OnboardingData) {
       ...semester,
       is_active: Boolean(semester.is_active),
     })),
-    classrooms: data.active_year.classrooms.map(({ id, grade_id, name, capacity }) => ({
+    classrooms: data.active_year.classrooms.map(({ id, grade_id, name }) => ({
       id,
       grade_id,
       name,
-      capacity,
     })),
   };
 }
@@ -589,11 +588,10 @@ export function OnboardingManager({
           ...semester,
           is_active: Boolean(semester.is_active),
         })),
-        classrooms: result.active_year.classrooms.map(({ id, grade_id, name, capacity }) => ({
+        classrooms: result.active_year.classrooms.map(({ id, grade_id, name }) => ({
           id,
           grade_id,
           name,
-          capacity,
         })),
       } as ReturnType<typeof academicDefaults> & { id: string });
     setActiveDays(result.weekdays);
@@ -667,7 +665,6 @@ export function OnboardingManager({
       classrooms: grades.map((grade) => ({
         grade_id: grade.id || '',
         name: grade.name.replace('Kelas ', ''),
-        capacity: level === 'sd' ? 32 : 36,
       })),
     }));
   }
@@ -1521,22 +1518,6 @@ export function OnboardingManager({
                         className={styles.grow}
                         disabled={!writable}
                       />
-                      <NumberInput
-                        label="Kapasitas"
-                        min={0}
-                        max={1000}
-                        value={classroom.capacity}
-                        onChange={(value) =>
-                          setAcademic((current) => ({
-                            ...current,
-                            classrooms: current.classrooms.map((item, itemIndex) =>
-                              itemIndex === index ? { ...item, capacity: value } : item,
-                            ),
-                          }))
-                        }
-                        w={120}
-                        disabled={!writable}
-                      />
                       <Button
                         variant="subtle"
                         color="red"
@@ -1576,7 +1557,6 @@ export function OnboardingManager({
                           {
                             grade_id: grades[0]?.id || '',
                             name: '',
-                            capacity: level === 'sd' ? 32 : 36,
                           },
                         ],
                       }))

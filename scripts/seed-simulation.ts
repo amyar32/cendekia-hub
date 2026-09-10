@@ -235,7 +235,6 @@ database.transaction(() => {
       academic_year_id: ids.yearCurrent,
       grade_id: classroom.grade.id,
       name: classroom.name,
-      capacity: 36,
       is_active: 1,
     });
   const previousClasses = grades.slice(0, -1).flatMap((grade) =>
@@ -253,7 +252,6 @@ database.transaction(() => {
       academic_year_id: ids.yearPrevious,
       grade_id: classroom.grade.id,
       name: classroom.name,
-      capacity: 36,
       is_active: 0,
     });
   const subjects =

@@ -26,7 +26,6 @@ const createClassSchema = z.object({
   target_academic_year_id: z.string().uuid('Tahun ajaran tujuan tidak valid.'),
   grade_id: z.string().uuid('Tingkat / kelas tidak valid.'),
   name: z.string().trim().min(1, 'Nama rombel wajib diisi.').max(50),
-  capacity: z.coerce.number().int().min(0, 'Kapasitas tidak boleh negatif.').max(1000),
 });
 const updateClassSchema = createClassSchema.extend({
   id: z.string().uuid('Rombel tidak valid.'),
@@ -113,11 +112,10 @@ export async function GET(request: Request) {
       ? db()
           .prepare(
             `SELECT c.id AS value,c.name || ' — ' || g.name AS label,c.name,c.grade_id,
-                    c.capacity,count(cm.id) AS occupied,g.name AS grade_name,g.level_order
+                    g.name AS grade_name,g.level_order
              FROM classes c JOIN grades g ON g.id=c.grade_id
-             LEFT JOIN class_memberships cm ON cm.class_id=c.id AND cm.status='active'
              WHERE c.school_id=? AND c.academic_year_id=? AND c.is_active=1
-             GROUP BY c.id ORDER BY g.level_order,c.name`,
+             ORDER BY g.level_order,c.name`,
           )
           .all(schoolId, targetYear.id)
       : [];
@@ -192,10 +190,10 @@ export async function PUT(request: Request) {
     const id = randomUUID();
     db()
       .prepare(
-        `INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,capacity,is_active)
-         VALUES(?,?,?,?,?,?,1)`,
+        `INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,is_active)
+         VALUES(?,?,?,?,?,1)`,
       )
-      .run(id, schoolId, targetYear.id, input.grade_id, input.name, input.capacity);
+      .run(id, schoolId, targetYear.id, input.grade_id, input.name);
     audit(actor.email, 'create', 'classes', id, { ...input, via: 'annual-transition' });
     return Response.json({ ok: true, id }, { status: 201 });
   } catch (error) {
@@ -221,10 +219,10 @@ export async function PATCH(request: Request) {
 
     db()
       .prepare(
-        `UPDATE classes SET grade_id=?,name=?,capacity=?,updated_at=datetime('now')
+        `UPDATE classes SET grade_id=?,name=?,updated_at=datetime('now')
          WHERE id=? AND school_id=? AND academic_year_id=?`,
       )
-      .run(input.grade_id, input.name, input.capacity, input.id, schoolId, targetYear.id);
+      .run(input.grade_id, input.name, input.id, schoolId, targetYear.id);
     audit(actor.email, 'update', 'classes', input.id, {
       ...input,
       via: 'annual-transition',
@@ -274,15 +272,12 @@ export async function POST(request: Request) {
         (
           db()
             .prepare(
-              `SELECT c.id,c.capacity,g.level_order,count(cm.id) AS occupied FROM classes c
+              `SELECT c.id,g.level_order FROM classes c
                JOIN grades g ON g.id=c.grade_id
-               LEFT JOIN class_memberships cm ON cm.class_id=c.id AND cm.status='active'
-               WHERE c.school_id=? AND c.academic_year_id=? AND c.is_active=1 GROUP BY c.id`,
+               WHERE c.school_id=? AND c.academic_year_id=? AND c.is_active=1`,
             )
             .all(schoolId, targetYear.id) as {
             id: string;
-            capacity: number;
-            occupied: number;
             level_order: number;
           }[]
         ).map((row) => [row.id, row]),
@@ -294,7 +289,6 @@ export async function POST(request: Request) {
           .prepare('SELECT max(level_order) AS level FROM grades WHERE school_id=? AND is_active=1')
           .get(schoolId) as { level: number | null }
       ).level;
-      const additions = new Map<string, number>();
       const storedActions: Array<z.infer<typeof actionSchema> & { source_membership_id: string }> =
         [];
       for (const action of input.actions) {
@@ -338,7 +332,6 @@ export async function POST(request: Request) {
               400,
               'Rombel murid yang tinggal kelas harus berada pada tingkat yang sama.',
             );
-          additions.set(action.target_class_id, (additions.get(action.target_class_id) || 0) + 1);
         }
         if (
           input.activate_target &&
@@ -364,11 +357,6 @@ export async function POST(request: Request) {
             409,
             'Semua murid aktif harus ditinjau sebelum tahun ajaran baru diaktifkan.',
           );
-      }
-      for (const [targetId, count] of additions) {
-        const target = targets.get(targetId)!;
-        if (target.capacity > 0 && target.occupied + count > target.capacity)
-          throw new HttpError(409, 'Jumlah murid melebihi kapasitas salah satu rombel tujuan.');
       }
       db()
         .prepare(

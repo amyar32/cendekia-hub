@@ -13,7 +13,6 @@ import {
   Group,
   Loader,
   Modal,
-  NumberInput,
   Pagination,
   Paper,
   Select,
@@ -65,8 +64,6 @@ type TargetClass = Option & {
   grade_id: string;
   grade_name: string;
   level_order: number;
-  capacity: number;
-  occupied: number;
 };
 type GradeOption = Option & { level_order?: number };
 type Student = {
@@ -92,7 +89,7 @@ type PromotionData = {
   max_grade_level: number | null;
 };
 type YearForm = { name: string; start_date: string; end_date: string };
-type ClassForm = { name: string; grade_id: string; capacity: number | '' };
+type ClassForm = { name: string; grade_id: string };
 const EXCEPTION_PAGE_SIZE = 20;
 const transitionSteps = [
   { label: 'Tahun baru', description: 'Periode' },
@@ -162,7 +159,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
   const [exceptionPage, setExceptionPage] = useState(1);
   const [newClassOpened, setNewClassOpened] = useState(false);
   const [editingClass, setEditingClass] = useState<TargetClass | null>(null);
-  const [classForm, setClassForm] = useState<ClassForm>({ name: '', grade_id: '', capacity: '' });
+  const [classForm, setClassForm] = useState<ClassForm>({ name: '', grade_id: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -248,18 +245,6 @@ export function PromotionManager({ writable }: { writable: boolean }) {
     [actions],
   );
 
-  const capacityIssues = useMemo(() => {
-    if (!data) return [];
-    const totals = new Map<string, number>();
-    for (const action of Object.values(actions))
-      if (action.target_class_id)
-        totals.set(action.target_class_id, (totals.get(action.target_class_id) || 0) + 1);
-    return data.target_classes.filter(
-      (target) =>
-        target.capacity > 0 && target.occupied + (totals.get(target.value) || 0) > target.capacity,
-    );
-  }, [actions, data]);
-
   const isException = useCallback(
     (student: Student, action: Action) => {
       const graduated = student.source_level_order === data?.max_grade_level;
@@ -304,7 +289,6 @@ export function PromotionManager({ writable }: { writable: boolean }) {
     setClassForm({
       name: target.name,
       grade_id: target.grade_id,
-      capacity: target.capacity,
     });
     setNewClassOpened(true);
   }
@@ -426,11 +410,11 @@ export function PromotionManager({ writable }: { writable: boolean }) {
 
   async function createClass() {
     if (!data?.target_academic_year) return;
-    if (!classForm.name || !classForm.grade_id || classForm.capacity === '') {
+    if (!classForm.name || !classForm.grade_id) {
       notifications.show({
         color: 'red',
         title: 'Data belum lengkap',
-        message: 'Isi tingkat, nama, dan kapasitas rombel.',
+        message: 'Isi tingkat dan nama rombel.',
       });
       return;
     }
@@ -466,7 +450,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
       }
       setNewClassOpened(false);
       setEditingClass(null);
-      setClassForm({ name: '', grade_id: '', capacity: '' });
+      setClassForm({ name: '', grade_id: '' });
       await load(data.target_academic_year.value, true);
       notifications.show({
         color: 'green',
@@ -772,7 +756,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 <CopyCard
                   icon={<IconUsersGroup size={22} />}
                   title="Rombel"
-                  detail={`${data.source_classes.length} rombel beserta kapasitas`}
+                  detail={`${data.source_classes.length} rombel`}
                   checked
                   disabled
                 />
@@ -834,7 +818,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                   leftSection={<IconPlus size={17} />}
                   onClick={() => {
                     setEditingClass(null);
-                    setClassForm({ name: '', grade_id: '', capacity: '' });
+                    setClassForm({ name: '', grade_id: '' });
                     setNewClassOpened(true);
                   }}
                 >
@@ -843,14 +827,12 @@ export function PromotionManager({ writable }: { writable: boolean }) {
               </Group>
               <Paper withBorder p="md">
                 <Stack gap="sm">
-                  <Text fw={650}>Rombel tahun baru</Text>
                   <Table.ScrollContainer minWidth={520}>
                     <Table verticalSpacing="sm" highlightOnHover>
                       <Table.Thead>
                         <Table.Tr>
                           <Table.Th>NAMA</Table.Th>
                           <Table.Th>TINGKAT</Table.Th>
-                          <Table.Th>KAPASITAS</Table.Th>
                           <Table.Th ta="right">AKSI</Table.Th>
                         </Table.Tr>
                       </Table.Thead>
@@ -859,7 +841,6 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                           <Table.Tr key={target.value}>
                             <Table.Td>{target.name}</Table.Td>
                             <Table.Td>{target.grade_name}</Table.Td>
-                            <Table.Td>{target.capacity || 'Tanpa batas'}</Table.Td>
                             <Table.Td ta="right">
                               <ActionIcon
                                 variant="subtle"
@@ -895,7 +876,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                         .filter((item) => item.level_order === sourceClass.level_order + 1)
                         .map((item) => ({
                           value: item.value,
-                          label: `${item.label} · ${item.occupied}/${item.capacity || '∞'}`,
+                          label: item.label,
                         }));
                       const ready = graduating || Boolean(mappings[sourceClass.id]);
                       return (
@@ -1167,25 +1148,10 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 <SummaryCard color="grape" value={summary.graduated || 0} label="Lulus" />
                 <SummaryCard color="gray" value={summary.withdrawn || 0} label="Pindah / keluar" />
               </SimpleGrid>
-              {capacityIssues.length > 0 ? (
-                <Alert
-                  color="red"
-                  icon={<IconAlertTriangle size={18} />}
-                  title="Kapasitas rombel perlu diperbaiki"
-                >
-                  {capacityIssues.map((item) => item.label).join(', ')} melebihi kapasitas yang
-                  ditentukan.
-                </Alert>
-              ) : (
-                <Alert
-                  color="green"
-                  icon={<IconCheck size={18} />}
-                  title="Semua pemeriksaan selesai"
-                >
-                  Dua semester siap, {data.target_classes.length} rombel tersedia, dan tidak ada
-                  rombel yang melebihi kapasitas.
-                </Alert>
-              )}
+              <Alert color="green" icon={<IconCheck size={18} />} title="Semua pemeriksaan selesai">
+                Dua semester siap dan {data.target_classes.length} rombel tersedia untuk tahun
+                ajaran baru.
+              </Alert>
               <Alert
                 color="gray"
                 icon={<IconCalendarEvent size={18} />}
@@ -1199,7 +1165,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 onNext={finishTransition}
                 nextLabel={`Aktifkan ${data.target_academic_year.label} & proses murid`}
                 loading={saving}
-                disabled={missingTargets > 0 || capacityIssues.length > 0}
+                disabled={missingTargets > 0}
                 nextIcon={<IconCheck size={17} />}
               />
             </Stack>
@@ -1211,7 +1177,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
         onClose={() => {
           setNewClassOpened(false);
           setEditingClass(null);
-          setClassForm({ name: '', grade_id: '', capacity: '' });
+          setClassForm({ name: '', grade_id: '' });
         }}
         title={editingClass ? 'Edit rombel' : 'Tambah rombel baru'}
         centered
@@ -1239,27 +1205,13 @@ export function PromotionManager({ writable }: { writable: boolean }) {
             }}
             required
           />
-          <NumberInput
-            label="Kapasitas"
-            placeholder="Contoh: 32"
-            min={0}
-            max={1000}
-            value={classForm.capacity}
-            onChange={(value) =>
-              setClassForm((current) => ({
-                ...current,
-                capacity: typeof value === 'number' ? value : '',
-              }))
-            }
-            required
-          />
           <Group justify="flex-end">
             <Button
               variant="default"
               onClick={() => {
                 setNewClassOpened(false);
                 setEditingClass(null);
-                setClassForm({ name: '', grade_id: '', capacity: '' });
+                setClassForm({ name: '', grade_id: '' });
               }}
             >
               Batal

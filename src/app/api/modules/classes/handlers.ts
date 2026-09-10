@@ -17,7 +17,6 @@ const schema = z.object({
   academic_year_id: z.string().uuid('Tahun ajaran tidak valid.'),
   grade_id: z.string().uuid('Tingkat / kelas tidak valid.'),
   name: z.string().trim().min(1, 'Nama wajib diisi.').max(50),
-  capacity: z.coerce.number().int().min(0, 'Kapasitas tidak boleh negatif.').max(1000),
   is_active: z.boolean().default(true),
 });
 export async function GET(request: Request) {
@@ -116,31 +115,15 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         if (method === 'POST')
           db()
             .prepare(
-              `INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,capacity,is_active) VALUES(?,?,?,?,?,?,?)`,
+              `INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,is_active) VALUES(?,?,?,?,?,?)`,
             )
-            .run(
-              id,
-              schoolId,
-              academicYearId,
-              data.grade_id,
-              data.name,
-              data.capacity,
-              Number(data.is_active),
-            );
+            .run(id, schoolId, academicYearId, data.grade_id, data.name, Number(data.is_active));
         else
           db()
             .prepare(
-              `UPDATE classes SET academic_year_id=?,grade_id=?,name=?,capacity=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
+              `UPDATE classes SET academic_year_id=?,grade_id=?,name=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
             )
-            .run(
-              academicYearId,
-              data.grade_id,
-              data.name,
-              data.capacity,
-              Number(data.is_active),
-              id,
-              schoolId,
-            );
+            .run(academicYearId, data.grade_id, data.name, Number(data.is_active), id, schoolId);
       }
       audit(
         actor.email,

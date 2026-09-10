@@ -27,7 +27,6 @@ const classroomSchema = z.object({
   id: z.string().uuid('ID rombel tidak valid.').optional(),
   grade_id: z.string().uuid('Tingkat / kelas tidak valid.'),
   name: z.string().trim().min(1, 'Nama rombel wajib diisi.').max(50),
-  capacity: z.coerce.number().int().min(0, 'Kapasitas tidak boleh negatif.').max(1000),
   is_active: z.boolean().default(true),
 });
 
@@ -185,7 +184,7 @@ export async function GET(request: Request) {
               .all(year.id),
             classrooms: db()
               .prepare(
-                `SELECT c.id,c.grade_id,c.name,c.capacity,c.is_active,g.name AS grade_name
+                `SELECT c.id,c.grade_id,c.name,c.is_active,g.name AS grade_name
                  FROM classes c JOIN grades g ON g.id=c.grade_id
                  WHERE c.school_id=? AND c.academic_year_id=? ORDER BY g.level_order,c.name`,
               )
@@ -208,12 +207,12 @@ export async function GET(request: Request) {
     const rows = baseRows.map((year) => {
       const classrooms = db()
         .prepare(
-          `SELECT c.id,c.grade_id,c.name,c.capacity,c.is_active,g.name AS grade_name,
+          `SELECT c.id,c.grade_id,c.name,c.is_active,g.name AS grade_name,
              (SELECT count(*) FROM class_memberships cm WHERE cm.class_id=c.id AND cm.academic_year_id=? AND cm.status='active') AS student_count
            FROM classes c JOIN grades g ON g.id=c.grade_id
            WHERE c.school_id=? AND c.academic_year_id=? ORDER BY g.level_order,c.name`,
         )
-        .all(year.id, schoolId, year.id) as Array<{ capacity: number; student_count: number }>;
+        .all(year.id, schoolId, year.id) as Array<{ student_count: number }>;
       return {
         ...year,
         semesters: db()
@@ -224,7 +223,6 @@ export async function GET(request: Request) {
           .all(year.id),
         classrooms,
         student_count: classrooms.reduce((total, classroom) => total + classroom.student_count, 0),
-        capacity: classrooms.reduce((total, classroom) => total + classroom.capacity, 0),
       };
     });
     const total = (
@@ -319,13 +317,12 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           if (copy.copy_classrooms && (!input.classrooms || input.classrooms.length === 0)) {
             const sourceClassrooms = db()
               .prepare(
-                `SELECT grade_id,name,capacity,is_active FROM classes
+                `SELECT grade_id,name,is_active FROM classes
                  WHERE school_id=? AND academic_year_id=? ORDER BY name`,
               )
               .all(schoolId, sourceYear.id) as Array<{
               grade_id: string;
               name: string;
-              capacity: number;
               is_active: number;
             }>;
             normalizedInput = {
@@ -450,13 +447,12 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           if (classroom.id)
             db()
               .prepare(
-                `UPDATE classes SET grade_id=?,name=?,capacity=?,is_active=?,updated_at=datetime('now')
+                `UPDATE classes SET grade_id=?,name=?,is_active=?,updated_at=datetime('now')
                  WHERE id=? AND school_id=? AND academic_year_id=?`,
               )
               .run(
                 classroom.grade_id,
                 classroom.name,
-                classroom.capacity,
                 Number(classroom.is_active),
                 classroomId,
                 schoolId,
@@ -465,8 +461,8 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           else
             db()
               .prepare(
-                `INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,capacity,is_active)
-                 VALUES(?,?,?,?,?,?,?)`,
+                `INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,is_active)
+                 VALUES(?,?,?,?,?,?)`,
               )
               .run(
                 classroomId,
@@ -474,7 +470,6 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
                 id,
                 classroom.grade_id,
                 classroom.name,
-                classroom.capacity,
                 Number(classroom.is_active),
               );
         }

@@ -144,7 +144,6 @@ const classroomSchema = z.object({
   id: z.string().uuid().optional(),
   grade_id: z.string().uuid('Tingkat rombel tidak valid.'),
   name: z.string().trim().min(1, 'Nama rombel wajib diisi.').max(50),
-  capacity: z.coerce.number().int().min(0).max(1000),
 });
 const academicSchema = z
   .object({
@@ -427,7 +426,7 @@ export function onboardingState() {
   const classrooms = activeYear
     ? db()
         .prepare(
-          `SELECT c.id,c.grade_id,c.name,c.capacity,c.is_active,g.name AS grade_name
+          `SELECT c.id,c.grade_id,c.name,c.is_active,g.name AS grade_name
                   FROM classes c JOIN grades g ON g.id=c.grade_id
                   WHERE c.school_id=? AND c.academic_year_id=? ORDER BY g.level_order,c.name`,
         )
@@ -871,30 +870,16 @@ export async function POST(request: Request) {
             if (existing)
               db()
                 .prepare(
-                  `UPDATE classes SET grade_id=?,name=?,capacity=?,is_active=1,
+                  `UPDATE classes SET grade_id=?,name=?,is_active=1,
                             updated_at=datetime('now') WHERE id=? AND school_id=? AND academic_year_id=?`,
                 )
-                .run(
-                  classroom.grade_id,
-                  classroom.name,
-                  classroom.capacity,
-                  classroomId,
-                  schoolId,
-                  yearId,
-                );
+                .run(classroom.grade_id, classroom.name, classroomId, schoolId, yearId);
             else
               db()
                 .prepare(
-                  'INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,capacity,is_active) VALUES(?,?,?,?,?,?,1)',
+                  'INSERT INTO classes(id,school_id,academic_year_id,grade_id,name,is_active) VALUES(?,?,?,?,?,1)',
                 )
-                .run(
-                  classroomId,
-                  schoolId,
-                  yearId,
-                  classroom.grade_id,
-                  classroom.name,
-                  classroom.capacity,
-                );
+                .run(classroomId, schoolId, yearId, classroom.grade_id, classroom.name);
           }
         } else if (input.action === 'schedule') {
           db()

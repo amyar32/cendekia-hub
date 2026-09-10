@@ -26,13 +26,12 @@ export async function POST(request: Request) {
 
     const sourceClasses = db()
       .prepare(
-        `SELECT name,grade_id,capacity FROM classes
+        `SELECT name,grade_id FROM classes
          WHERE school_id=? AND academic_year_id=? AND is_active=1 ORDER BY name`,
       )
       .all(schoolId, sourceYear.id) as {
       name: string;
       grade_id: string;
-      capacity: number;
     }[];
     if (!sourceClasses.length)
       throw new HttpError(409, 'Tahun ajaran asal belum memiliki rombel untuk disalin.');
@@ -41,8 +40,8 @@ export async function POST(request: Request) {
     db().transaction(() => {
       const insert = db().prepare(
         `INSERT OR IGNORE INTO classes
-         (id,school_id,academic_year_id,grade_id,name,capacity,is_active)
-         VALUES(?,?,?,?,?,?,?)`,
+         (id,school_id,academic_year_id,grade_id,name,is_active)
+         VALUES(?,?,?,?,?,?)`,
       );
       for (const classroom of sourceClasses)
         created += insert.run(
@@ -51,7 +50,6 @@ export async function POST(request: Request) {
           targetYear.id,
           classroom.grade_id,
           classroom.name,
-          classroom.capacity,
           1,
         ).changes;
       audit(actor.email, 'copy', 'classes', undefined, {
