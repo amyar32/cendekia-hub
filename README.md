@@ -4,7 +4,7 @@ Boilerplate CMS modular menggunakan **Next.js 16 App Router, React 19, TypeScrip
 
 ## Menjalankan lokal
 
-Gunakan Node.js **22.13+** dan npm. `package-lock.json` adalah satu-satunya lockfile yang digunakan.
+Gunakan Node.js **24+** dan npm. `package-lock.json` adalah satu-satunya lockfile yang digunakan.
 
 ```bash
 npm install
