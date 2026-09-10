@@ -3,6 +3,11 @@
   padding: 28px;
 }
 
+.signatureUploader {
+  width: 100%;
+  margin-top: 16px;
+}
+
 @media (max-width: 480px) {
   .panel {
     padding: 20px;

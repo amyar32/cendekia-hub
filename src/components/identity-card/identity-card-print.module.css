@@ -6,8 +6,8 @@
 .page {
   min-height: 100vh;
   padding: 24px;
-  color: #4c4d4f;
-  background: #f3efed;
+  color: var(--app-color-text);
+  background: var(--app-color-background);
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -18,9 +18,9 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid #ebe7e4;
+  border: 1px solid var(--app-color-border);
   border-radius: 12px;
-  background: white;
+  background: var(--app-color-surface);
 }
 
 .toolbar > div {
@@ -34,17 +34,17 @@
 }
 
 .toolbar span {
-  color: #858587;
+  color: var(--app-color-muted);
   font-size: 11px;
 }
 
 .toolbar a,
 .toolbar button {
   padding: 9px 13px;
-  border: 1px solid #e4dcd8;
+  border: 1px solid var(--app-color-border);
   border-radius: 8px;
-  color: #58595b;
-  background: white;
+  color: var(--app-color-text);
+  background: var(--app-color-surface);
   font: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -52,277 +52,25 @@
 }
 
 .toolbar button {
-  color: white;
-  border-color: #e15f37;
-  background: #e15f37;
+  color: var(--app-color-surface);
+  border-color: var(--app-color-brand);
+  background: var(--app-color-brand);
 }
 
 .sheet {
-  width: min-content;
+  width: 90mm;
+  box-sizing: content-box;
   margin: auto;
   padding: 20px;
-  background: white;
-  box-shadow: 0 15px 50px rgba(70, 49, 41, 0.14);
-}
-
-.card {
-  --brand: #e15f37;
-  --brand-strong: #c94e29;
-  position: relative;
-  width: 90mm;
-  height: 55mm;
-  overflow: hidden;
-  border: 0.25mm solid #eaded8;
-  border-radius: 3mm;
-  background: linear-gradient(145deg, #fffdfa 0%, #fff8f4 58%, #fceee8 100%);
-  display: flex;
-  flex-direction: column;
-  isolation: isolate;
-  print-color-adjust: exact;
-  -webkit-print-color-adjust: exact;
-}
-
-.card::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  z-index: 3;
-  width: 1mm;
-  content: '';
-  background: linear-gradient(var(--brand), #f39a78);
-}
-
-.orb {
-  position: absolute;
-  z-index: -1;
-  right: -12mm;
-  bottom: -18mm;
-  width: 44mm;
-  height: 44mm;
-  border: 7mm solid rgba(225, 95, 55, 0.06);
-  border-radius: 50%;
-}
-
-.card header {
-  min-height: 12.6mm;
-  padding: 2mm 3.5mm 1.7mm 4.3mm;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2mm;
-  border-bottom: 0.25mm solid #f0dfd7;
-  background: rgba(255, 255, 255, 0.84);
-}
-
-.brand {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 1.8mm;
-}
-
-.brand img,
-.logo {
-  width: 8.8mm;
-  height: 8.8mm;
-  flex-shrink: 0;
-  object-fit: contain;
-  padding: 0.45mm;
-  border: 0.2mm solid #f0ded6;
-  border-radius: 2mm;
-  background: white;
-}
-
-.logo {
-  display: grid;
-  place-items: center;
-  color: white;
-  border: 0;
-  background: var(--brand);
-  font-size: 2.4mm;
-  font-weight: 900;
-}
-
-.brand h1 {
-  max-width: 54mm;
-  margin: 0;
-  color: #3f4042;
-  font-size: 3.25mm;
-  line-height: 1.1;
-  overflow-wrap: anywhere;
-}
-
-.brand p {
-  margin: 0.7mm 0 0;
-  color: #9b8176;
-  font-size: 1.1mm;
-  font-weight: 700;
-  letter-spacing: 0.13em;
-}
-
-.title {
-  flex-shrink: 0;
-  padding: 1.25mm 1.8mm;
-  border-radius: 99px;
-  color: white;
-  background: var(--brand);
-  font-size: 1.3mm;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-}
-
-.content {
-  flex: 1;
-  min-height: 0;
-  padding: 2.5mm 3.5mm 1.8mm 4.3mm;
-  display: grid;
-  grid-template-columns: 19mm minmax(0, 1fr) 21.5mm;
-  align-items: start;
-  gap: 2.7mm;
-}
-
-.photoBlock {
-  text-align: center;
-}
-
-.photoBlock img,
-.photoFallback {
-  width: 19mm;
-  height: 22mm;
-  object-fit: cover;
-  border: 0.55mm solid white;
-  outline: 0.3mm solid #efb5a1;
-  border-radius: 2.2mm;
-  background: #f6ded5;
-}
-
-.photoFallback {
-  display: grid;
-  place-items: center;
-  color: var(--brand-strong);
-  font-size: 4mm;
-  font-weight: 900;
-}
-
-.photoBlock > span {
-  display: block;
-  width: max-content;
-  margin: 1.15mm auto 0;
-  padding: 0.65mm 1.2mm;
-  border-radius: 99px;
-  color: var(--brand-strong);
-  background: #fce7df;
-  font-size: 1.05mm;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-}
-
-.identity {
-  min-width: 0;
-}
-
-.identity h2 {
-  margin: 0 0 1.3mm;
-  padding-bottom: 1.25mm;
-  border-bottom: 0.35mm solid #f2d5ca;
-  color: #363739;
-  font-size: 3.35mm;
-  line-height: 1.05;
-  overflow-wrap: anywhere;
-}
-
-.identity dl {
-  margin: 0;
-  display: grid;
-  gap: 0.67mm;
-}
-
-.identity dl > div {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 9mm minmax(0, 1fr);
-  gap: 0.8mm;
-  font-size: 1.85mm;
-  line-height: 1.17;
-}
-
-.identity dt {
-  color: #a07868;
-  font-size: 1.55mm;
-  font-weight: 700;
-}
-
-.identity dd {
-  margin: 0;
-  color: #515254;
-  font-weight: 800;
-  overflow-wrap: anywhere;
-}
-
-.identity .address dd {
-  white-space: normal;
-}
-
-.qr {
-  align-self: center;
-  padding: 1mm;
-  border: 0.3mm solid #f1c1b0;
-  border-radius: 2.2mm;
-  text-align: center;
-  background: white;
-}
-
-.qr img {
-  width: 19.2mm;
-  height: 19.2mm;
-  display: block;
-}
-
-.qr b,
-.qr span {
-  display: block;
-}
-
-.qr b {
-  margin-top: 0.45mm;
-  color: var(--brand-strong);
-  font-size: 1mm;
-  letter-spacing: 0.05em;
-}
-
-.qr span {
-  margin-top: 0.25mm;
-  color: #95857e;
-  font-size: 1.15mm;
-  font-weight: 700;
-}
-
-.card footer {
-  min-height: 4.4mm;
-  padding: 0.8mm 3.5mm 0.8mm 4.3mm;
-  display: flex;
-  align-items: center;
-  gap: 2mm;
-  color: white;
-  background: linear-gradient(100deg, var(--brand-strong), var(--brand));
-}
-
-.card footer b {
-  flex-shrink: 0;
-  font-size: 0.95mm;
-  letter-spacing: 0.08em;
-}
-
-.card footer span {
-  margin-left: auto;
-  font-size: 0.95mm;
-  opacity: 0.9;
+  background: var(--app-color-surface);
+  box-shadow: 0 15px 50px color-mix(in srgb, var(--app-color-text) 14%, transparent);
 }
 
 @media print {
   .page {
     min-height: 0;
     padding: 0;
-    background: white;
+    background: var(--app-color-surface);
   }
   .toolbar {
     display: none;
@@ -347,7 +95,6 @@
     width: 100%;
   }
   .sheet {
-    width: 100%;
     overflow: auto;
   }
 }

@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
-import { Avatar, Button, Group, Loader, Modal, Stack, Text } from '@mantine/core';
+import { IdentityCard } from './identity-card';
+import { Button, Group, Loader, Modal, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconPrinter, IconRefresh } from '@tabler/icons-react';
 import QRCode from 'qrcode';
@@ -23,6 +23,13 @@ type Card = {
   employment_status?: string;
   school_name: string;
   logo_url: string;
+  school_npsn: string;
+  school_phone: string;
+  school_email: string;
+  school_address: string;
+  principal_name: string;
+  principal_nip: string;
+  principal_signature_url: string;
   qr_value: string;
 };
 
@@ -76,7 +83,7 @@ export function IdentityCardModal({
       setQr(
         await QRCode.toDataURL(result.qr_value, {
           width: 560,
-          margin: 1,
+          margin: 4,
           errorCorrectionLevel: 'M',
         }),
       );
@@ -120,86 +127,35 @@ export function IdentityCardModal({
         ) : card ? (
           <Stack>
             <div className={styles.printArea}>
-              <div className={styles.card}>
-                <div className={styles.decorativeOrb} />
-                <div className={styles.header}>
-                  <div className={styles.brandBlock}>
-                    {card.logo_url ? (
-                      <Image
-                        src={card.logo_url}
-                        alt="Logo sekolah"
-                        width={52}
-                        height={52}
-                        unoptimized
-                      />
-                    ) : (
-                      <div className={styles.logoFallback}>CH</div>
-                    )}
-                    <div>
-                      <Text className={styles.school}>{card.school_name}</Text>
-                      <Text className={styles.schoolCaption}>
-                        CENDEKIA HUB · {isTeacher ? 'TEACHER' : 'STUDENT'} SERVICES
-                      </Text>
-                    </div>
-                  </div>
-                  <Text className={styles.cardLabel}>KARTU {isTeacher ? 'GURU' : 'SISWA'}</Text>
-                </div>
-                <div className={styles.content}>
-                  <div className={styles.photoColumn}>
-                    <Avatar
-                      src={card.photo_url}
-                      alt={`Foto ${card.name}`}
-                      size={128}
-                      radius={18}
-                      className={styles.photo}
-                    />
-                    <Text className={styles.activeBadge}>{isTeacher ? 'GURU' : 'SISWA'} AKTIF</Text>
-                  </div>
-                  <div className={styles.identity}>
-                    <Text className={styles.name}>{card.name}</Text>
-                    <div className={styles.dataGrid}>
-                      <div>
-                        <span>{isTeacher ? 'KODE' : 'NIS'}</span>
-                        <strong>{isTeacher ? card.employee_code : card.nis}</strong>
-                      </div>
-                      <div>
-                        <span>{isTeacher ? 'NIP' : 'NISN'}</span>
-                        <strong>{isTeacher ? card.nip || '—' : card.nisn || '—'}</strong>
-                      </div>
-                      <div>
-                        <span>{isTeacher ? 'LAHIR' : 'TTL'}</span>
-                        <strong>{formatBirth(card)}</strong>
-                      </div>
-                      <div className={styles.address}>
-                        <span>Alamat</span>
-                        <strong>{card.address || '—'}</strong>
-                      </div>
-                    </div>
-                  </div>
-                  <div className={styles.qrWrap}>
-                    {qr ? (
-                      <Image
-                        src={qr}
-                        alt={`QR cek-in ${isTeacher ? 'guru' : 'siswa'}`}
-                        width={116}
-                        height={116}
-                        unoptimized
-                      />
-                    ) : (
-                      <Loader size="sm" />
-                    )}
-                    <Text>PINDAI UNTUK CEK-IN</Text>
-                    <span>{isTeacher ? card.employee_code : card.nis}</span>
-                  </div>
-                </div>
-                <div className={styles.footer}>
-                  <span>KARTU IDENTITAS RESMI</span>
-                  <p>
-                    Kartu hanya berlaku untuk {isTeacher ? 'guru' : 'siswa'} yang namanya tercantum
-                    dan tidak dapat dipindahtangankan.
-                  </p>
-                </div>
-              </div>
+              <IdentityCard
+                card={card}
+                personType={personType}
+                qr={qr}
+                photoCaption={
+                  isTeacher
+                    ? {
+                        permanent: 'Guru tetap',
+                        contract: 'Guru kontrak',
+                        honorary: 'Guru honorer',
+                      }[card.employment_status || ''] || '—'
+                    : undefined
+                }
+                fields={[
+                  {
+                    label: isTeacher ? 'Kode' : 'NIS',
+                    value: isTeacher ? card.employee_code || '' : card.nis,
+                  },
+                  {
+                    label: isTeacher ? 'NIP' : 'NISN',
+                    value: isTeacher ? card.nip || '' : card.nisn,
+                  },
+                  { label: isTeacher ? 'Lahir' : 'TTL', value: formatBirth(card) },
+                  {
+                    label: 'Alamat',
+                    value: card.address,
+                  },
+                ]}
+              />
             </div>
             <Group justify="space-between" className={styles.actions}>
               {writable ? (

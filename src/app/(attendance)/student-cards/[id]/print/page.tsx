@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { IdentityCard } from '@/components/identity-card/identity-card';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import QRCode from 'qrcode';
@@ -26,7 +26,10 @@ export default async function StudentCardPrintPage({ params }: Params) {
   const card = db()
     .prepare(
       `SELECT s.id,s.nis,s.nisn,s.name,s.photo_url,s.birth_place,s.birth_date,s.address,s.qr_token,
-        school.name AS school_name,school.logo_url
+        school.name AS school_name,school.logo_url,school.npsn AS school_npsn,
+        school.phone AS school_phone,school.email AS school_email,
+        school.address AS school_address,school.principal_name,school.principal_nip,
+        school.principal_signature_url
        FROM students s JOIN schools school ON school.id=s.school_id
        WHERE s.id=? AND s.school_id=?`,
     )
@@ -43,12 +46,19 @@ export default async function StudentCardPrintPage({ params }: Params) {
         qr_token: string;
         school_name: string;
         logo_url: string;
+        school_npsn: string;
+        school_phone: string;
+        school_email: string;
+        school_address: string;
+        principal_name: string;
+        principal_nip: string;
+        principal_signature_url: string;
       }
     | undefined;
   if (!card) notFound();
   const qr = await QRCode.toDataURL(`cendekia:checkin:${card.qr_token}`, {
     width: 700,
-    margin: 1,
+    margin: 4,
     errorCorrectionLevel: 'M',
   });
   const birthDate = card.birth_date
@@ -72,72 +82,17 @@ export default async function StudentCardPrintPage({ params }: Params) {
         <CardPrintTrigger />
       </div>
       <section className={styles.sheet}>
-        <article className={styles.card}>
-          <div className={styles.orb} />
-          <header>
-            <div className={styles.brand}>
-              {card.logo_url ? (
-                <Image src={card.logo_url} alt="Logo sekolah" width={54} height={54} unoptimized />
-              ) : (
-                <div className={styles.logo}>CH</div>
-              )}
-              <div>
-                <h1>{card.school_name}</h1>
-                <p>CENDEKIA HUB · STUDENT SERVICES</p>
-              </div>
-            </div>
-            <span className={styles.title}>KARTU SISWA</span>
-          </header>
-          <div className={styles.content}>
-            <div className={styles.photoBlock}>
-              {card.photo_url ? (
-                <Image
-                  src={card.photo_url}
-                  alt={`Foto ${card.name}`}
-                  width={138}
-                  height={154}
-                  unoptimized
-                />
-              ) : (
-                <div className={styles.photoFallback}>{card.name.slice(0, 2).toUpperCase()}</div>
-              )}
-              <span>SISWA AKTIF</span>
-            </div>
-            <div className={styles.identity}>
-              <h2>{card.name}</h2>
-              <dl>
-                <div>
-                  <dt>NIS</dt>
-                  <dd>{card.nis}</dd>
-                </div>
-                <div>
-                  <dt>NISN</dt>
-                  <dd>{card.nisn || '—'}</dd>
-                </div>
-                <div>
-                  <dt>TTL</dt>
-                  <dd>{birth}</dd>
-                </div>
-                <div className={styles.address}>
-                  <dt>Alamat</dt>
-                  <dd>{card.address || '—'}</dd>
-                </div>
-              </dl>
-            </div>
-            <div className={styles.qr}>
-              <Image src={qr} alt="QR cek-in siswa" width={136} height={136} unoptimized />
-              <b>PINDAI UNTUK CEK-IN</b>
-              <span>{card.nis}</span>
-            </div>
-          </div>
-          <footer>
-            <b>KARTU IDENTITAS RESMI</b>
-            <span>
-              Kartu hanya berlaku untuk siswa yang namanya tercantum dan tidak dapat
-              dipindahtangankan.
-            </span>
-          </footer>
-        </article>
+        <IdentityCard
+          card={card}
+          personType="student"
+          qr={qr}
+          fields={[
+            { label: 'NIS', value: card.nis },
+            { label: 'NISN', value: card.nisn },
+            { label: 'TTL', value: birth },
+            { label: 'Alamat', value: card.address },
+          ]}
+        />
       </section>
     </main>
   );

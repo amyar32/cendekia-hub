@@ -11,6 +11,13 @@ export const uploadScopes = {
     maxBytes: 5 * 1024 * 1024,
     kind: 'image',
   },
+  'school.principal-signature': {
+    readPermission: 'school.read',
+    writePermission: 'school.write',
+    public: true,
+    maxBytes: 5 * 1024 * 1024,
+    kind: 'image',
+  },
   'teacher.photo': {
     readPermission: 'teachers.read',
     writePermission: 'teachers.write',

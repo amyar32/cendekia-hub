@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { IdentityCard } from '@/components/identity-card/identity-card';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import QRCode from 'qrcode';
@@ -24,8 +24,11 @@ export default async function TeacherCardPrintPage({ params }: Params) {
   if (!parsedId.success) notFound();
   const card = db()
     .prepare(
-      `SELECT t.id,t.employee_code,t.nip,t.name,t.photo_url,t.birth_date,t.join_date,
-        t.employment_status,t.qr_token,school.name AS school_name,school.logo_url
+      `SELECT t.id,t.employee_code,t.nip,t.name,t.photo_url,t.birth_date,t.join_date,t.address,
+        t.employment_status,t.qr_token,school.name AS school_name,school.logo_url,
+        school.npsn AS school_npsn,school.phone AS school_phone,
+        school.email AS school_email,school.address AS school_address,
+        school.principal_name,school.principal_nip,school.principal_signature_url
        FROM teachers t JOIN schools school ON school.id=t.school_id
        WHERE t.id=? AND t.school_id=?`,
     )
@@ -38,16 +41,24 @@ export default async function TeacherCardPrintPage({ params }: Params) {
         photo_url: string;
         birth_date: string | null;
         join_date: string | null;
+        address: string;
         employment_status: 'permanent' | 'contract' | 'honorary';
         qr_token: string;
         school_name: string;
         logo_url: string;
+        school_npsn: string;
+        school_phone: string;
+        school_email: string;
+        school_address: string;
+        principal_name: string;
+        principal_nip: string;
+        principal_signature_url: string;
       }
     | undefined;
   if (!card) notFound();
   const qr = await QRCode.toDataURL(`cendekia:teacher-checkin:${card.qr_token}`, {
     width: 700,
-    margin: 1,
+    margin: 4,
     errorCorrectionLevel: 'M',
   });
   const formatDate = (value: string | null) =>
@@ -76,72 +87,18 @@ export default async function TeacherCardPrintPage({ params }: Params) {
         <CardPrintTrigger />
       </div>
       <section className={styles.sheet}>
-        <article className={styles.card}>
-          <div className={styles.orb} />
-          <header>
-            <div className={styles.brand}>
-              {card.logo_url ? (
-                <Image src={card.logo_url} alt="Logo sekolah" width={54} height={54} unoptimized />
-              ) : (
-                <div className={styles.logo}>CH</div>
-              )}
-              <div>
-                <h1>{card.school_name}</h1>
-                <p>CENDEKIA HUB · TEACHER SERVICES</p>
-              </div>
-            </div>
-            <span className={styles.title}>KARTU GURU</span>
-          </header>
-          <div className={styles.content}>
-            <div className={styles.photoBlock}>
-              {card.photo_url ? (
-                <Image
-                  src={card.photo_url}
-                  alt={`Foto ${card.name}`}
-                  width={138}
-                  height={154}
-                  unoptimized
-                />
-              ) : (
-                <div className={styles.photoFallback}>{card.name.slice(0, 2).toUpperCase()}</div>
-              )}
-              <span>GURU AKTIF</span>
-            </div>
-            <div className={styles.identity}>
-              <h2>{card.name}</h2>
-              <dl>
-                <div>
-                  <dt>KODE</dt>
-                  <dd>{card.employee_code}</dd>
-                </div>
-                <div>
-                  <dt>NIP</dt>
-                  <dd>{card.nip || '—'}</dd>
-                </div>
-                <div>
-                  <dt>LAHIR</dt>
-                  <dd>{formatDate(card.birth_date)}</dd>
-                </div>
-                <div className={styles.address}>
-                  <dt>STATUS</dt>
-                  <dd>{employment}</dd>
-                </div>
-              </dl>
-            </div>
-            <div className={styles.qr}>
-              <Image src={qr} alt="QR cek-in guru" width={136} height={136} unoptimized />
-              <b>PINDAI UNTUK CEK-IN</b>
-              <span>{card.employee_code}</span>
-            </div>
-          </div>
-          <footer>
-            <b>KARTU IDENTITAS RESMI</b>
-            <span>
-              Kartu hanya berlaku untuk guru yang namanya tercantum dan tidak dapat
-              dipindahtangankan.
-            </span>
-          </footer>
-        </article>
+        <IdentityCard
+          card={card}
+          personType="teacher"
+          qr={qr}
+          photoCaption={employment}
+          fields={[
+            { label: 'Kode', value: card.employee_code },
+            { label: 'NIP', value: card.nip },
+            { label: 'Lahir', value: formatDate(card.birth_date) },
+            { label: 'Alamat', value: card.address },
+          ]}
+        />
       </section>
     </main>
   );

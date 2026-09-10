@@ -112,6 +112,9 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'image/png');
   assert.deepEqual(Buffer.from(await res.arrayBuffer()), png);
+  res = await uploadApi(png, 'image/png', adminCookie, base, 'school.principal-signature');
+  assert.equal(res.status, 201);
+  const uploadedPrincipalSignature = (await res.json()).upload;
   assert.equal(
     (
       await api(
@@ -132,6 +135,9 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     email: 'halo@cendekia.test',
     phone: '+62 21 555 0101',
     logo_url: uploadedLogo.url,
+    principal_name: 'Dr. Ratna Puspita, M.Pd.',
+    principal_nip: '197505052001122001',
+    principal_signature_url: uploadedPrincipalSignature.url,
     timezone: 'Asia/Jakarta',
     is_active: true,
   });
@@ -140,6 +146,10 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(createdSchool.name, 'SMA Cendekia Utama');
   assert.equal(createdSchool.is_active, 1);
   assert.equal(createdSchool.logo_url, uploadedLogo.url);
+  assert.equal(createdSchool.principal_name, 'Dr. Ratna Puspita, M.Pd.');
+  assert.equal(createdSchool.principal_nip, '197505052001122001');
+  assert.equal(createdSchool.principal_signature_url, uploadedPrincipalSignature.url);
+  assert.equal((await fetch(base + uploadedPrincipalSignature.url)).status, 200);
   assert.equal(
     (
       await api('/api/modules/school', 'PATCH', {
@@ -158,6 +168,9 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     email: '',
     phone: '',
     logo_url: '',
+    principal_name: 'Dr. Ratna Puspita, M.Pd.',
+    principal_nip: '197505052001122001',
+    principal_signature_url: uploadedPrincipalSignature.url,
     timezone: 'Asia/Makassar',
     is_active: false,
   });
@@ -417,6 +430,9 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   const firstTeacherCard = await res.json();
   assert.match(firstTeacherCard.qr_value, /^cendekia:teacher-checkin:[0-9a-f]{48}$/);
   assert.equal(firstTeacherCard.qr_token, undefined);
+  assert.equal(firstTeacherCard.school_npsn, '12345678');
+  assert.equal(firstTeacherCard.principal_name, 'Dr. Ratna Puspita, M.Pd.');
+  assert.equal(firstTeacherCard.principal_signature_url, uploadedPrincipalSignature.url);
   res = await api(`/teacher-cards/${teacher.id}/print`);
   assert.equal(res.status, 200);
   assert.match(await res.text(), /Budi Santoso/);
@@ -749,6 +765,9 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   const firstCard = await res.json();
   assert.match(firstCard.qr_value, /^cendekia:checkin:[0-9a-f]{48}$/);
   assert.equal(firstCard.qr_token, undefined);
+  assert.equal(firstCard.school_npsn, '12345678');
+  assert.equal(firstCard.principal_name, 'Dr. Ratna Puspita, M.Pd.');
+  assert.equal(firstCard.principal_signature_url, uploadedPrincipalSignature.url);
   res = await api(`/student-cards/${student.id}/print`);
   assert.equal(res.status, 200);
   assert.match(await res.text(), /Ayu Cendekia/);

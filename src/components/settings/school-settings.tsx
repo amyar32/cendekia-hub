@@ -10,7 +10,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Switch,
   Text,
   Textarea,
   TextInput,
@@ -32,6 +31,9 @@ export type School = {
   email: string;
   phone: string;
   logo_url: string;
+  principal_name: string;
+  principal_nip: string;
+  principal_signature_url: string;
   timezone: string;
   checkin_late_after: string;
   is_active: number;
@@ -39,9 +41,7 @@ export type School = {
   updated_at: string;
 };
 
-type SchoolForm = Omit<School, 'id' | 'created_at' | 'updated_at' | 'is_active'> & {
-  is_active: boolean;
-};
+type SchoolForm = Omit<School, 'id' | 'created_at' | 'updated_at' | 'is_active'>;
 
 const emptyForm: SchoolForm = {
   name: '',
@@ -51,9 +51,11 @@ const emptyForm: SchoolForm = {
   email: '',
   phone: '',
   logo_url: '',
+  principal_name: '',
+  principal_nip: '',
+  principal_signature_url: '',
   timezone: 'Asia/Jakarta',
   checkin_late_after: '07:15',
-  is_active: true,
 };
 
 const timezoneOptions = [
@@ -72,9 +74,11 @@ function toForm(school: School | null): SchoolForm {
     email: school.email,
     phone: school.phone,
     logo_url: school.logo_url,
+    principal_name: school.principal_name || '',
+    principal_nip: school.principal_nip || '',
+    principal_signature_url: school.principal_signature_url || '',
     timezone: school.timezone,
     checkin_late_after: school.checkin_late_after || '07:15',
-    is_active: Boolean(school.is_active),
   };
 }
 
@@ -222,14 +226,41 @@ export function SchoolSettings({
             onChange={(value) => setField('logo_url', value)}
             disabled={!writable}
           />
-          <Switch
-            label="Sekolah aktif"
-            description="Nonaktifkan jika profil sekolah untuk sementara tidak digunakan."
-            checked={form.is_active}
-            onChange={(event) => setField('is_active', event.currentTarget.checked)}
-            mt="lg"
-            disabled={!writable}
-          />
+          <Divider my="lg" />
+          <Stack gap={3} mb="md">
+            <Title order={4}>Informasi kepala sekolah</Title>
+            <Text size="xs" c="dimmed">
+              Nama, NIP, dan tanda tangan ini akan dicantumkan pada kartu siswa dan guru.
+            </Text>
+          </Stack>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <TextInput
+              label="Nama kepala sekolah"
+              placeholder="Nama lengkap beserta gelar"
+              value={form.principal_name}
+              onChange={(event) => setField('principal_name', event.currentTarget.value)}
+              maxLength={150}
+              disabled={!writable}
+            />
+            <TextInput
+              label="NIP kepala sekolah"
+              placeholder="Opsional"
+              value={form.principal_nip}
+              onChange={(event) => setField('principal_nip', event.currentTarget.value)}
+              maxLength={50}
+              disabled={!writable}
+            />
+          </SimpleGrid>
+          <div className={styles.signatureUploader}>
+            <ImageUploader
+              label="Tanda tangan kepala sekolah"
+              description="Disarankan PNG dengan latar transparan. Ukuran maksimal 5 MB."
+              scope="school.principal-signature"
+              value={form.principal_signature_url}
+              onChange={(value) => setField('principal_signature_url', value)}
+              disabled={!writable}
+            />
+          </div>
 
           <Divider my="xl" />
           <Group justify="space-between" align="flex-end">

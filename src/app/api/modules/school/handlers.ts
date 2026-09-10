@@ -11,19 +11,20 @@ const optionalEmail = z
   .max(254)
   .refine((value) => !value || z.email().safeParse(value).success, 'Format email tidak valid.');
 
-const optionalUrl = z
-  .string()
-  .trim()
-  .max(2048)
-  .refine((value) => {
-    if (!value || uploadIdFromUrl(value)) return true;
-    try {
-      const url = new URL(value);
-      return url.protocol === 'http:' || url.protocol === 'https:';
-    } catch {
-      return false;
-    }
-  }, 'Format URL logo tidak valid.');
+const optionalUploadUrl = (label: string) =>
+  z
+    .string()
+    .trim()
+    .max(2048)
+    .refine((value) => {
+      if (!value || uploadIdFromUrl(value)) return true;
+      try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }, `Format URL ${label} tidak valid.`);
 
 const schoolSchema = z.object({
   name: z.string().trim().min(2, 'Nama sekolah minimal 2 karakter.').max(150),
@@ -36,7 +37,10 @@ const schoolSchema = z.object({
   address: z.string().trim().max(1000).default(''),
   email: optionalEmail.default(''),
   phone: z.string().trim().max(30).default(''),
-  logo_url: optionalUrl.default(''),
+  logo_url: optionalUploadUrl('logo').default(''),
+  principal_name: z.string().trim().max(150).default(''),
+  principal_nip: z.string().trim().max(50).default(''),
+  principal_signature_url: optionalUploadUrl('tanda tangan').default(''),
   timezone: z
     .string()
     .trim()
@@ -54,7 +58,7 @@ const schoolSchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Batas keterlambatan harus berupa jam HH:mm.')
     .default('07:15'),
-  is_active: z.boolean().default(true),
+  is_active: z.boolean().optional(),
 });
 
 type SchoolRow = {
@@ -66,6 +70,9 @@ type SchoolRow = {
   email: string;
   phone: string;
   logo_url: string;
+  principal_name: string;
+  principal_nip: string;
+  principal_signature_url: string;
   timezone: string;
   checkin_late_after: string;
   is_active: number;
@@ -95,12 +102,21 @@ export async function PATCH(request: Request) {
     checkOrigin(request);
     const actor = await requireUser('school.write');
     const data = schoolSchema.parse(await request.json());
-    const uploadId = uploadIdFromUrl(data.logo_url);
-    if (uploadId) {
-      const upload = db()
-        .prepare("SELECT id FROM uploads WHERE id = ? AND scope = 'school.logo'")
-        .get(uploadId);
-      if (!upload) throw new HttpError(400, 'Logo hasil upload tidak valid.');
+    const uploads = [
+      { url: data.logo_url, scope: 'school.logo', label: 'Logo' },
+      {
+        url: data.principal_signature_url,
+        scope: 'school.principal-signature',
+        label: 'Tanda tangan',
+      },
+    ];
+    for (const item of uploads) {
+      const uploadId = uploadIdFromUrl(item.url);
+      if (
+        uploadId &&
+        !db().prepare('SELECT id FROM uploads WHERE id = ? AND scope = ?').get(uploadId, item.scope)
+      )
+        throw new HttpError(400, `${item.label} hasil upload tidak valid.`);
     }
     let id = '';
 
@@ -110,7 +126,7 @@ export async function PATCH(request: Request) {
       if (previous) {
         db()
           .prepare(
-            `UPDATE schools SET name=?, code=?, npsn=?, address=?, email=?, phone=?, logo_url=?, timezone=?, checkin_late_after=?, is_active=?, updated_at=datetime('now') WHERE id=?`,
+            `UPDATE schools SET name=?, code=?, npsn=?, address=?, email=?, phone=?, logo_url=?, principal_name=?, principal_nip=?, principal_signature_url=?, timezone=?, checkin_late_after=?, is_active=?, updated_at=datetime('now') WHERE id=?`,
           )
           .run(
             data.name,
@@ -120,15 +136,18 @@ export async function PATCH(request: Request) {
             data.email,
             data.phone,
             data.logo_url,
+            data.principal_name,
+            data.principal_nip,
+            data.principal_signature_url,
             data.timezone,
             data.checkin_late_after,
-            Number(data.is_active),
+            Number(data.is_active ?? Boolean(previous.is_active)),
             id,
           );
       } else {
         db()
           .prepare(
-            `INSERT INTO schools(id, name, code, npsn, address, email, phone, logo_url, timezone, checkin_late_after, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO schools(id, name, code, npsn, address, email, phone, logo_url, principal_name, principal_nip, principal_signature_url, timezone, checkin_late_after, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             id,
@@ -139,9 +158,12 @@ export async function PATCH(request: Request) {
             data.email,
             data.phone,
             data.logo_url,
+            data.principal_name,
+            data.principal_nip,
+            data.principal_signature_url,
             data.timezone,
             data.checkin_late_after,
-            Number(data.is_active),
+            Number(data.is_active ?? true),
           );
       }
       audit(actor.email, previous ? 'update' : 'create', 'schools', id, data);

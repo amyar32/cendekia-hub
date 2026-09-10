@@ -11,7 +11,10 @@ function getCard(id: string, schoolId: string) {
   return db()
     .prepare(
       `SELECT t.id,t.employee_code,t.nip,t.name,t.photo_url,t.birth_date,t.address,
-        t.employment_status,t.qr_token,school.name AS school_name,school.logo_url
+        t.employment_status,t.qr_token,school.name AS school_name,school.logo_url,
+        school.npsn AS school_npsn,school.phone AS school_phone,
+        school.email AS school_email,school.address AS school_address,
+        school.principal_name,school.principal_nip,school.principal_signature_url
        FROM teachers t JOIN schools school ON school.id=t.school_id
        WHERE t.id=? AND t.school_id=?`,
     )

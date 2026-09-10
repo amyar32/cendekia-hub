@@ -12,7 +12,10 @@ function getCard(id: string, schoolId: string) {
     .prepare(
       `SELECT s.id,s.nis,s.nisn,s.name,s.photo_url,s.birth_place,s.birth_date,s.address,
         s.qr_token,
-        school.name AS school_name,school.logo_url
+        school.name AS school_name,school.logo_url,school.npsn AS school_npsn,
+        school.phone AS school_phone,school.email AS school_email,
+        school.address AS school_address,school.principal_name,school.principal_nip,
+        school.principal_signature_url
        FROM students s JOIN schools school ON school.id=s.school_id
        WHERE s.id=? AND s.school_id=?`,
     )
@@ -29,6 +32,13 @@ function getCard(id: string, schoolId: string) {
         qr_token: string;
         school_name: string;
         logo_url: string;
+        school_npsn: string;
+        school_phone: string;
+        school_email: string;
+        school_address: string;
+        principal_name: string;
+        principal_nip: string;
+        principal_signature_url: string;
       }
     | undefined;
 }
