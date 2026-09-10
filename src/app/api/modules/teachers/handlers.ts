@@ -24,7 +24,7 @@ const schema = z.object({
   employee_code: z
     .string()
     .trim()
-    .min(1, 'Kode pegawai wajib diisi.')
+    .min(1, 'Kode Guru wajib diisi.')
     .max(30)
     .transform((v) => v.toUpperCase()),
   nip: z.string().trim().max(30).default(''),

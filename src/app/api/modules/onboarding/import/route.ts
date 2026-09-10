@@ -116,7 +116,7 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
     const gender = normalizeGender(source.data.jenis_kelamin);
     const bloodType = normalizeBloodType(source.data.golongan_darah);
     const employment = normalizeEmployment(source.data.status_kepegawaian);
-    if (!code) messages.push('Kode pegawai wajib diisi.');
+    if (!code) messages.push('Kode Guru wajib diisi.');
     if (!source.data.nama) messages.push('Nama guru wajib diisi.');
     if (!gender) messages.push('Jenis kelamin harus Laki-laki atau Perempuan.');
     if (source.data.golongan_darah && !bloodType)
@@ -124,7 +124,7 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
     if (!employment) messages.push('Status harus Tetap, Kontrak, atau Honorer.');
     if (source.data.email && !z.email().safeParse(source.data.email).success)
       messages.push('Format email tidak valid.');
-    if (employeeCodes.has(code)) messages.push('Kode pegawai duplikat di workbook.');
+    if (employeeCodes.has(code)) messages.push('Kode Guru duplikat di workbook.');
     employeeCodes.add(code);
     const exists = db()
       .prepare('SELECT id FROM teachers WHERE school_id=? AND employee_code=?')

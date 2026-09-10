@@ -46,6 +46,7 @@ import { IdentityCardModal } from '@/components/identity-card/identity-card-moda
 
 type Guardian = {
   name: string;
+  nik: string;
   relation: string;
   phone: string;
   email: string;
@@ -74,6 +75,11 @@ type StudentForm = {
   phone: string;
   email: string;
   enrollment_date: string;
+  previous_school_name: string;
+  previous_school_npsn: string;
+  previous_school_address: string;
+  previous_school_last_grade: string;
+  previous_school_graduation_year: string;
   is_active: boolean;
   guardians: Guardian[];
   documents: StudentDocument[];
@@ -90,6 +96,7 @@ type StudentRow = StudentForm & {
 
 const emptyGuardian = (): Guardian => ({
   name: '',
+  nik: '',
   relation: '',
   phone: '',
   email: '',
@@ -110,11 +117,36 @@ const emptyForm = (): StudentForm => ({
   phone: '',
   email: '',
   enrollment_date: '',
+  previous_school_name: '',
+  previous_school_npsn: '',
+  previous_school_address: '',
+  previous_school_last_grade: '',
+  previous_school_graduation_year: '',
   is_active: true,
   guardians: [],
   documents: [],
   placement: { class_id: '', start_date: '' },
 });
+const guardianRelations = [
+  'Ayah',
+  'Ibu',
+  'Kakek',
+  'Nenek',
+  'Kakak',
+  'Paman',
+  'Bibi',
+  'Saudara',
+  'Wali lainnya',
+];
+const documentTypes = [
+  'Akta Kelahiran',
+  'Kartu Keluarga',
+  'KTP Wali',
+  'Ijazah / SKL',
+  'KIP / PKH / KKS',
+  'Sertifikat Prestasi',
+  'Lainnya',
+];
 const dateFormatter = new Intl.DateTimeFormat('id-ID', {
   day: 'numeric',
   month: 'short',
@@ -149,6 +181,11 @@ export function StudentManager({ writable }: { writable: boolean }) {
             phone: row.phone || '',
             email: row.email || '',
             enrollment_date: row.enrollment_date || '',
+            previous_school_name: row.previous_school_name || '',
+            previous_school_npsn: row.previous_school_npsn || '',
+            previous_school_address: row.previous_school_address || '',
+            previous_school_last_grade: row.previous_school_last_grade || '',
+            previous_school_graduation_year: row.previous_school_graduation_year || '',
             is_active: Boolean(row.is_active),
             guardians: row.guardians.map((guardian) => ({
               ...guardian,
@@ -482,6 +519,58 @@ export function StudentManager({ writable }: { writable: boolean }) {
               onChange={(event) => setForm({ ...form, address: event.currentTarget.value })}
             />
 
+            <Divider label="Sekolah sebelumnya" labelPosition="left" />
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <TextInput
+                label="Nama sekolah asal"
+                placeholder="Masukkan nama sekolah sebelumnya"
+                value={form.previous_school_name}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, previous_school_name: event.currentTarget.value })
+                }
+              />
+              <TextInput
+                label="NPSN sekolah asal"
+                placeholder="Masukkan NPSN (opsional)"
+                value={form.previous_school_npsn}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, previous_school_npsn: event.currentTarget.value })
+                }
+              />
+              <TextInput
+                label="Kelas/tingkat terakhir"
+                placeholder="Contoh: Kelas 6"
+                value={form.previous_school_last_grade}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, previous_school_last_grade: event.currentTarget.value })
+                }
+              />
+              <TextInput
+                label="Tahun lulus"
+                placeholder="Contoh: 2026"
+                inputMode="numeric"
+                maxLength={4}
+                value={form.previous_school_graduation_year}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, previous_school_graduation_year: event.currentTarget.value })
+                }
+              />
+            </SimpleGrid>
+            <Textarea
+              label="Alamat sekolah asal"
+              placeholder="Masukkan alamat sekolah sebelumnya"
+              minRows={2}
+              value={form.previous_school_address}
+              disabled={disabled}
+              onChange={(event) =>
+                setForm({ ...form, previous_school_address: event.currentTarget.value })
+              }
+            />
+
             <Divider label="Penempatan kelas" labelPosition="left" />
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
               <Select
@@ -582,14 +671,29 @@ export function StudentManager({ writable }: { writable: boolean }) {
                         }
                       />
                       <TextInput
+                        label="NIK wali"
+                        placeholder="16 digit NIK (opsional)"
+                        inputMode="numeric"
+                        maxLength={16}
+                        value={guardian.nik}
+                        disabled={disabled}
+                        onChange={(event) =>
+                          updateGuardian(index, { nik: event.currentTarget.value })
+                        }
+                      />
+                      <Select
                         label="Hubungan"
-                        placeholder="Contoh: Ayah, Ibu, atau Kakak"
+                        placeholder="Pilih hubungan wali"
                         required
                         value={guardian.relation}
                         disabled={disabled}
-                        onChange={(event) =>
-                          updateGuardian(index, { relation: event.currentTarget.value })
-                        }
+                        data={[
+                          ...guardianRelations,
+                          ...(guardian.relation && !guardianRelations.includes(guardian.relation)
+                            ? [guardian.relation]
+                            : []),
+                        ]}
+                        onChange={(value) => updateGuardian(index, { relation: value || '' })}
                       />
                       <TextInput
                         label="Telepon"
@@ -681,15 +785,19 @@ export function StudentManager({ writable }: { writable: boolean }) {
                         </ActionIcon>
                       )}
                     </Group>
-                    <TextInput
+                    <Select
                       label="Jenis dokumen"
-                      placeholder="Contoh: Akta kelahiran"
+                      placeholder="Pilih jenis dokumen"
                       required
                       value={document.type}
                       disabled={disabled}
-                      onChange={(event) =>
-                        updateDocument(index, { type: event.currentTarget.value })
-                      }
+                      data={[
+                        ...documentTypes,
+                        ...(document.type && !documentTypes.includes(document.type)
+                          ? [document.type]
+                          : []),
+                      ]}
+                      onChange={(value) => updateDocument(index, { type: value || '' })}
                     />
                     <FileUploader
                       label="File dokumen"

@@ -451,7 +451,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
             <IconKeyboard size={18} />
             <TextInput
               variant="unstyled"
-              placeholder="Ketik NIS atau kode pegawai jika kartu bermasalah"
+              placeholder="Ketik NIS atau Kode Guru jika kartu bermasalah"
               value={manualCode}
               onChange={(event) => setManualCode(event.currentTarget.value)}
             />

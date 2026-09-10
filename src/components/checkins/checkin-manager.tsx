@@ -314,7 +314,7 @@ export function CheckinManager({
         </SimpleGrid>
         <Group mb="md" grow align="end">
           <TextInput
-            placeholder={`Cari nama atau ${isTeacher ? 'kode pegawai' : 'NIS'}...`}
+            placeholder={`Cari nama atau ${isTeacher ? 'Kode Guru' : 'NIS'}...`}
             leftSection={<IconSearch size={16} />}
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
@@ -343,7 +343,7 @@ export function CheckinManager({
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>{isTeacher ? 'Kode pegawai' : 'NIS'}</Table.Th>
+                  <Table.Th>{isTeacher ? 'Kode Guru' : 'NIS'}</Table.Th>
                   <Table.Th>Nama {isTeacher ? 'guru' : 'siswa'}</Table.Th>
                   <Table.Th>Status cek-in</Table.Th>
                   <Table.Th>Waktu</Table.Th>

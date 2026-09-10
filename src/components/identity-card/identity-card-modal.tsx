@@ -147,11 +147,11 @@ export function IdentityCardModal({
                 photoCaption={isTeacher ? undefined : formatExpiry(card.card_expires_at)}
                 fields={[
                   {
-                    label: isTeacher ? 'Kode' : 'NIS',
+                    label: isTeacher ? 'Kode Guru' : 'NIS',
                     value: isTeacher ? card.employee_code || '' : card.nis,
                   },
                   {
-                    label: isTeacher ? 'NIP' : 'NISN',
+                    label: isTeacher ? 'NIP/NUPTK' : 'NISN',
                     value: isTeacher ? card.nip || '' : card.nisn,
                   },
                   { label: isTeacher ? 'Lahir' : 'TTL', value: formatBirth(card) },

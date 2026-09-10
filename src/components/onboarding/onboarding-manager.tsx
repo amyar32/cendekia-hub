@@ -382,7 +382,7 @@ function ImportPreviewTable({ rows, sheet }: { rows: ImportRow[]; sheet: ImportR
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Baris</Table.Th>
-              <Table.Th>{isStudent ? 'NIS' : 'Kode pegawai'}</Table.Th>
+              <Table.Th>{isStudent ? 'NIS' : 'Kode Guru'}</Table.Th>
               <Table.Th>Nama</Table.Th>
               {isStudent && <Table.Th>Rombel</Table.Th>}
               <Table.Th>Status</Table.Th>

@@ -31,8 +31,8 @@ export function db() {
     CREATE TABLE IF NOT EXISTS homeroom_assignments (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (class_id, academic_year_id), UNIQUE (teacher_id, academic_year_id));
     CREATE TABLE IF NOT EXISTS schedule_time_slots (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, name TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, slot_order INTEGER NOT NULL CHECK (slot_order > 0), is_break INTEGER NOT NULL DEFAULT 0 CHECK (is_break IN (0, 1)), is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), CHECK (start_time < end_time), UNIQUE (school_id, slot_order), UNIQUE (school_id, name));
     CREATE TABLE IF NOT EXISTS class_schedules (id TEXT PRIMARY KEY, teaching_assignment_id TEXT NOT NULL REFERENCES teaching_assignments(id) ON DELETE RESTRICT, semester_id TEXT NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT, time_slot_id TEXT NOT NULL REFERENCES schedule_time_slots(id) ON DELETE RESTRICT, weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teaching_assignment_id, semester_id, time_slot_id, weekday));
-    CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, photo_url TEXT NOT NULL DEFAULT '', nis TEXT NOT NULL, nisn TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male', 'female')), birth_date TEXT, birth_place TEXT NOT NULL DEFAULT '', blood_type TEXT NOT NULL DEFAULT '' CHECK (blood_type IN ('', 'A', 'B', 'AB', 'O')), address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', enrollment_date TEXT, is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), qr_token TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, nis));
-    CREATE TABLE IF NOT EXISTS guardians (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, name TEXT NOT NULL, relation TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, photo_url TEXT NOT NULL DEFAULT '', nis TEXT NOT NULL, nisn TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male', 'female')), birth_date TEXT, birth_place TEXT NOT NULL DEFAULT '', blood_type TEXT NOT NULL DEFAULT '' CHECK (blood_type IN ('', 'A', 'B', 'AB', 'O')), address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', enrollment_date TEXT, previous_school_name TEXT NOT NULL DEFAULT '', previous_school_npsn TEXT NOT NULL DEFAULT '', previous_school_address TEXT NOT NULL DEFAULT '', previous_school_last_grade TEXT NOT NULL DEFAULT '', previous_school_graduation_year TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), qr_token TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, nis));
+    CREATE TABLE IF NOT EXISTS guardians (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, name TEXT NOT NULL, nik TEXT NOT NULL DEFAULT '', relation TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS student_documents (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, type TEXT NOT NULL, file_url TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS promotion_batches (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, source_academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, target_academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, actions TEXT NOT NULL, activates_target INTEGER NOT NULL DEFAULT 0 CHECK (activates_target IN (0, 1)), status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed', 'undone')), created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), undone_at TEXT);
     CREATE TABLE IF NOT EXISTS class_memberships (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, start_date TEXT NOT NULL, end_date TEXT, status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'transferred', 'withdrawn')), completion_reason TEXT NOT NULL DEFAULT '', promotion_batch_id TEXT REFERENCES promotion_batches(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), CHECK (end_date IS NULL OR start_date <= end_date), UNIQUE (student_id, class_id, academic_year_id, start_date));
@@ -660,6 +660,25 @@ export function db() {
           "ALTER TABLE students ADD COLUMN blood_type TEXT NOT NULL DEFAULT '' CHECK (blood_type IN ('', 'A', 'B', 'AB', 'O'))",
         );
       connection.pragma('user_version = 36');
+    })();
+  }
+  if (schemaVersion < 37) {
+    connection.transaction(() => {
+      const studentColumns = connection.pragma('table_info(students)') as { name: string }[];
+      const studentFields = [
+        'previous_school_name',
+        'previous_school_npsn',
+        'previous_school_address',
+        'previous_school_last_grade',
+        'previous_school_graduation_year',
+      ];
+      for (const field of studentFields)
+        if (!studentColumns.some((column) => column.name === field))
+          connection.exec(`ALTER TABLE students ADD COLUMN ${field} TEXT NOT NULL DEFAULT ''`);
+      const guardianColumns = connection.pragma('table_info(guardians)') as { name: string }[];
+      if (!guardianColumns.some((column) => column.name === 'nik'))
+        connection.exec("ALTER TABLE guardians ADD COLUMN nik TEXT NOT NULL DEFAULT ''");
+      connection.pragma('user_version = 37');
     })();
   }
   globalDb.cmsDb = connection;

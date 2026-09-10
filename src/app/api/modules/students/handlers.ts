@@ -14,8 +14,15 @@ import { uploadIdFromUrl } from '@/lib/uploads';
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal tidak valid.');
 const optionalDate = z.union([z.literal(''), date]);
+const optionalYear = z.union([
+  z.literal(''),
+  z.string().regex(/^\d{4}$/, 'Tahun lulus harus terdiri dari 4 digit.'),
+]);
 const guardianSchema = z.object({
   name: z.string().trim().min(2, 'Nama wali minimal 2 karakter.').max(100),
+  nik: z
+    .union([z.literal(''), z.string().regex(/^\d{16}$/, 'NIK wali harus terdiri dari 16 digit.')])
+    .default(''),
   relation: z.string().trim().min(1, 'Hubungan wali wajib diisi.').max(50),
   phone: z.string().trim().max(30).default(''),
   email: z.union([z.literal(''), z.email('Email wali tidak valid.')]).default(''),
@@ -54,6 +61,11 @@ const schema = z
     phone: z.string().trim().max(30).default(''),
     email: z.union([z.literal(''), z.email('Email tidak valid.')]).default(''),
     enrollment_date: optionalDate.default(''),
+    previous_school_name: z.string().trim().max(150).default(''),
+    previous_school_npsn: z.string().trim().max(20).default(''),
+    previous_school_address: z.string().trim().max(500).default(''),
+    previous_school_last_grade: z.string().trim().max(50).default(''),
+    previous_school_graduation_year: optionalYear.default(''),
     is_active: z.boolean().default(true),
     guardians: z.array(guardianSchema).max(10, 'Maksimal 10 wali.').default([]),
     documents: z.array(documentSchema).max(20, 'Maksimal 20 dokumen.').default([]),
@@ -141,7 +153,9 @@ export async function GET(request: Request) {
     const rows = db()
       .prepare(
         `SELECT s.id,s.school_id,s.photo_url,s.nis,s.nisn,s.name,s.gender,s.birth_date,s.birth_place,
-          s.blood_type,s.address,s.phone,s.email,s.enrollment_date,s.is_active,s.created_at,s.updated_at,
+          s.blood_type,s.address,s.phone,s.email,s.enrollment_date,s.previous_school_name,
+          s.previous_school_npsn,s.previous_school_address,s.previous_school_last_grade,
+          s.previous_school_graduation_year,s.is_active,s.created_at,s.updated_at,
           CASE s.gender WHEN 'male' THEN 'Laki-laki' ELSE 'Perempuan' END AS gender_label
        FROM students s WHERE ${where} ORDER BY s.is_active DESC,s.name LIMIT 10 OFFSET ?`,
       )
@@ -222,31 +236,37 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         data.phone,
         data.email,
         data.enrollment_date || null,
+        data.previous_school_name,
+        data.previous_school_npsn,
+        data.previous_school_address,
+        data.previous_school_last_grade,
+        data.previous_school_graduation_year,
         Number(data.is_active),
       ];
       if (method === 'POST')
         db()
           .prepare(
-            `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,blood_type,address,phone,email,enrollment_date,is_active,qr_token)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,blood_type,address,phone,email,enrollment_date,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,is_active,qr_token)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
           .run(id, schoolId, ...args, randomBytes(24).toString('hex'));
       else
         db()
           .prepare(
-            `UPDATE students SET photo_url=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,blood_type=?,address=?,phone=?,email=?,enrollment_date=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
+            `UPDATE students SET photo_url=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,blood_type=?,address=?,phone=?,email=?,enrollment_date=?,previous_school_name=?,previous_school_npsn=?,previous_school_address=?,previous_school_last_grade=?,previous_school_graduation_year=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
           )
           .run(...args, id, schoolId);
 
       db().prepare('DELETE FROM guardians WHERE student_id=?').run(id);
       const insertGuardian = db().prepare(
-        'INSERT INTO guardians(id,student_id,name,relation,phone,email,address,is_primary) VALUES(?,?,?,?,?,?,?,?)',
+        'INSERT INTO guardians(id,student_id,name,nik,relation,phone,email,address,is_primary) VALUES(?,?,?,?,?,?,?,?,?)',
       );
       for (const guardian of data.guardians)
         insertGuardian.run(
           randomUUID(),
           id,
           guardian.name,
+          guardian.nik,
           guardian.relation,
           guardian.phone,
           guardian.email,

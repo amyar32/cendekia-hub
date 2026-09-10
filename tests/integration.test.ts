@@ -731,10 +731,16 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     phone: '081200000001',
     email: 'ayu@cendekia.test',
     enrollment_date: '2026-07-15',
+    previous_school_name: 'SD Cendekia Makassar',
+    previous_school_npsn: '40300001',
+    previous_school_address: 'Jalan Pendidikan 1, Makassar',
+    previous_school_last_grade: 'Kelas 6',
+    previous_school_graduation_year: '2026',
     is_active: true,
     guardians: [
       {
         name: 'Ibu Ayu',
+        nik: '7371000000000001',
         relation: 'Ibu',
         phone: '081200000002',
         email: '',
@@ -744,7 +750,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     ],
     documents: [
       {
-        type: 'Akta kelahiran',
+        type: 'Akta Kelahiran',
         file_url: studentFile.url,
         description: 'Salinan terverifikasi',
       },
@@ -763,9 +769,16 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   res = await api('/api/modules/students?q=Ayu');
   const completeStudent = (await res.json()).rows[0];
   assert.equal(completeStudent.guardian_name, 'Ibu Ayu');
+  assert.equal(completeStudent.guardians[0].nik, '7371000000000001');
   assert.equal(completeStudent.document_count, 1);
+  assert.equal(completeStudent.documents[0].type, 'Akta Kelahiran');
   assert.equal(completeStudent.photo_url, studentPhoto.url);
   assert.equal(completeStudent.blood_type, 'AB');
+  assert.equal(completeStudent.previous_school_name, 'SD Cendekia Makassar');
+  assert.equal(completeStudent.previous_school_npsn, '40300001');
+  assert.equal(completeStudent.previous_school_address, 'Jalan Pendidikan 1, Makassar');
+  assert.equal(completeStudent.previous_school_last_grade, 'Kelas 6');
+  assert.equal(completeStudent.previous_school_graduation_year, '2026');
   assert.equal(completeStudent.current_class_name, '7A');
   assert.equal(completeStudent.history[0].status_label, 'Aktif');
   res = await api(`/api/modules/students/${student.id}/card`);

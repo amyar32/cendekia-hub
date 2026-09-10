@@ -39,8 +39,8 @@ const teacher: AcademicEntityConfig = {
       uploadScope: 'teacher.photo',
       description: 'PNG, JPEG, atau WebP. Ukuran maksimal 5 MB.',
     },
-    { key: 'employee_code', label: 'Kode pegawai', placeholder: 'Contoh: GR-001', required: true },
-    { key: 'nip', label: 'NIP', placeholder: 'Nomor induk pegawai (opsional)', maxLength: 30 },
+    { key: 'employee_code', label: 'Kode Guru', placeholder: 'Contoh: GR-001', required: true },
+    { key: 'nip', label: 'NIP/NUPTK', placeholder: 'NIP atau NUPTK (opsional)', maxLength: 30 },
     { key: 'name', label: 'Nama lengkap', placeholder: 'Nama lengkap guru', required: true },
     {
       key: 'gender',
@@ -98,9 +98,9 @@ const teacher: AcademicEntityConfig = {
   ],
   columns: [
     { key: 'photo_url', label: 'FOTO', kind: 'avatar' },
-    { key: 'employee_code', label: 'KODE', kind: 'code' },
+    { key: 'employee_code', label: 'KODE GURU', kind: 'code' },
     { key: 'name', label: 'NAMA' },
-    { key: 'nip', label: 'NIP' },
+    { key: 'nip', label: 'NIP/NUPTK' },
     { key: 'gender_label', label: 'JENIS KELAMIN' },
     { key: 'blood_type', label: 'GOL. DARAH' },
     { key: 'employment_status_label', label: 'STATUS PEGAWAI' },
