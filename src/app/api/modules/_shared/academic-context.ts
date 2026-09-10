@@ -9,6 +9,21 @@ export function currentSchoolId() {
   return school.id;
 }
 
+export function schoolLocalDate(schoolId: string) {
+  const override = process.env.APP_CURRENT_DATE;
+  if (override && /^\d{4}-\d{2}-\d{2}$/.test(override)) return override;
+  const school = db().prepare('SELECT timezone FROM schools WHERE id=?').get(schoolId) as
+    { timezone: string } | undefined;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: school?.timezone || 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
 export function academicYearOptions(schoolId: string) {
   return db()
     .prepare(

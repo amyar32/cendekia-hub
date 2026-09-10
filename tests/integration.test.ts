@@ -50,6 +50,7 @@ before(async () => {
     UPLOAD_STORAGE_PATH: join(dir, 'uploads'),
     SEED_ADMIN_EMAIL: 'admin@test.local',
     SEED_ADMIN_PASSWORD: 'test-admin-password-123',
+    APP_CURRENT_DATE: '2029-07-01',
   };
   execFileSync(process.execPath, ['--import', 'tsx', 'scripts/seed.ts'], { env });
   server = spawn(

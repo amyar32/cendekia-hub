@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { can } from '@/config/modules';
-import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import { activeAcademicYear, currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser, type SessionUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
@@ -86,6 +86,19 @@ export async function GET(request: Request) {
     }
 
     const day = weekday(date);
+    const activeYear = activeAcademicYear(schoolId);
+    const semester = db()
+      .prepare(
+        `SELECT name FROM semesters
+         WHERE academic_year_id=? AND start_date<=? AND end_date>=? LIMIT 1`,
+      )
+      .get(activeYear.id, date, date) as { name: string } | undefined;
+    const dateNotice =
+      date < activeYear.start_date || date > activeYear.end_date
+        ? `Tanggal ${date} berada di luar tahun ajaran aktif ${activeYear.name} (${activeYear.start_date} sampai ${activeYear.end_date}).`
+        : !semester
+          ? `Tanggal ${date} tidak berada dalam periode semester tahun ajaran aktif ${activeYear.name}.`
+          : null;
     const schedules = db()
       .prepare(
         `SELECT cs.id AS schedule_id,ta.id AS teaching_assignment_id,ta.teacher_id,c.name AS class_name,
@@ -98,7 +111,7 @@ export async function GET(request: Request) {
          JOIN teachers t ON t.id=ta.teacher_id JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
          JOIN semesters sem ON sem.id=cs.semester_id JOIN academic_years ay ON ay.id=sem.academic_year_id
          LEFT JOIN student_attendance_sessions ats ON ats.class_schedule_id=cs.id AND ats.attendance_date=?
-         WHERE t.school_id=? AND cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?
+         WHERE t.school_id=? AND ay.is_active=1 AND cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?
            AND (?=1 OR ta.teacher_id=?)
          ORDER BY sts.start_time,c.name,s.name`,
       )
@@ -109,6 +122,8 @@ export async function GET(request: Request) {
     return Response.json({
       date,
       schedules,
+      date_notice: dateNotice,
+      academic_year: activeYear,
       can_approve: can(user.permissions, 'student-attendance.approve'),
     });
   } catch (error) {
@@ -130,7 +145,9 @@ export async function POST(request: Request) {
          FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
          JOIN classes c ON c.id=ta.class_id JOIN subjects s ON s.id=ta.subject_id
          JOIN teachers t ON t.id=ta.teacher_id JOIN semesters sem ON sem.id=cs.semester_id
-         WHERE cs.id=? AND t.school_id=? AND cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?`,
+         JOIN academic_years ay ON ay.id=sem.academic_year_id
+         WHERE cs.id=? AND t.school_id=? AND ay.is_active=1 AND cs.weekday=?
+           AND sem.start_date<=? AND sem.end_date>=?`,
       )
       .get(data.schedule_id, schoolId, day, data.attendance_date, data.attendance_date) as
       | {

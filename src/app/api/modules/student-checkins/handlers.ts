@@ -27,6 +27,10 @@ export async function GET(request: Request) {
       url.searchParams.get('date') || new Date().toISOString().slice(0, 10),
     );
     const year = activeAcademicYear(schoolId);
+    const dateNotice =
+      date < year.start_date || date > year.end_date
+        ? `Tanggal ${date} berada di luar tahun ajaran aktif ${year.name} (${year.start_date} sampai ${year.end_date}).`
+        : null;
     const options = classOptions(schoolId, year.id);
     const requestedClassId = (url.searchParams.get('class_id') || '').trim();
     const classId = requestedClassId || options[0]?.value || '';
@@ -47,7 +51,14 @@ export async function GET(request: Request) {
           )
           .all(date, classId, date, date);
     return Response.json(
-      { date, selected: { class_id: classId }, options: { class_id: options }, rows },
+      {
+        date,
+        date_notice: dateNotice,
+        academic_year: year,
+        selected: { class_id: classId },
+        options: { class_id: options },
+        rows,
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {

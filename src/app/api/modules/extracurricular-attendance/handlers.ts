@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { can } from '@/config/modules';
-import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import { activeAcademicYear, currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser, type SessionUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
@@ -70,12 +70,28 @@ export async function GET(request: Request) {
       url.searchParams.get('date') || new Date().toISOString().slice(0, 10),
     );
     const day = weekday(date);
+    const activeYear = activeAcademicYear(schoolId);
+    const semester = db()
+      .prepare(
+        `SELECT name FROM semesters
+         WHERE academic_year_id=? AND start_date<=? AND end_date>=? LIMIT 1`,
+      )
+      .get(activeYear.id, date, date) as { name: string } | undefined;
+    const dateNotice =
+      date < activeYear.start_date || date > activeYear.end_date
+        ? `Tanggal ${date} berada di luar tahun ajaran aktif ${activeYear.name} (${activeYear.start_date} sampai ${activeYear.end_date}).`
+        : !semester
+          ? `Tanggal ${date} tidak berada dalam periode semester tahun ajaran aktif ${activeYear.name}.`
+          : null;
     const schedules = db()
       .prepare(
-        `SELECT es.id AS schedule_id,e.name AS extracurricular_name,t.name AS teacher_name,sts.name AS slot_name,sts.start_time,sts.end_time,ats.id AS session_id,ats.status AS session_status,COALESCE((SELECT count(*) FROM extracurricular_attendance_records ar WHERE ar.session_id=ats.id),0) AS student_count,COALESCE((SELECT count(*) FROM extracurricular_attendance_records ar WHERE ar.session_id=ats.id AND ar.status='present'),0) AS present_count FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id JOIN extracurriculars e ON e.id=ea.extracurricular_id JOIN teachers t ON t.id=ea.teacher_id JOIN schedule_time_slots sts ON sts.id=es.time_slot_id JOIN semesters sem ON sem.id=es.semester_id LEFT JOIN extracurricular_attendance_sessions ats ON ats.extracurricular_schedule_id=es.id AND ats.attendance_date=? WHERE t.school_id=? AND ea.status='active' AND es.weekday=? AND sem.start_date<=? AND sem.end_date>=? AND (?=1 OR ea.teacher_id=?) ORDER BY sts.start_time,e.name`,
+        `SELECT es.id AS schedule_id,e.name AS extracurricular_name,t.name AS teacher_name,sts.name AS slot_name,sts.start_time,sts.end_time,ats.id AS session_id,ats.status AS session_status,COALESCE((SELECT count(*) FROM extracurricular_attendance_records ar WHERE ar.session_id=ats.id),0) AS student_count,COALESCE((SELECT count(*) FROM extracurricular_attendance_records ar WHERE ar.session_id=ats.id AND ar.status='present'),0) AS present_count FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id JOIN extracurriculars e ON e.id=ea.extracurricular_id JOIN teachers t ON t.id=ea.teacher_id JOIN schedule_time_slots sts ON sts.id=es.time_slot_id JOIN semesters sem ON sem.id=es.semester_id JOIN academic_years ay ON ay.id=sem.academic_year_id LEFT JOIN extracurricular_attendance_sessions ats ON ats.extracurricular_schedule_id=es.id AND ats.attendance_date=? WHERE t.school_id=? AND ay.is_active=1 AND ea.status='active' AND es.weekday=? AND sem.start_date<=? AND sem.end_date>=? AND (?=1 OR ea.teacher_id=?) ORDER BY sts.start_time,e.name`,
       )
       .all(date, schoolId, day, date, date, unrestricted ? 1 : 0, teacher?.id ?? '');
-    return Response.json({ date, schedules }, { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json(
+      { date, schedules, date_notice: dateNotice, academic_year: activeYear },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (error) {
     return failure(error);
   }
@@ -89,7 +105,7 @@ export async function POST(request: Request) {
     const day = weekday(data.attendance_date);
     const schedule = db()
       .prepare(
-        `SELECT es.id,es.assignment_id,ea.extracurricular_id,ea.academic_year_id,ea.teacher_id,e.name AS extracurricular_name,t.name AS teacher_name FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id JOIN extracurriculars e ON e.id=ea.extracurricular_id JOIN teachers t ON t.id=ea.teacher_id JOIN semesters sem ON sem.id=es.semester_id WHERE es.id=? AND t.school_id=? AND ea.status='active' AND es.weekday=? AND sem.start_date<=? AND sem.end_date>=?`,
+        `SELECT es.id,es.assignment_id,ea.extracurricular_id,ea.academic_year_id,ea.teacher_id,e.name AS extracurricular_name,t.name AS teacher_name FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id JOIN extracurriculars e ON e.id=ea.extracurricular_id JOIN teachers t ON t.id=ea.teacher_id JOIN semesters sem ON sem.id=es.semester_id JOIN academic_years ay ON ay.id=sem.academic_year_id WHERE es.id=? AND t.school_id=? AND ay.is_active=1 AND ea.status='active' AND es.weekday=? AND sem.start_date<=? AND sem.end_date>=?`,
       )
       .get(data.schedule_id, schoolId, day, data.attendance_date, data.attendance_date) as
       | {

@@ -5,6 +5,7 @@ import {
   currentSchoolId,
   gradeOptions,
   requireGrade,
+  schoolLocalDate,
 } from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
@@ -142,6 +143,7 @@ export async function GET(request: Request) {
   try {
     await requireUser('promotions.read');
     const schoolId = currentSchoolId();
+    const currentDate = schoolLocalDate(schoolId);
     const activeYear = activeAcademicYear(schoolId);
     const url = new URL(request.url);
     const transitionMode = url.searchParams.get('mode') === 'transition';
@@ -266,6 +268,7 @@ export async function GET(request: Request) {
           start_date: activeYear.start_date,
           end_date: activeYear.end_date,
         },
+        current_date: currentDate,
         target_academic_year: targetYear
           ? {
               value: targetYear.id,
@@ -647,6 +650,12 @@ export async function POST(request: Request) {
     if (sourceYear.start_date >= targetYear.start_date)
       throw new HttpError(400, 'Tahun ajaran tujuan harus berada setelah tahun ajaran asal.');
     if (input.activate_target) {
+      const currentDate = schoolLocalDate(schoolId);
+      if (currentDate < targetYear.start_date)
+        throw new HttpError(
+          409,
+          `Tahun ajaran ${targetYear.name} baru dapat diaktifkan mulai ${targetYear.start_date}. Tanggal sekolah saat ini ${currentDate}.`,
+        );
       if (!sourceYear.is_active)
         throw new HttpError(
           409,

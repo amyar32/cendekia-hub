@@ -99,6 +99,7 @@ type ExtracurricularAssignment = {
   student_ids: string[];
 };
 type PromotionData = {
+  current_date: string;
   active_academic_year: AcademicYearOption;
   target_academic_year: AcademicYearOption | null;
   source_academic_year_id: string;
@@ -284,6 +285,9 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           !action.target_class_id,
       ).length,
     [actions],
+  );
+  const finalizationTooEarly = Boolean(
+    data?.target_academic_year && data.current_date < data.target_academic_year.start_date,
   );
 
   const sourceClassesWithoutTarget = useMemo(() => {
@@ -1731,6 +1735,18 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 Dua semester siap dan {data.target_classes.length} rombel tersedia untuk tahun
                 ajaran baru.
               </Alert>
+              {finalizationTooEarly && (
+                <Alert
+                  color="orange"
+                  icon={<IconCalendarEvent size={18} />}
+                  title="Tahun ajaran baru belum dapat diaktifkan"
+                >
+                  Tanggal sekolah saat ini {data.current_date}. Aktivasi{' '}
+                  {data.target_academic_year.label} baru tersedia mulai{' '}
+                  {data.target_academic_year.start_date}. Seluruh draft dan pemetaan tetap
+                  tersimpan.
+                </Alert>
+              )}
               <Alert
                 color="gray"
                 icon={<IconCalendarEvent size={18} />}
@@ -1744,7 +1760,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 onNext={finishTransition}
                 nextLabel={`Aktifkan ${data.target_academic_year.label} & proses murid`}
                 loading={saving}
-                disabled={missingTargets > 0}
+                disabled={missingTargets > 0 || finalizationTooEarly}
                 nextIcon={<IconCheck size={17} />}
               />
             </Stack>

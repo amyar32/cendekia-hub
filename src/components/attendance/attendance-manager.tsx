@@ -86,6 +86,7 @@ export function AttendanceManager({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [dateNotice, setDateNotice] = useState('');
   const [starting, setStarting] = useState<Schedule | null>(null);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [confirmingAll, setConfirmingAll] = useState(false);
@@ -117,6 +118,7 @@ export function AttendanceManager({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       setSchedules(result.schedules);
+      setDateNotice(result.date_notice || '');
       setSelected(
         (current) =>
           result.schedules.find((item: Schedule) => item.schedule_id === current?.schedule_id) ??
@@ -125,6 +127,7 @@ export function AttendanceManager({
       setError('');
     } catch (cause) {
       setSchedules([]);
+      setDateNotice('');
       setError(cause instanceof Error ? cause.message : 'Gagal memuat jadwal.');
     } finally {
       setLoading(false);
@@ -142,6 +145,7 @@ export function AttendanceManager({
       .then((result) => {
         if (controller.signal.aborted) return;
         setSchedules(result.schedules);
+        setDateNotice(result.date_notice || '');
         setSelected(
           (current) =>
             result.schedules.find((item: Schedule) => item.schedule_id === current?.schedule_id) ??
@@ -152,6 +156,7 @@ export function AttendanceManager({
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === 'AbortError') return;
         setSchedules([]);
+        setDateNotice('');
         setError(cause instanceof Error ? cause.message : 'Gagal memuat jadwal.');
       })
       .finally(() => {
@@ -356,6 +361,11 @@ export function AttendanceManager({
           {error}
         </Alert>
       ) : null}
+      {dateNotice ? (
+        <Alert color="orange" mb="md" icon={<IconCalendar size={18} />}>
+          {dateNotice} Pilih tanggal dalam semester aktif untuk menampilkan jadwal.
+        </Alert>
+      ) : null}
       <Paper withBorder p="lg" mb="md" className={styles.schedulePanel}>
         <Group justify="space-between" mb="md">
           <div>
@@ -370,12 +380,12 @@ export function AttendanceManager({
           <Group justify="center" py="xl">
             <Loader size="sm" />
           </Group>
-        ) : schedules.length === 0 ? (
+        ) : schedules.length === 0 && !dateNotice ? (
           <Alert color="gray">
             Tidak ada jadwal {extra ? 'ekstrakurikuler' : 'pelajaran'} yang berlaku pada tanggal
             ini.
           </Alert>
-        ) : (
+        ) : schedules.length === 0 ? null : (
           <Stack gap="sm">
             {schedules.map((schedule) => (
               <Paper

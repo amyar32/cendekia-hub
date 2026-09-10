@@ -65,6 +65,7 @@ export function CheckinManager({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [dateNotice, setDateNotice] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [pendingCheckin, setPendingCheckin] = useState<{
@@ -84,9 +85,11 @@ export function CheckinManager({
       setClasses(result.options?.class_id || []);
       if (!isTeacher) setClassId(result.selected?.class_id || null);
       setRows(result.rows);
+      setDateNotice(result.date_notice || '');
       setError('');
     } catch (cause) {
       setRows([]);
+      setDateNotice('');
       setError(cause instanceof Error ? cause.message : 'Gagal memuat data cek-in.');
     } finally {
       if (showLoading) setLoading(false);
@@ -108,11 +111,13 @@ export function CheckinManager({
         setClasses(result.options?.class_id || []);
         if (!isTeacher) setClassId(result.selected?.class_id || null);
         setRows(result.rows);
+        setDateNotice(result.date_notice || '');
         setError('');
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === 'AbortError') return;
         setRows([]);
+        setDateNotice('');
         setError(cause instanceof Error ? cause.message : 'Gagal memuat data cek-in.');
       })
       .finally(() => {
@@ -257,6 +262,11 @@ export function CheckinManager({
       {error ? (
         <Alert color="red" mb="md">
           {error}
+        </Alert>
+      ) : null}
+      {dateNotice ? (
+        <Alert color="orange" mb="md" icon={<IconCalendar size={18} />}>
+          {dateNotice} Pilih tanggal yang berada dalam periode tersebut untuk menampilkan murid.
         </Alert>
       ) : null}
       <Paper withBorder p="lg" className={styles.listPanel}>

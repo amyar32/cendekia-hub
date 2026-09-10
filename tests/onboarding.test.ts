@@ -339,4 +339,24 @@ test('wizard onboarding SD, preview Excel, dan import data simulasi', async () =
     extracurricular_assignments: transition.extracurricular_assignments,
   });
   assert.equal(response.status, 200);
+  const transitionActions = transition.students.map(
+    (student: { id: string; source_level_order: number }) => {
+      if (student.source_level_order === transition.max_grade_level)
+        return { student_id: student.id, outcome: 'graduated', target_class_id: '' };
+      const target = transition.target_classes.find(
+        (classroom: { level_order: number }) =>
+          classroom.level_order === student.source_level_order + 1,
+      );
+      assert.ok(target);
+      return { student_id: student.id, outcome: 'promoted', target_class_id: target.value };
+    },
+  );
+  response = await api('/api/modules/promotions', 'POST', {
+    source_academic_year_id: state.active_year.id,
+    target_academic_year_id: draft.id,
+    activate_target: true,
+    actions: transitionActions,
+  });
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /baru dapat diaktifkan mulai/);
 });
