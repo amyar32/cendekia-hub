@@ -26,8 +26,6 @@
     "@mantine/hooks": "^8.3.0",
     "@mantine/notifications": "^8.3.0",
     "@tabler/icons-react": "^3.35.0",
-    "@zxing/browser": "^0.1.5",
-    "@zxing/library": "^0.21.3",
     "better-sqlite3": "^12.4.0",
     "dayjs": "^1.11.23",
     "exceljs": "^4.4.0",

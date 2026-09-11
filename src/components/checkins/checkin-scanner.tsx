@@ -4,11 +4,10 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Avatar, Button, Group, Select, Text, TextInput } from '@mantine/core';
+import { Avatar, Button, Group, Text, TextInput } from '@mantine/core';
 import {
   IconAlertTriangle,
   IconArrowsMaximize,
-  IconCamera,
   IconCheck,
   IconClock,
   IconDoorExit,
@@ -17,7 +16,6 @@ import {
   IconVolume,
   IconVolumeOff,
 } from '@tabler/icons-react';
-import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 import styles from './checkin-scanner.module.css';
 
 type Student = { name: string; nis: string; photo_url: string; class_name: string };
@@ -46,26 +44,31 @@ type Config = {
 };
 
 const emptySummary = { total: 0, present: 0, late: 0 };
+const completeCardPattern = /^cendekia:(?:teacher-)?checkin:[0-9a-f]{48}$/i;
+
+function normalizeCardCode(rawCode: string) {
+  const code = rawCode.trim();
+  return completeCardPattern.test(code) ? code.toLowerCase() : code;
+}
 
 export function CheckinScanner({ operatorName }: { operatorName: string }) {
   const endpoint = '/api/modules/checkins/scanner';
   const router = useRouter();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const controlsRef = useRef<IScannerControls | null>(null);
   const scanningRef = useRef(false);
   const lastScanRef = useRef({ code: '', at: 0 });
   const clearResultRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hidBufferRef = useRef('');
+  const hidBufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [summary, setSummary] = useState<Summary>(emptySummary);
   const [recent, setRecent] = useState<Recent[]>([]);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState('');
-  const [cameraError, setCameraError] = useState('');
-  const [devices, setDevices] = useState<{ value: string; label: string }[]>([]);
-  const [deviceId, setDeviceId] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [clock, setClock] = useState(new Date());
   const [sound, setSound] = useState(true);
+  const [hidState, setHidState] = useState<'ready' | 'reading' | 'processing'>('ready');
+  const [receivedCharacters, setReceivedCharacters] = useState(0);
 
   useEffect(() => {
     queueMicrotask(() => setSound(localStorage.getItem('checkin-scanner-sound') !== 'off'));
@@ -103,11 +106,12 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
 
   const submitCode = useCallback(
     async (rawCode: string, manual = false) => {
-      const code = rawCode.trim();
+      const code = normalizeCardCode(rawCode);
       if (!code || scanningRef.current) return;
       const now = Date.now();
-      if (lastScanRef.current.code === code && now - lastScanRef.current.at < 5000) return;
+      if (lastScanRef.current.code === code && now - lastScanRef.current.at < 1500) return;
       scanningRef.current = true;
+      setHidState('processing');
       lastScanRef.current = { code, at: now };
       setError('');
       try {
@@ -131,88 +135,65 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
         beep('error');
         setTimeout(() => setError(''), 4200);
       } finally {
-        setTimeout(() => {
-          scanningRef.current = false;
-        }, 700);
+        scanningRef.current = false;
+        setHidState('ready');
       }
     },
     [beep, endpoint],
   );
 
   useEffect(() => {
-    let cancelled = false;
-    let stream: MediaStream | null = null;
-    let controls: IScannerControls | null = null;
-    const video = videoRef.current;
-    const reader = new BrowserQRCodeReader();
-    const constraints: MediaStreamConstraints = {
-      video: deviceId
-        ? {
-            deviceId: { exact: deviceId },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            frameRate: { ideal: 30 },
-          }
-        : {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            frameRate: { ideal: 30 },
-          },
-      audio: false,
-    };
-
-    async function startScanner() {
-      if (!video) return;
-
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        video.srcObject = stream;
-        if (cancelled) return;
-
-        controls = await reader.decodeFromVideoElement(video, (decoded) => {
-          if (decoded) void submitCode(decoded.getText());
-        });
-        if (cancelled) {
-          controls.stop();
-          return;
-        }
-        setCameraError('');
-        controlsRef.current = controls;
-        const inputs = await BrowserQRCodeReader.listVideoInputDevices();
-        if (!cancelled)
-          setDevices(
-            inputs.map((item, index) => ({
-              value: item.deviceId,
-              label: item.label || `Kamera ${index + 1}`,
-            })),
-          );
-      } catch {
-        if (!cancelled)
-          setCameraError(
-            'Kamera tidak dapat dibuka. Izinkan akses kamera lalu muat ulang halaman.',
-          );
-      }
+    function clearHidBuffer() {
+      hidBufferRef.current = '';
+      setReceivedCharacters(0);
+      setHidState('ready');
     }
 
-    void startScanner();
+    function handleHidKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const isEditable =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable;
+      if (isEditable || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return;
+
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        if (!hidBufferRef.current) return;
+        event.preventDefault();
+        const code = hidBufferRef.current;
+        if (hidBufferTimerRef.current) clearTimeout(hidBufferTimerRef.current);
+        hidBufferRef.current = '';
+        setReceivedCharacters(0);
+        setHidState('ready');
+        void submitCode(code);
+        return;
+      }
+
+      if (event.key.length !== 1 || event.repeat) return;
+      event.preventDefault();
+      hidBufferRef.current += event.key;
+      setReceivedCharacters(hidBufferRef.current.length);
+      setHidState('reading');
+      if (hidBufferTimerRef.current) clearTimeout(hidBufferTimerRef.current);
+      if (completeCardPattern.test(hidBufferRef.current)) {
+        const code = hidBufferRef.current;
+        hidBufferRef.current = '';
+        setReceivedCharacters(0);
+        setHidState('ready');
+        void submitCode(code);
+        return;
+      }
+      hidBufferTimerRef.current = setTimeout(clearHidBuffer, 500);
+    }
+
+    window.addEventListener('keydown', handleHidKey, { capture: true });
 
     return () => {
-      cancelled = true;
-      controls?.stop();
-      if (controlsRef.current === controls) controlsRef.current = null;
-      stream?.getTracks().forEach((track) => track.stop());
-      if (video?.srcObject === stream) {
-        video.pause();
-        video.srcObject = null;
-      }
+      window.removeEventListener('keydown', handleHidKey, { capture: true });
+      if (hidBufferTimerRef.current) clearTimeout(hidBufferTimerRef.current);
     };
-  }, [deviceId, submitCode]);
+  }, [submitCode]);
 
   useEffect(
     () => () => {
@@ -308,26 +289,38 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
 
       <section className={styles.workspace}>
         <div className={styles.scannerPanel}>
-          <div className={styles.camera}>
-            <video ref={videoRef} muted playsInline />
-            <div className={styles.cameraShade} />
-            <div className={styles.frame}>
-              <i />
-              <i />
-              <i />
-              <i />
-            </div>
-            <div className={styles.scanLine} />
+          <div className={styles.hidStage}>
             {!result && !error && (
-              <div className={styles.prompt}>
-                <IconCamera size={22} />
-                <span>Arahkan QR kartu murid atau guru ke kotak</span>
-              </div>
-            )}
-            {cameraError && (
-              <div className={styles.cameraMessage}>
-                <IconAlertTriangle size={32} />
-                <Text>{cameraError}</Text>
+              <div className={styles.hidContent}>
+                <div
+                  className={`${styles.hidIcon} ${hidState === 'reading' ? styles.hidReading : ''}`}
+                >
+                  <IconQrcode />
+                  <span className={styles.hidPulse} />
+                </div>
+                <Text className={styles.hidTitle}>
+                  {hidState === 'processing'
+                    ? 'Memproses kartu…'
+                    : hidState === 'reading'
+                      ? 'Membaca kartu…'
+                      : 'Scan kartu sekarang'}
+                </Text>
+                <Text className={styles.hidDescription}>
+                  Arahkan kode QR pada kartu ke scanner. Jika kartu hilang atau rusak, hubungi admin
+                  sekolah untuk mendapatkan kartu pengganti.
+                </Text>
+                <div className={styles.hidStatus} aria-live="polite">
+                  <span className={styles.liveDot} />
+                  {hidState === 'reading'
+                    ? `${receivedCharacters} karakter diterima`
+                    : hidState === 'processing'
+                      ? 'Memverifikasi data'
+                      : 'Siap memindai'}
+                </div>
+                <Text className={styles.hidHint}>
+                  Scan gagal? Coba sekali lagi atau minta bantuan petugas untuk memasukkan NIS atau
+                  kode guru.
+                </Text>
               </div>
             )}
             {(result || error) && (
@@ -375,23 +368,12 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
               </div>
             )}
           </div>
-          <div className={styles.cameraFooter}>
+          <div className={styles.scannerFooter}>
             <Group gap="xs">
               <span className={styles.liveDot} />
-              <Text>Scanner aktif</Text>
+              <Text>Mode HID aktif</Text>
             </Group>
-            {devices.length > 1 ? (
-              <Select
-                size="xs"
-                data={devices}
-                value={deviceId}
-                placeholder="Pilih kamera"
-                onChange={setDeviceId}
-                w={220}
-              />
-            ) : (
-              <Text>{operatorName}</Text>
-            )}
+            <Text>{operatorName}</Text>
           </div>
         </div>
 
