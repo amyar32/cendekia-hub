@@ -148,28 +148,131 @@ export async function GET(request: Request) {
     await requireUser('students.read');
     const schoolId = currentSchoolId();
     const activeYear = activeAcademicYear(schoolId);
+    const url = new URL(request.url);
+    const category = z
+      .enum(['all', 'active', 'alumni', 'inactive'])
+      .catch('all')
+      .parse(url.searchParams.get('category') || 'all');
+    const graduationYearId = z
+      .union([z.literal(''), z.string().uuid('Tahun kelulusan tidak valid.')])
+      .parse(url.searchParams.get('graduation_year_id') || '');
+    const graduationClassId = z
+      .union([z.literal(''), z.string().uuid('Rombel kelulusan tidak valid.')])
+      .parse(url.searchParams.get('graduation_class_id') || '');
+    const activeClassId = z
+      .union([z.literal(''), z.string().uuid('Rombel aktif tidak valid.')])
+      .parse(url.searchParams.get('active_class_id') || '');
+    const gender = z.enum(['', 'male', 'female']).parse(url.searchParams.get('gender') || '');
     const { filter, offset } = listParams(request);
-    const where = `s.school_id=? AND (s.nis LIKE ? OR s.nisn LIKE ? OR s.name LIKE ? OR s.email LIKE ?)`;
+    const conditions = [
+      's.school_id=?',
+      '(s.nis LIKE ? OR s.nisn LIKE ? OR s.name LIKE ? OR s.email LIKE ?)',
+    ];
+    const args: Array<string | number> = [schoolId, filter, filter, filter, filter];
+    if (category === 'active') {
+      conditions.push('s.is_active=1');
+      if (activeClassId) {
+        conditions.push(
+          "EXISTS(SELECT 1 FROM class_memberships active_cm WHERE active_cm.student_id=s.id AND active_cm.status='active' AND active_cm.class_id=?)",
+        );
+        args.push(activeClassId);
+      }
+      if (gender) {
+        conditions.push('s.gender=?');
+        args.push(gender);
+      }
+    }
+    if (category === 'inactive')
+      conditions.push(
+        "s.is_active=0 AND NOT EXISTS(SELECT 1 FROM class_memberships alumni_cm WHERE alumni_cm.student_id=s.id AND alumni_cm.completion_reason='graduated')",
+      );
+    if (category === 'alumni') {
+      conditions.push(
+        "s.is_active=0 AND EXISTS(SELECT 1 FROM class_memberships alumni_cm WHERE alumni_cm.student_id=s.id AND alumni_cm.completion_reason='graduated')",
+      );
+      if (graduationYearId) {
+        conditions.push(
+          "EXISTS(SELECT 1 FROM class_memberships alumni_year WHERE alumni_year.student_id=s.id AND alumni_year.completion_reason='graduated' AND alumni_year.academic_year_id=?)",
+        );
+        args.push(graduationYearId);
+      }
+      if (graduationClassId) {
+        conditions.push(
+          "EXISTS(SELECT 1 FROM class_memberships alumni_class WHERE alumni_class.student_id=s.id AND alumni_class.completion_reason='graduated' AND alumni_class.class_id=?)",
+        );
+        args.push(graduationClassId);
+      }
+      if (gender) {
+        conditions.push('s.gender=?');
+        args.push(gender);
+      }
+    }
+    const where = conditions.join(' AND ');
     const rows = db()
       .prepare(
         `SELECT s.id,s.school_id,s.photo_url,s.nis,s.nisn,s.name,s.gender,s.birth_date,s.birth_place,
           s.blood_type,s.address,s.phone,s.email,s.enrollment_date,s.previous_school_name,
           s.previous_school_npsn,s.previous_school_address,s.previous_school_last_grade,
           s.previous_school_graduation_year,s.is_active,s.created_at,s.updated_at,
-          CASE s.gender WHEN 'male' THEN 'Laki-laki' ELSE 'Perempuan' END AS gender_label
+          CASE s.gender WHEN 'male' THEN 'Laki-laki' ELSE 'Perempuan' END AS gender_label,
+          (SELECT cm.class_id FROM class_memberships cm JOIN academic_years ay ON ay.id=cm.academic_year_id
+           WHERE cm.student_id=s.id AND cm.completion_reason='graduated'
+           ORDER BY ay.start_date DESC,cm.end_date DESC LIMIT 1) AS graduation_class_id,
+          (SELECT c.name FROM class_memberships cm JOIN classes c ON c.id=cm.class_id
+           JOIN academic_years ay ON ay.id=cm.academic_year_id
+           WHERE cm.student_id=s.id AND cm.completion_reason='graduated'
+           ORDER BY ay.start_date DESC,cm.end_date DESC LIMIT 1) AS graduation_class_name,
+          (SELECT ay.id FROM class_memberships cm JOIN academic_years ay ON ay.id=cm.academic_year_id
+           WHERE cm.student_id=s.id AND cm.completion_reason='graduated'
+           ORDER BY ay.start_date DESC,cm.end_date DESC LIMIT 1) AS graduation_academic_year_id,
+          (SELECT ay.name FROM class_memberships cm JOIN academic_years ay ON ay.id=cm.academic_year_id
+           WHERE cm.student_id=s.id AND cm.completion_reason='graduated'
+           ORDER BY ay.start_date DESC,cm.end_date DESC LIMIT 1) AS graduation_academic_year_name,
+          (SELECT cm.end_date FROM class_memberships cm JOIN academic_years ay ON ay.id=cm.academic_year_id
+           WHERE cm.student_id=s.id AND cm.completion_reason='graduated'
+           ORDER BY ay.start_date DESC,cm.end_date DESC LIMIT 1) AS graduation_date
        FROM students s WHERE ${where} ORDER BY s.is_active DESC,s.name LIMIT 10 OFFSET ?`,
       )
-      .all(schoolId, filter, filter, filter, filter, offset) as StudentRow[];
+      .all(...args, offset) as StudentRow[];
     const total = (
       db()
         .prepare(`SELECT count(*) AS n FROM students s WHERE ${where}`)
-        .get(schoolId, filter, filter, filter, filter) as { n: number }
+        .get(...args) as { n: number }
     ).n;
+    const graduationYears =
+      category === 'alumni'
+        ? db()
+            .prepare(
+              `SELECT DISTINCT ay.id AS value,ay.name AS label,ay.start_date
+               FROM class_memberships cm JOIN academic_years ay ON ay.id=cm.academic_year_id
+               JOIN students s ON s.id=cm.student_id
+               WHERE s.school_id=? AND s.is_active=0 AND cm.completion_reason='graduated'
+               ORDER BY ay.start_date DESC`,
+            )
+            .all(schoolId)
+        : [];
+    const graduationClasses =
+      category === 'alumni'
+        ? db()
+            .prepare(
+              `SELECT DISTINCT c.id AS value,c.name AS label,g.level_order
+               FROM class_memberships cm JOIN classes c ON c.id=cm.class_id
+               JOIN grades g ON g.id=c.grade_id JOIN students s ON s.id=cm.student_id
+               WHERE s.school_id=? AND s.is_active=0 AND cm.completion_reason='graduated'
+                 AND (?='' OR cm.academic_year_id=?)
+               ORDER BY g.level_order,c.name`,
+            )
+            .all(schoolId, graduationYearId, graduationYearId)
+        : [];
     return Response.json(
       {
         rows: attachRelations(rows),
         total,
-        options: { class_id: classOptions(schoolId, activeYear.id) },
+        options: {
+          class_id: classOptions(schoolId, activeYear.id),
+          graduation_year_id: graduationYears,
+          graduation_class_id: graduationClasses,
+        },
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
@@ -203,6 +306,20 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       }
 
       const data = schema.parse(input);
+      if (
+        method === 'PATCH' &&
+        data.is_active &&
+        !previous?.is_active &&
+        db()
+          .prepare(
+            "SELECT id FROM class_memberships WHERE student_id=? AND completion_reason='graduated' LIMIT 1",
+          )
+          .get(id)
+      )
+        throw new HttpError(
+          409,
+          'Alumni tidak dapat diaktifkan dari formulir biasa. Gunakan proses penerimaan kembali.',
+        );
       const photoUploadId = uploadIdFromUrl(data.photo_url);
       if (
         photoUploadId &&

@@ -874,6 +874,27 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(completeStudent.previous_school_graduation_year, '2026');
   assert.equal(completeStudent.current_class_name, '7A');
   assert.equal(completeStudent.history[0].status_label, 'Aktif');
+  const activeStudentFilters = new URLSearchParams({
+    category: 'active',
+    active_class_id: classroom.id,
+    gender: 'female',
+    q: 'Ayu',
+  });
+  const filteredActiveStudents = await (
+    await api(`/api/modules/students?${activeStudentFilters.toString()}`)
+  ).json();
+  assert.equal(filteredActiveStudents.total, 1);
+  assert.equal(filteredActiveStudents.rows[0].id, student.id);
+  assert.equal(
+    (
+      await (
+        await api(
+          `/api/modules/students?category=active&active_class_id=${classroom.id}&gender=male&q=Ayu`,
+        )
+      ).json()
+    ).total,
+    0,
+  );
   res = await api(`/api/modules/students/${student.id}/card`);
   assert.equal(res.status, 200);
   const firstCard = await res.json();
@@ -1729,6 +1750,39 @@ test('guided annual transition keeps the source active until finalization and ca
     afterFinalization.rows.find((row: { id: string }) => row.id === draft.id).is_active,
     1,
   );
+  const graduatedActions = actions.filter(
+    (action: { outcome: string }) => action.outcome === 'graduated',
+  );
+  assert.ok(graduatedActions.length > 0);
+  res = await api(`/api/modules/students?category=alumni&graduation_year_id=${sourceYear.value}`);
+  assert.equal(res.status, 200);
+  const alumni = await res.json();
+  assert.equal(alumni.total, graduatedActions.length);
+  assert.ok(
+    alumni.options.graduation_year_id.some(
+      (option: { value: string }) => option.value === sourceYear.value,
+    ),
+  );
+  const alumniRow = alumni.rows[0];
+  assert.equal(alumniRow.graduation_academic_year_id, sourceYear.value);
+  assert.ok(alumniRow.graduation_class_id);
+  assert.ok(alumniRow.graduation_date);
+  const alumniFilters = new URLSearchParams({
+    category: 'alumni',
+    graduation_year_id: sourceYear.value,
+    graduation_class_id: alumniRow.graduation_class_id,
+    gender: alumniRow.gender,
+    q: alumniRow.nis,
+  });
+  const filteredAlumni = await (
+    await api(`/api/modules/students?${alumniFilters.toString()}`)
+  ).json();
+  assert.equal(filteredAlumni.total, 1);
+  assert.equal(filteredAlumni.rows[0].id, alumniRow.id);
+  assert.equal(
+    (await (await api(`/api/modules/students?category=active&q=${alumniRow.nis}`)).json()).total,
+    0,
+  );
   const targetExtracurriculars = await (
     await api(`/api/modules/extracurricular-assignments?academic_year_id=${draft.id}`)
   ).json();
@@ -1753,4 +1807,12 @@ test('guided annual transition keeps the source active until finalization and ca
     1,
   );
   assert.equal(afterUndo.rows.find((row: { id: string }) => row.id === draft.id).is_active, 0);
+  assert.equal(
+    (
+      await (
+        await api(`/api/modules/students?category=alumni&graduation_year_id=${sourceYear.value}`)
+      ).json()
+    ).total,
+    0,
+  );
 });

@@ -36,6 +36,7 @@ type Props = {
   onAdd?: () => void;
   emptyMessage?: string;
   note: string;
+  navigation?: ReactNode;
   toolbarLeading?: ReactNode;
   children: ReactNode;
 };
@@ -57,6 +58,7 @@ export function ModuleListLayout(props: Props) {
           )
         }
       />
+      {props.navigation}
       <Paper component="section" className={styles.panel} withBorder>
         <div className={styles.toolbar}>
           <Stack gap={5}>
@@ -75,6 +77,7 @@ export function ModuleListLayout(props: Props) {
             <TextInput
               aria-label="Cari data"
               placeholder="Cari data..."
+              w={200}
               leftSection={<IconSearch size={17} />}
               value={props.query}
               onChange={(event) => props.onQueryChange(event.currentTarget.value)}

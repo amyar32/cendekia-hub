@@ -18,6 +18,7 @@ import {
   Stack,
   Switch,
   Table,
+  Tabs,
   Text,
   Textarea,
   TextInput,
@@ -43,6 +44,7 @@ import { ModuleListLayout } from '@/components/cms/module-list-layout/module-lis
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
 import classes from '@/components/academic/academic-entity-manager.module.css';
 import { IdentityCardModal } from '@/components/identity-card/identity-card-modal';
+import studentStyles from './student-managers.module.css';
 
 type Guardian = {
   name: string;
@@ -92,6 +94,11 @@ type StudentRow = StudentForm & {
   document_count: number;
   current_class_name: string;
   history: ClassHistory[];
+  graduation_class_id?: string;
+  graduation_class_name?: string;
+  graduation_academic_year_id?: string;
+  graduation_academic_year_name?: string;
+  graduation_date?: string;
 };
 
 const emptyGuardian = (): Guardian => ({
@@ -158,7 +165,20 @@ function formatDate(value?: string) {
 }
 
 export function StudentManager({ writable }: { writable: boolean }) {
-  const list = useModuleList<StudentRow>('/api/modules/students');
+  const [view, setView] = useState<'active' | 'alumni' | 'inactive'>('active');
+  const [activeClassId, setActiveClassId] = useState('');
+  const [activeGender, setActiveGender] = useState('');
+  const [graduationYearId, setGraduationYearId] = useState('');
+  const [graduationClassId, setGraduationClassId] = useState('');
+  const [alumniGender, setAlumniGender] = useState('');
+  const list = useModuleList<StudentRow>('/api/modules/students', {
+    category: view,
+    ...(view === 'active' && activeClassId ? { active_class_id: activeClassId } : {}),
+    ...(view === 'active' && activeGender ? { gender: activeGender } : {}),
+    ...(view === 'alumni' && graduationYearId ? { graduation_year_id: graduationYearId } : {}),
+    ...(view === 'alumni' && graduationClassId ? { graduation_class_id: graduationClassId } : {}),
+    ...(view === 'alumni' && alumniGender ? { gender: alumniGender } : {}),
+  });
   const [editing, setEditing] = useState<StudentRow | null | undefined>(undefined);
   const [removing, setRemoving] = useState<StudentRow | null>(null);
   const [form, setForm] = useState<StudentForm>(emptyForm);
@@ -271,6 +291,9 @@ export function StudentManager({ writable }: { writable: boolean }) {
     form.placement.class_id &&
     !list.options?.class_id?.some((option) => option.value === form.placement.class_id),
   );
+  const editingAlumni = Boolean(
+    editing && !editing.is_active && editing.graduation_academic_year_id,
+  );
   return (
     <>
       <ModuleListLayout
@@ -287,99 +310,281 @@ export function StudentManager({ writable }: { writable: boolean }) {
         error={list.error}
         onReload={list.reload}
         addLabel="Tambah murid"
-        onAdd={writable ? () => openEditor(null) : undefined}
-        note="Riwayat kelas dibuat otomatis setiap kali penempatan murid berubah."
+        onAdd={writable && view === 'active' ? () => openEditor(null) : undefined}
+        note={
+          view === 'alumni'
+            ? 'Alumni ditentukan otomatis dari hasil kelulusan pada proses pergantian tahun ajaran.'
+            : 'Riwayat kelas dibuat otomatis setiap kali penempatan murid berubah.'
+        }
+        navigation={
+          <Tabs
+            value={view}
+            onChange={(value) => {
+              if (!value) return;
+              setView(value as 'active' | 'alumni' | 'inactive');
+              list.setPage(1);
+            }}
+            className={studentStyles.tabs}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="active" leftSection={<IconUsers size={17} />}>
+                Murid Aktif
+              </Tabs.Tab>
+              <Tabs.Tab value="alumni" leftSection={<IconId size={17} />}>
+                Alumni
+              </Tabs.Tab>
+              <Tabs.Tab value="inactive" leftSection={<IconUser size={17} />}>
+                Pindah/Keluar
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+        }
+        toolbarLeading={
+          view === 'active' ? (
+            <Group gap="xs" wrap="wrap">
+              <Select
+                aria-label="Filter rombel aktif"
+                placeholder="Rombel aktif"
+                size="sm"
+                clearable
+                searchable
+                value={activeClassId || null}
+                data={list.options?.class_id || []}
+                onChange={(value) => {
+                  setActiveClassId(value || '');
+                  list.setPage(1);
+                }}
+                w={200}
+              />
+              <Select
+                aria-label="Filter jenis kelamin murid"
+                placeholder="Jenis kelamin"
+                size="sm"
+                clearable
+                value={activeGender || null}
+                data={[
+                  { value: 'male', label: 'Laki-laki' },
+                  { value: 'female', label: 'Perempuan' },
+                ]}
+                onChange={(value) => {
+                  setActiveGender(value || '');
+                  list.setPage(1);
+                }}
+                w={200}
+              />
+            </Group>
+          ) : view === 'alumni' ? (
+            <Group gap="xs" wrap="wrap">
+              <Select
+                aria-label="Filter tahun kelulusan"
+                placeholder="Tahun kelulusan"
+                size="sm"
+                clearable
+                searchable
+                value={graduationYearId || null}
+                data={list.options?.graduation_year_id || []}
+                onChange={(value) => {
+                  setGraduationYearId(value || '');
+                  setGraduationClassId('');
+                  list.setPage(1);
+                }}
+                w={200}
+              />
+              <Select
+                aria-label="Filter rombel terakhir"
+                placeholder="Rombel terakhir"
+                size="sm"
+                clearable
+                searchable
+                value={graduationClassId || null}
+                data={list.options?.graduation_class_id || []}
+                onChange={(value) => {
+                  setGraduationClassId(value || '');
+                  list.setPage(1);
+                }}
+                w={200}
+              />
+              <Select
+                aria-label="Filter jenis kelamin alumni"
+                placeholder="Jenis kelamin"
+                size="sm"
+                clearable
+                value={alumniGender || null}
+                data={[
+                  { value: 'male', label: 'Laki-laki' },
+                  { value: 'female', label: 'Perempuan' },
+                ]}
+                onChange={(value) => {
+                  setAlumniGender(value || '');
+                  list.setPage(1);
+                }}
+                w={200}
+              />
+            </Group>
+          ) : undefined
+        }
       >
         <Table.ScrollContainer minWidth={980}>
           <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
             <Table.Thead>
-              <Table.Tr>
-                <Table.Th>FOTO</Table.Th>
-                <Table.Th>NIS</Table.Th>
-                <Table.Th>NAMA</Table.Th>
-                <Table.Th>GOL. DARAH</Table.Th>
-                <Table.Th>WALI UTAMA</Table.Th>
-                <Table.Th>ROMBEL AKTIF</Table.Th>
-                <Table.Th>DOKUMEN</Table.Th>
-                <Table.Th>STATUS</Table.Th>
-                <Table.Th ta="right">AKSI</Table.Th>
-              </Table.Tr>
+              {view === 'alumni' ? (
+                <Table.Tr>
+                  <Table.Th>FOTO</Table.Th>
+                  <Table.Th>NIS / NISN</Table.Th>
+                  <Table.Th>NAMA</Table.Th>
+                  <Table.Th>ROMBEL TERAKHIR</Table.Th>
+                  <Table.Th>TAHUN LULUS</Table.Th>
+                  <Table.Th>TANGGAL LULUS</Table.Th>
+                  <Table.Th>KONTAK</Table.Th>
+                  <Table.Th>DOKUMEN</Table.Th>
+                  <Table.Th ta="right">AKSI</Table.Th>
+                </Table.Tr>
+              ) : (
+                <Table.Tr>
+                  <Table.Th>FOTO</Table.Th>
+                  <Table.Th>NIS</Table.Th>
+                  <Table.Th>NAMA</Table.Th>
+                  <Table.Th>GOL. DARAH</Table.Th>
+                  <Table.Th>WALI UTAMA</Table.Th>
+                  <Table.Th>ROMBEL AKTIF</Table.Th>
+                  <Table.Th>DOKUMEN</Table.Th>
+                  <Table.Th>STATUS</Table.Th>
+                  <Table.Th ta="right">AKSI</Table.Th>
+                </Table.Tr>
+              )}
             </Table.Thead>
             <Table.Tbody>
-              {list.rows.map((row) => (
-                <Table.Tr key={row.id}>
-                  <Table.Td>
-                    <Avatar src={row.photo_url} alt={`Foto ${row.name}`} size={36} radius="xl">
-                      {row.name
-                        .split(' ')
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .map((part) => part[0])
-                        .join('')}
-                    </Avatar>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="light" color="grape">
-                      {row.nis}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" fw={600}>
-                      {row.name}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{row.blood_type || '—'}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{row.guardian_name || '—'}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{row.current_class_name || '—'}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="light" color="gray">
-                      {row.document_count}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="dot" color={row.is_active ? 'green' : 'gray'}>
-                      {row.is_active ? 'Aktif' : 'Nonaktif'}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={6} justify="flex-end">
+              {list.rows.map((row) =>
+                view === 'alumni' ? (
+                  <Table.Tr key={row.id}>
+                    <Table.Td>
+                      <Avatar src={row.photo_url} alt={`Foto ${row.name}`} size={36} radius="xl">
+                        {row.name
+                          .split(' ')
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .map((part) => part[0])
+                          .join('')}
+                      </Avatar>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="light" color="grape">
+                        {row.nis}
+                      </Badge>
+                      <Text size="xs" c="dimmed" mt={3}>
+                        {row.nisn || 'NISN —'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" fw={600}>
+                        {row.name}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">{row.graduation_class_name || '—'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="light" color="blue">
+                        {row.graduation_academic_year_name || '—'}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">{formatDate(row.graduation_date)}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">{row.phone || row.email || '—'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="light" color="gray">
+                        {row.document_count}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
                       <ActionIcon
-                        aria-label={`Kartu ${row.name}`}
-                        title="Buat kartu siswa"
-                        variant="subtle"
-                        color="blue"
-                        onClick={() => setCardStudentId(row.id)}
-                      >
-                        <IconId size={17} />
-                      </ActionIcon>
-                      <ActionIcon
-                        aria-label={`Lihat ${row.name}`}
+                        aria-label={`Lihat alumni ${row.name}`}
                         variant="subtle"
                         color="gray"
                         onClick={() => openEditor(row)}
                       >
                         {writable ? <IconPencil size={17} /> : <IconEye size={17} />}
                       </ActionIcon>
-                      {writable && (
+                    </Table.Td>
+                  </Table.Tr>
+                ) : (
+                  <Table.Tr key={row.id}>
+                    <Table.Td>
+                      <Avatar src={row.photo_url} alt={`Foto ${row.name}`} size={36} radius="xl">
+                        {row.name
+                          .split(' ')
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .map((part) => part[0])
+                          .join('')}
+                      </Avatar>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="light" color="grape">
+                        {row.nis}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" fw={600}>
+                        {row.name}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">{row.blood_type || '—'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">{row.guardian_name || '—'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">{row.current_class_name || '—'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="light" color="gray">
+                        {row.document_count}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="dot" color={row.is_active ? 'green' : 'gray'}>
+                        {row.is_active ? 'Aktif' : 'Nonaktif'}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={6} justify="flex-end">
                         <ActionIcon
-                          aria-label={`Hapus ${row.name}`}
+                          aria-label={`Kartu ${row.name}`}
+                          title="Buat kartu siswa"
                           variant="subtle"
-                          color="red"
-                          onClick={() => setRemoving(row)}
+                          color="blue"
+                          onClick={() => setCardStudentId(row.id)}
                         >
-                          <IconTrash size={17} />
+                          <IconId size={17} />
                         </ActionIcon>
-                      )}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
+                        <ActionIcon
+                          aria-label={`Lihat ${row.name}`}
+                          variant="subtle"
+                          color="gray"
+                          onClick={() => openEditor(row)}
+                        >
+                          {writable ? <IconPencil size={17} /> : <IconEye size={17} />}
+                        </ActionIcon>
+                        {writable && (
+                          <ActionIcon
+                            aria-label={`Hapus ${row.name}`}
+                            variant="subtle"
+                            color="red"
+                            onClick={() => setRemoving(row)}
+                          >
+                            <IconTrash size={17} />
+                          </ActionIcon>
+                        )}
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ),
+              )}
             </Table.Tbody>
           </Table>
         </Table.ScrollContainer>
@@ -585,7 +790,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 clearable
                 data={list.options?.class_id || []}
                 value={form.placement.class_id}
-                disabled={disabled || placementLocked}
+                disabled={disabled || placementLocked || editingAlumni}
                 onChange={(value) =>
                   setForm({ ...form, placement: { ...form.placement, class_id: value || '' } })
                 }
@@ -597,7 +802,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 locale="id"
                 valueFormat="D MMMM YYYY"
                 value={form.placement.start_date}
-                disabled={disabled || placementLocked || !form.placement.class_id}
+                disabled={disabled || placementLocked || editingAlumni || !form.placement.class_id}
                 onChange={(value) =>
                   setForm({ ...form, placement: { ...form.placement, start_date: value || '' } })
                 }
@@ -862,9 +1067,13 @@ export function StudentManager({ writable }: { writable: boolean }) {
             <Box className={classes.statusCard}>
               <Switch
                 label="Status aktif"
-                description="Murid nonaktif tetap tersimpan dalam riwayat sekolah."
+                description={
+                  editingAlumni
+                    ? 'Status alumni berasal dari proses kelulusan dan tidak dapat diubah dari formulir ini.'
+                    : 'Murid nonaktif tetap tersimpan dalam riwayat sekolah.'
+                }
                 checked={form.is_active}
-                disabled={disabled}
+                disabled={disabled || editingAlumni}
                 onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
               />
             </Box>
