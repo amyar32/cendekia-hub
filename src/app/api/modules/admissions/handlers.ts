@@ -271,6 +271,23 @@ export async function GET(request: Request) {
     await requireUser('admissions.read');
     const schoolId = currentSchoolId();
     const url = new URL(request.url);
+    const requestedId = url.searchParams.get('id');
+    if (requestedId) {
+      const id = uuid.parse(requestedId);
+      const row = db()
+        .prepare(
+          `SELECT a.*,p.name AS period_name,p.academic_year_id,g.name AS target_grade_name,
+           CASE a.gender WHEN 'male' THEN 'Laki-laki' ELSE 'Perempuan' END AS gender_label
+           FROM student_applications a JOIN admission_periods p ON p.id=a.admission_period_id
+           JOIN grades g ON g.id=a.target_grade_id WHERE a.id=? AND a.school_id=?`,
+        )
+        .get(id, schoolId) as ApplicationRow | undefined;
+      if (!row) throw new HttpError(404, 'Pendaftaran tidak ditemukan.');
+      return Response.json(
+        { application: applicationRelations([row])[0] },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
     const selectedStatus = z
       .union([z.literal(''), status])
       .parse(url.searchParams.get('status') || '');

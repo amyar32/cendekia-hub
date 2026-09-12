@@ -192,6 +192,9 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
       notes: `Masuk status ${status}`,
     });
     assert.equal(response.status, 200, `${status}: ${await response.clone().text()}`);
+    response = await api(`/api/modules/admissions?id=${application.id}`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).application.status, status);
   }
   response = await api('/api/modules/admissions', 'POST', {
     entity: 'convert',

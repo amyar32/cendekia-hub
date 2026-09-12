@@ -172,6 +172,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
   const [classId, setClassId] = useState('');
   const [enrollmentDate, setEnrollmentDate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState('');
   const options = list.options || {};
 
   function openApplication(row: Application) {
@@ -200,14 +201,50 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
         : blankPeriod(),
     );
   }
-  async function mutate(method: string, body: unknown, success: string) {
+  async function refreshApplication(id: string) {
+    const response = await fetch(`/api/modules/admissions?id=${encodeURIComponent(id)}`);
+    const result = (await response.json()) as { application?: Application; error?: string };
+    if (!response.ok || !result.application)
+      throw new Error(result.error || 'Detail calon murid gagal dimuat ulang.');
+    setSelected(result.application);
+    setNotes(result.application.decision_notes || result.application.verification_notes || '');
+    setTestScore(result.application.assessment_test ?? '');
+    setInterviewScore(result.application.assessment_interview ?? '');
+    setRanking(result.application.ranking ?? '');
+  }
+
+  async function mutate(
+    method: string,
+    body: unknown,
+    success: string,
+    behavior: {
+      actionKey: string;
+      closePeriod?: boolean;
+      closeApplication?: boolean;
+    },
+  ) {
     setSaving(true);
+    setPendingAction(behavior.actionKey);
     try {
       await moduleMutation('/api/modules/admissions', method, body);
-      notifications.show({ color: 'green', title: 'Berhasil', message: success });
-      setSelected(null);
-      setEditingPeriod(undefined);
       list.reload();
+      if (behavior.closePeriod) setEditingPeriod(undefined);
+      if (behavior.closeApplication) setSelected(null);
+      notifications.show({ color: 'green', title: 'Berhasil', message: success });
+      if (!behavior.closeApplication && selected) {
+        try {
+          await refreshApplication(selected.id);
+        } catch (error) {
+          notifications.show({
+            color: 'yellow',
+            title: 'Detail belum diperbarui',
+            message:
+              error instanceof Error
+                ? error.message
+                : 'Muat ulang detail untuk melihat data terbaru.',
+          });
+        }
+      }
     } catch (error) {
       notifications.show({
         color: 'red',
@@ -216,6 +253,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
       });
     } finally {
       setSaving(false);
+      setPendingAction('');
     }
   }
   async function savePeriod(event: React.FormEvent) {
@@ -224,6 +262,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
       editingPeriod ? 'PATCH' : 'POST',
       { entity: 'period', id: editingPeriod?.id, ...periodForm },
       'Periode penerimaan berhasil disimpan.',
+      { actionKey: 'period', closePeriod: true },
     );
   }
   const statusOptions = useMemo(
@@ -466,6 +505,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                 required
                 searchable
                 label="Tahun ajaran tujuan"
+                placeholder="Pilih tahun ajaran"
                 data={(options.academic_year_id || []) as Option[]}
                 value={periodForm.academic_year_id || null}
                 onChange={(value) =>
@@ -475,6 +515,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
               <Select
                 required
                 label="Status"
+                placeholder="Pilih status periode"
                 data={[
                   { value: 'draft', label: 'Draft' },
                   { value: 'open', label: 'Dibuka' },
@@ -488,6 +529,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
               <DateInput
                 required
                 label="Tanggal mulai"
+                placeholder="Pilih tanggal mulai"
                 value={periodForm.start_date}
                 valueFormat="D MMMM YYYY"
                 locale="id"
@@ -496,6 +538,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
               <DateInput
                 required
                 label="Tanggal selesai"
+                placeholder="Pilih tanggal selesai"
                 value={periodForm.end_date}
                 valueFormat="D MMMM YYYY"
                 locale="id"
@@ -503,6 +546,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
               />
               <NumberInput
                 label="Kuota (0 = tak terbatas)"
+                placeholder="Contoh: 100"
                 min={0}
                 value={periodForm.quota}
                 onChange={(value) => setPeriodForm({ ...periodForm, quota: Number(value) || 0 })}
@@ -510,6 +554,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
               <TextInput
                 required
                 label="Prefix nomor pendaftaran"
+                placeholder="Contoh: PMB"
                 value={periodForm.registration_prefix}
                 onChange={(e) =>
                   setPeriodForm({
@@ -523,7 +568,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
               <Button variant="default" onClick={() => setEditingPeriod(undefined)}>
                 Batal
               </Button>
-              <Button type="submit" loading={saving}>
+              <Button type="submit" loading={pendingAction === 'period'}>
                 Simpan periode
               </Button>
             </Group>
@@ -599,6 +644,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                         size="xs"
                         variant={document.verified ? 'light' : 'outline'}
                         color={document.verified ? 'green' : 'gray'}
+                        disabled={saving}
                         leftSection={document.verified ? <IconCheck size={14} /> : undefined}
                         onClick={() =>
                           mutate(
@@ -610,8 +656,10 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                               notes: document.verification_notes || '',
                             },
                             'Verifikasi dokumen diperbarui.',
+                            { actionKey: `document:${document.id}` },
                           )
                         }
+                        loading={pendingAction === `document:${document.id}`}
                       >
                         {document.verified ? 'Terverifikasi' : 'Verifikasi'}
                       </Button>
@@ -631,6 +679,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                   <SimpleGrid cols={{ base: 1, sm: 3 }}>
                     <NumberInput
                       label="Nilai tes"
+                      placeholder="0–100"
                       min={0}
                       max={100}
                       value={testScore}
@@ -638,15 +687,23 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                     />
                     <NumberInput
                       label="Nilai wawancara"
+                      placeholder="0–100"
                       min={0}
                       max={100}
                       value={interviewScore}
                       onChange={setInterviewScore}
                     />
-                    <NumberInput label="Peringkat" min={1} value={ranking} onChange={setRanking} />
+                    <NumberInput
+                      label="Peringkat"
+                      placeholder="Contoh: 1"
+                      min={1}
+                      value={ranking}
+                      onChange={setRanking}
+                    />
                   </SimpleGrid>
                   <Button
                     variant="light"
+                    disabled={saving}
                     onClick={() =>
                       mutate(
                         'PATCH',
@@ -660,8 +717,10 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                           notes,
                         },
                         'Nilai seleksi disimpan.',
+                        { actionKey: 'assessment' },
                       )
                     }
+                    loading={pendingAction === 'assessment'}
                   >
                     Simpan penilaian
                   </Button>
@@ -672,6 +731,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                 <Divider label="Proses status" />
                 <Textarea
                   label="Catatan untuk riwayat / pendaftar"
+                  placeholder="Tambahkan catatan hasil verifikasi atau keputusan..."
                   value={notes}
                   onChange={(e) => setNotes(e.currentTarget.value)}
                 />
@@ -681,13 +741,16 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                       key={next}
                       color={statusColors[next]}
                       variant="light"
+                      disabled={saving}
                       onClick={() =>
                         mutate(
                           'PATCH',
                           { entity: 'status', id: selected.id, status: next, notes },
                           `Status diubah menjadi ${statusLabels[next]}.`,
+                          { actionKey: `status:${next}` },
                         )
                       }
+                      loading={pendingAction === `status:${next}`}
                     >
                       {statusLabels[next]}
                     </Button>
@@ -706,6 +769,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                   <TextInput
                     required
                     label="NIS baru"
+                    placeholder="Contoh: S-2030-001"
                     value={nis}
                     onChange={(e) => setNis(e.currentTarget.value)}
                   />
@@ -713,6 +777,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                     searchable
                     required
                     label="Rombel"
+                    placeholder="Pilih rombel tujuan"
                     data={(options.class_id || []) as Option[]}
                     value={classId || null}
                     onChange={(value) => setClassId(value || '')}
@@ -720,6 +785,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                   <DateInput
                     required
                     label="Tanggal masuk"
+                    placeholder="Pilih tanggal masuk"
                     value={enrollmentDate}
                     valueFormat="D MMMM YYYY"
                     locale="id"
@@ -728,7 +794,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                 </SimpleGrid>
                 <Button
                   color="green"
-                  disabled={!nis || !classId || !enrollmentDate}
+                  disabled={saving || !nis || !classId || !enrollmentDate}
                   onClick={() =>
                     mutate(
                       'POST',
@@ -740,8 +806,10 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                         enrollment_date: enrollmentDate,
                       },
                       'Calon murid berhasil menjadi murid aktif.',
+                      { actionKey: 'convert', closeApplication: true },
                     )
                   }
+                  loading={pendingAction === 'convert'}
                 >
                   Konversi ke murid aktif
                 </Button>
