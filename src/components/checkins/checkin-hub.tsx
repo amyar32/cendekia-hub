@@ -11,6 +11,7 @@ import { CheckinManager } from './checkin-manager';
 
 export function CheckinHub({ writable }: { writable: boolean }) {
   const [lateAfter, setLateAfter] = useState('07:15');
+  const [absentAfter, setAbsentAfter] = useState('');
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -20,6 +21,7 @@ export function CheckinHub({ writable }: { writable: boolean }) {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Koneksi gagal.');
         setLateAfter(result.checkin_late_after);
+        setAbsentAfter(result.checkin_absent_after || '');
       })
       .catch((error: unknown) =>
         notifications.show({
@@ -37,11 +39,15 @@ export function CheckinHub({ writable }: { writable: boolean }) {
       const response = await fetch('/api/modules/checkins/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkin_late_after: lateAfter }),
+        body: JSON.stringify({
+          checkin_late_after: lateAfter,
+          checkin_absent_after: absentAfter,
+        }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Koneksi gagal.');
       setLateAfter(result.checkin_late_after);
+      setAbsentAfter(result.checkin_absent_after || '');
       notifications.show({
         color: 'green',
         title: 'Pengaturan tersimpan',
@@ -111,6 +117,20 @@ export function CheckinHub({ writable }: { writable: boolean }) {
                 onChange={setLateAfter}
                 format="24h"
                 withDropdown
+                minutesStep={5}
+                hoursInputLabel="Jam batas"
+                minutesInputLabel="Menit batas"
+                disabled={!writable || loadingSettings}
+                w={{ base: '100%', sm: 300 }}
+              />
+              <TimePicker
+                label="Otomatis tidak hadir setelah"
+                description="Opsional. Jika kosong, status tidak hadir tidak akan diberikan otomatis."
+                value={absentAfter}
+                onChange={setAbsentAfter}
+                format="24h"
+                withDropdown
+                clearable
                 minutesStep={5}
                 hoursInputLabel="Jam batas"
                 minutesInputLabel="Menit batas"

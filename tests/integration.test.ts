@@ -470,6 +470,23 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   const teacherCheckinList = await res.json();
   assert.equal(teacherCheckinList.rows[0].name, 'Budi Santoso');
   assert.ok(teacherCheckinList.rows[0].checkin_id);
+  res = await api('/api/modules/teacher-checkins', 'POST', {
+    teacher_id: teacher.id,
+    attendance_date: teacherCheckinDashboard.date,
+    status: 'absent',
+    note: 'Tidak hadir',
+  });
+  assert.equal(res.status, 200);
+  res = await api(`/api/modules/teacher-checkins?date=${teacherCheckinDashboard.date}`);
+  assert.equal((await res.json()).rows[0].status, 'absent');
+  res = await api('/api/modules/checkins/scanner', 'POST', {
+    code: replacementTeacherCard.qr_value,
+  });
+  assert.equal(res.status, 200);
+  const arrivedAfterAbsent = await res.json();
+  assert.equal(arrivedAfterAbsent.outcome, 'success');
+  assert.ok(['present', 'late'].includes(arrivedAfterAbsent.status));
+  assert.equal(arrivedAfterAbsent.summary.absent, 0);
   res = await api('/api/modules/teaching-assignments', 'POST', {
     teacher_id: teacher.id,
     subject_id: subject.id,
@@ -826,7 +843,37 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal((await res.json()).summary.total, 2);
   const cleanupDb = new Database(join(dir, 'test.sqlite'));
   cleanupDb.prepare('DELETE FROM student_checkins WHERE student_id=?').run(student.id);
+  const previousWeekdays = (
+    cleanupDb.prepare('SELECT schedule_weekdays FROM schools LIMIT 1').get() as {
+      schedule_weekdays: string;
+    }
+  ).schedule_weekdays;
+  cleanupDb.prepare("UPDATE schools SET schedule_weekdays='[1,2,3,4,5,6,7]'").run();
   cleanupDb.close();
+  res = await api('/api/modules/checkins/settings');
+  const previousCheckinSettings = await res.json();
+  res = await api('/api/modules/checkins/settings', 'PATCH', {
+    checkin_late_after: '00:00',
+    checkin_absent_after: '00:01',
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).checkin_absent_after, '00:01');
+  res = await api(`/api/modules/student-checkins?date=${scanned.date}&class_id=${classroom.id}`);
+  const automaticallyAbsentStudent = (await res.json()).rows.find(
+    (row: { id: string }) => row.id === student.id,
+  );
+  assert.equal(automaticallyAbsentStudent.status, 'absent');
+  res = await api('/api/modules/checkins/scanner', 'POST', {
+    code: replacementCard.qr_value,
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).outcome, 'success');
+  const automaticCleanupDb = new Database(join(dir, 'test.sqlite'));
+  automaticCleanupDb.prepare('DELETE FROM student_checkins WHERE student_id=?').run(student.id);
+  automaticCleanupDb.prepare('UPDATE schools SET schedule_weekdays=?').run(previousWeekdays);
+  automaticCleanupDb.close();
+  res = await api('/api/modules/checkins/settings', 'PATCH', previousCheckinSettings);
+  assert.equal(res.status, 200);
   res = await api('/api/modules/classes', 'POST', {
     academic_year_id: secondAcademicYear.id,
     grade_id: grade.id,

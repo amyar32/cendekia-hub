@@ -201,7 +201,7 @@
 }
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 9px;
 }
 .stats div {
@@ -226,6 +226,9 @@
 }
 .stats div:nth-child(3) strong {
   color: #ffc967;
+}
+.stats div:nth-child(4) strong {
+  color: #ff7b87;
 }
 .recentHeader {
   display: flex;
@@ -280,6 +283,9 @@
 }
 .recentTime span.late {
   color: #ffc35a !important;
+}
+.recentTime span.absent {
+  color: #ff7b87 !important;
 }
 .empty {
   display: grid;

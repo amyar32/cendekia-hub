@@ -21,11 +21,11 @@ import styles from './checkin-scanner.module.css';
 type Student = { name: string; nis: string; photo_url: string; class_name: string };
 type Recent = Student & {
   id: string;
-  status: 'present' | 'late';
+  status: 'present' | 'late' | 'absent';
   checked_in_at: string;
   person_type: 'student' | 'teacher';
 };
-type Summary = { total: number; present: number; late: number };
+type Summary = { total: number; present: number; late: number; absent: number };
 type ScanResult = {
   outcome: 'success' | 'duplicate';
   student: Student;
@@ -43,7 +43,7 @@ type Config = {
   recent: Recent[];
 };
 
-const emptySummary = { total: 0, present: 0, late: 0 };
+const emptySummary = { total: 0, present: 0, late: 0, absent: 0 };
 const completeCardPattern = /^cendekia:(?:teacher-)?checkin:[0-9a-f]{48}$/i;
 
 function normalizeCardCode(rawCode: string) {
@@ -71,23 +71,33 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
   const [receivedCharacters, setReceivedCharacters] = useState(0);
 
   useEffect(() => {
+    let active = true;
     queueMicrotask(() => setSound(localStorage.getItem('checkin-scanner-sound') !== 'off'));
-    fetch(endpoint)
-      .then(async (response) => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error);
-        return body as Config;
-      })
-      .then((body) => {
-        setConfig(body);
-        setSummary(body.summary);
-        setRecent(body.recent);
-      })
-      .catch((cause) =>
-        setError(cause instanceof Error ? cause.message : 'Data scanner gagal dimuat.'),
-      );
+    const loadDashboard = () =>
+      fetch(endpoint)
+        .then(async (response) => {
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.error);
+          return body as Config;
+        })
+        .then((body) => {
+          if (!active) return;
+          setConfig(body);
+          setSummary(body.summary);
+          setRecent(body.recent);
+        })
+        .catch((cause) => {
+          if (active)
+            setError(cause instanceof Error ? cause.message : 'Data scanner gagal dimuat.');
+        });
+    void loadDashboard();
     const timer = setInterval(() => setClock(new Date()), 1000);
-    return () => clearInterval(timer);
+    const dashboardTimer = setInterval(loadDashboard, 60_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      clearInterval(dashboardTimer);
+    };
   }, [endpoint]);
 
   const beep = useCallback((kind: 'success' | 'warning' | 'error') => {
@@ -391,10 +401,14 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
               <span>TERLAMBAT</span>
               <strong>{summary.late}</strong>
             </div>
+            <div>
+              <span>TIDAK HADIR</span>
+              <strong>{summary.absent}</strong>
+            </div>
           </div>
           <div className={styles.recentHeader}>
             <div>
-              <Text>Baru saja hadir</Text>
+              <Text>Aktivitas terbaru</Text>
               <span>Diperbarui otomatis</span>
             </div>
             <Link href="/checkins">Lihat daftar</Link>
@@ -419,8 +433,20 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
                       hour: '2-digit',
                       minute: '2-digit',
                     }).format(new Date(`${item.checked_in_at}Z`))}
-                    <span className={item.status === 'late' ? styles.late : ''}>
-                      {item.status === 'late' ? 'Terlambat' : 'Hadir'}
+                    <span
+                      className={
+                        item.status === 'late'
+                          ? styles.late
+                          : item.status === 'absent'
+                            ? styles.absent
+                            : ''
+                      }
+                    >
+                      {item.status === 'late'
+                        ? 'Terlambat'
+                        : item.status === 'absent'
+                          ? 'Tidak hadir'
+                          : 'Hadir'}
                     </span>
                   </div>
                 </div>

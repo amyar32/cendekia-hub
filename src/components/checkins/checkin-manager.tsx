@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -28,6 +28,7 @@ import {
   IconQrcode,
   IconSearch,
   IconUserCheck,
+  IconUserX,
   IconUsers,
 } from '@tabler/icons-react';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
@@ -35,12 +36,13 @@ import { moduleMutation } from '@/hooks/use-module-list';
 import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
 import styles from './checkin-manager.module.css';
 
+type CheckinStatus = 'present' | 'late' | 'absent';
 type Row = {
   id: string;
   nis: string;
   name: string;
   checkin_id: string | null;
-  status: 'present' | 'late' | null;
+  status: CheckinStatus | null;
   checked_in_at: string | null;
   note: string;
 };
@@ -70,31 +72,34 @@ export function CheckinManager({
   const [statusFilter, setStatusFilter] = useState('all');
   const [pendingCheckin, setPendingCheckin] = useState<{
     person: Row;
-    status: 'present' | 'late';
+    status: CheckinStatus;
   } | null>(null);
   const scrollPositionRef = useRef<{ left: number; top: number } | null>(null);
 
-  const reload = async ({ showLoading = true } = {}) => {
-    if (showLoading) setLoading(true);
-    try {
-      const params = new URLSearchParams({ date });
-      if (classId && !isTeacher) params.set('class_id', classId);
-      const response = await fetch(`${endpoint}?${params}`);
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
-      setClasses(result.options?.class_id || []);
-      if (!isTeacher) setClassId(result.selected?.class_id || null);
-      setRows(result.rows);
-      setDateNotice(result.date_notice || '');
-      setError('');
-    } catch (cause) {
-      setRows([]);
-      setDateNotice('');
-      setError(cause instanceof Error ? cause.message : 'Gagal memuat data cek-in.');
-    } finally {
-      if (showLoading) setLoading(false);
-    }
-  };
+  const reload = useCallback(
+    async ({ showLoading = true } = {}) => {
+      if (showLoading) setLoading(true);
+      try {
+        const params = new URLSearchParams({ date });
+        if (classId && !isTeacher) params.set('class_id', classId);
+        const response = await fetch(`${endpoint}?${params}`);
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+        setClasses(result.options?.class_id || []);
+        if (!isTeacher) setClassId(result.selected?.class_id || null);
+        setRows(result.rows);
+        setDateNotice(result.date_notice || '');
+        setError('');
+      } catch (cause) {
+        setRows([]);
+        setDateNotice('');
+        setError(cause instanceof Error ? cause.message : 'Gagal memuat data cek-in.');
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [classId, date, endpoint, isTeacher],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -126,6 +131,11 @@ export function CheckinManager({
     return () => controller.abort();
   }, [date, classId, endpoint, isTeacher]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => void reload({ showLoading: false }), 60_000);
+    return () => window.clearInterval(timer);
+  }, [reload]);
+
   const visibleRows = useMemo(
     () =>
       rows.filter(
@@ -143,11 +153,11 @@ export function CheckinManager({
           ...value,
           [row.status || 'pending']: value[row.status || 'pending'] + 1,
         }),
-        { present: 0, late: 0, pending: 0 },
+        { present: 0, late: 0, absent: 0, pending: 0 },
       ),
     [rows],
   );
-  const checkin = async (person: Row, status: 'present' | 'late') => {
+  const checkin = async (person: Row, status: CheckinStatus) => {
     if (saving || !writable) return;
     scrollPositionRef.current = { left: window.scrollX, top: window.scrollY };
     setSaving(person.id);
@@ -159,9 +169,14 @@ export function CheckinManager({
         note: person.note || '',
       });
       notifications.show({
-        title: status === 'present' ? 'Cek-in berhasil' : 'Keterlambatan dicatat',
+        title:
+          status === 'present'
+            ? 'Cek-in berhasil'
+            : status === 'late'
+              ? 'Keterlambatan dicatat'
+              : 'Ketidakhadiran dicatat',
         message: person.name,
-        color: status === 'present' ? 'green' : 'yellow',
+        color: status === 'present' ? 'green' : status === 'late' ? 'yellow' : 'red',
       });
       await reload({ showLoading: false });
       setPendingCheckin(null);
@@ -182,7 +197,7 @@ export function CheckinManager({
       });
     }
   };
-  const requestCheckin = (person: Row, status: 'present' | 'late') => {
+  const requestCheckin = (person: Row, status: CheckinStatus) => {
     if (!saving) setPendingCheckin({ person, status });
   };
 
@@ -274,14 +289,15 @@ export function CheckinManager({
           <div>
             <Title order={3}>Daftar kedatangan</Title>
             <Text size="sm" c="dimmed">
-              Klik Hadir atau Terlambat saat {isTeacher ? 'guru' : 'siswa'} tiba di sekolah.
+              Catat status Hadir, Terlambat, atau Tidak hadir untuk setiap{' '}
+              {isTeacher ? 'guru' : 'siswa'}.
             </Text>
           </div>
           <Text size="sm" c="dimmed">
             {rows.length} {isTeacher ? 'guru' : 'siswa'} terdaftar
           </Text>
         </Group>
-        <SimpleGrid cols={{ base: 1, xs: 3 }} className={styles.summaryGrid} mb="lg">
+        <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} className={styles.summaryGrid} mb="lg">
           <Paper withBorder className={styles.summaryCard}>
             <ThemeIcon color="blue" variant="light" radius="md">
               <IconUserCheck size={17} />
@@ -305,6 +321,19 @@ export function CheckinManager({
               </Text>
               <Text fw={800} size="xl" c="yellow">
                 {totals.late}
+              </Text>
+            </Box>
+          </Paper>
+          <Paper withBorder className={styles.summaryCard}>
+            <ThemeIcon color="red" variant="light" radius="md">
+              <IconUserX size={17} />
+            </ThemeIcon>
+            <Box>
+              <Text size="xs" c="dimmed" fw={600}>
+                TIDAK HADIR
+              </Text>
+              <Text fw={800} size="xl" c="red">
+                {totals.absent}
               </Text>
             </Box>
           </Paper>
@@ -335,6 +364,7 @@ export function CheckinManager({
               { value: 'pending', label: 'Belum cek-in' },
               { value: 'present', label: 'Hadir' },
               { value: 'late', label: 'Terlambat' },
+              { value: 'absent', label: 'Tidak hadir' },
             ]}
             value={statusFilter}
             onChange={(value) => setStatusFilter(value || 'all')}
@@ -378,7 +408,9 @@ export function CheckinManager({
                               ? 'yellow'
                               : person.status === 'present'
                                 ? 'blue'
-                                : 'gray'
+                                : person.status === 'absent'
+                                  ? 'red'
+                                  : 'gray'
                           }
                         >
                           {person.name.slice(0, 1).toUpperCase()}
@@ -391,10 +423,20 @@ export function CheckinManager({
                     <Table.Td>
                       {person.status ? (
                         <Badge
-                          color={person.status === 'present' ? 'blue' : 'yellow'}
+                          color={
+                            person.status === 'present'
+                              ? 'blue'
+                              : person.status === 'late'
+                                ? 'yellow'
+                                : 'red'
+                          }
                           variant="light"
                         >
-                          {person.status === 'present' ? 'Hadir' : 'Terlambat'}
+                          {person.status === 'present'
+                            ? 'Hadir'
+                            : person.status === 'late'
+                              ? 'Terlambat'
+                              : 'Tidak hadir'}
                         </Badge>
                       ) : (
                         <Text size="xs" c="dimmed">
@@ -404,7 +446,7 @@ export function CheckinManager({
                     </Table.Td>
                     <Table.Td>
                       <Text size="xs">
-                        {person.checked_in_at
+                        {person.checked_in_at && person.status !== 'absent'
                           ? new Intl.DateTimeFormat('id-ID', {
                               hour: '2-digit',
                               minute: '2-digit',
@@ -424,6 +466,7 @@ export function CheckinManager({
                           <>
                             <Button
                               size="xs"
+                              color="green"
                               variant={person.status === 'present' ? 'filled' : 'light'}
                               leftSection={<IconCheck size={14} />}
                               loading={saving === person.id}
@@ -443,6 +486,17 @@ export function CheckinManager({
                             >
                               Terlambat
                             </Button>
+                            <Button
+                              size="xs"
+                              color="red"
+                              variant={person.status === 'absent' ? 'filled' : 'light'}
+                              leftSection={<IconUserX size={14} />}
+                              loading={saving === person.id}
+                              disabled={saving !== null && saving !== person.id}
+                              onClick={() => requestCheckin(person, 'absent')}
+                            >
+                              Tidak hadir
+                            </Button>
                           </>
                         ) : null}
                       </Group>
@@ -457,9 +511,21 @@ export function CheckinManager({
       <ConfirmationDialog
         opened={pendingCheckin !== null}
         onClose={() => setPendingCheckin(null)}
-        title="Konfirmasi check-in"
-        confirmLabel={pendingCheckin?.status === 'present' ? 'Tandai hadir' : 'Tandai terlambat'}
-        color={pendingCheckin?.status === 'present' ? 'blue' : 'yellow'}
+        title="Konfirmasi status kehadiran"
+        confirmLabel={
+          pendingCheckin?.status === 'present'
+            ? 'Tandai hadir'
+            : pendingCheckin?.status === 'late'
+              ? 'Tandai terlambat'
+              : 'Tandai tidak hadir'
+        }
+        color={
+          pendingCheckin?.status === 'present'
+            ? 'green'
+            : pendingCheckin?.status === 'late'
+              ? 'yellow'
+              : 'red'
+        }
         loading={saving !== null}
         onConfirm={() => {
           if (pendingCheckin) return checkin(pendingCheckin.person, pendingCheckin.status);
@@ -469,14 +535,34 @@ export function CheckinManager({
           {pendingCheckin?.person.status ? (
             <>
               Status <b>{pendingCheckin.person.name}</b> pada tanggal {date} akan diubah dari{' '}
-              <b>{pendingCheckin.person.status === 'present' ? 'hadir' : 'terlambat'}</b> menjadi{' '}
-              <b>{pendingCheckin.status === 'present' ? 'hadir' : 'terlambat'}</b>.
+              <b>
+                {pendingCheckin.person.status === 'present'
+                  ? 'hadir'
+                  : pendingCheckin.person.status === 'late'
+                    ? 'terlambat'
+                    : 'tidak hadir'}
+              </b>{' '}
+              menjadi{' '}
+              <b>
+                {pendingCheckin.status === 'present'
+                  ? 'hadir'
+                  : pendingCheckin.status === 'late'
+                    ? 'terlambat'
+                    : 'tidak hadir'}
+              </b>
+              .
             </>
           ) : (
             <>
               Tandai <b>{pendingCheckin?.person.name}</b> sebagai{' '}
-              <b>{pendingCheckin?.status === 'present' ? 'hadir' : 'terlambat'}</b> untuk tanggal{' '}
-              {date}?
+              <b>
+                {pendingCheckin?.status === 'present'
+                  ? 'hadir'
+                  : pendingCheckin?.status === 'late'
+                    ? 'terlambat'
+                    : 'tidak hadir'}
+              </b>{' '}
+              untuk tanggal {date}?
             </>
           )}
         </Text>

@@ -4,35 +4,20 @@ import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { assignAutomaticAbsences, localDateTime } from '@/lib/checkins';
 
 const scanSchema = z.object({
   code: z.string().trim().min(1).max(200),
   manual: z.boolean().default(false),
 });
 
-function localNow(timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date());
-  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return {
-    date: `${value.year}-${value.month}-${value.day}`,
-    time: `${value.hour}:${value.minute}`,
-  };
-}
-
 function dashboard(schoolId: string, date: string) {
   const summary = db()
     .prepare(
       `SELECT count(*) AS total,
         sum(CASE WHEN status='present' THEN 1 ELSE 0 END) AS present,
-        sum(CASE WHEN status='late' THEN 1 ELSE 0 END) AS late
+        sum(CASE WHEN status='late' THEN 1 ELSE 0 END) AS late,
+        sum(CASE WHEN status='absent' THEN 1 ELSE 0 END) AS absent
        FROM (
          SELECT status FROM student_checkins WHERE school_id=? AND attendance_date=?
          UNION ALL
@@ -43,6 +28,7 @@ function dashboard(schoolId: string, date: string) {
     total: number;
     present: number | null;
     late: number | null;
+    absent: number | null;
   };
   const recent = db()
     .prepare(
@@ -52,26 +38,32 @@ function dashboard(schoolId: string, date: string) {
          FROM student_checkins sc JOIN students s ON s.id=sc.student_id
          LEFT JOIN class_memberships cm ON cm.student_id=s.id AND cm.status='active'
          LEFT JOIN classes c ON c.id=cm.class_id
-         WHERE sc.school_id=? AND sc.attendance_date=?
+         WHERE sc.school_id=? AND sc.attendance_date=? AND sc.status<>'absent'
          UNION ALL
          SELECT tc.id,tc.status,tc.checked_in_at,t.name,t.employee_code AS nis,t.photo_url,
            CASE t.employment_status WHEN 'permanent' THEN 'Guru tetap' WHEN 'contract' THEN 'Guru kontrak' ELSE 'Guru honorer' END AS class_name,
            'teacher' AS person_type
          FROM teacher_checkins tc JOIN teachers t ON t.id=tc.teacher_id
-         WHERE tc.school_id=? AND tc.attendance_date=?
+         WHERE tc.school_id=? AND tc.attendance_date=? AND tc.status<>'absent'
        ) ORDER BY checked_in_at DESC LIMIT 8`,
     )
     .all(schoolId, date, schoolId, date);
   return {
-    summary: { total: summary.total, present: summary.present || 0, late: summary.late || 0 },
+    summary: {
+      total: summary.total,
+      present: summary.present || 0,
+      late: summary.late || 0,
+      absent: summary.absent || 0,
+    },
     recent,
   };
 }
 
 export async function GET() {
   try {
-    await requireUser('checkins.read');
+    const actor = await requireUser('checkins.read');
     const schoolId = currentSchoolId();
+    assignAutomaticAbsences(schoolId, actor);
     const school = db()
       .prepare('SELECT name,logo_url,timezone,checkin_late_after FROM schools WHERE id=?')
       .get(schoolId) as {
@@ -80,7 +72,7 @@ export async function GET() {
       timezone: string;
       checkin_late_after: string;
     };
-    const now = localNow(school.timezone);
+    const now = localDateTime(school.timezone);
     return Response.json(
       {
         school,
@@ -101,10 +93,11 @@ export async function POST(request: Request) {
     const actor = await requireUser('checkins.write');
     const { code, manual } = scanSchema.parse(await request.json());
     const schoolId = currentSchoolId();
+    assignAutomaticAbsences(schoolId, actor);
     const school = db()
       .prepare('SELECT timezone,checkin_late_after FROM schools WHERE id=?')
       .get(schoolId) as { timezone: string; checkin_late_after: string };
-    const now = localNow(school.timezone);
+    const now = localDateTime(school.timezone);
     const studentPrefix = 'cendekia:checkin:';
     const teacherPrefix = 'cendekia:teacher-checkin:';
     const isStudentQr = code.startsWith(studentPrefix);
@@ -157,11 +150,11 @@ export async function POST(request: Request) {
     const foreignKey = personType === 'student' ? 'student_id' : 'teacher_id';
     const existing = db()
       .prepare(
-        `SELECT status,checked_in_at FROM ${table} WHERE ${foreignKey}=? AND attendance_date=?`,
+        `SELECT id,status,checked_in_at FROM ${table} WHERE ${foreignKey}=? AND attendance_date=?`,
       )
       .get(person.id, now.date) as
-      { status: 'present' | 'late'; checked_in_at: string } | undefined;
-    if (existing)
+      { id: string; status: 'present' | 'late' | 'absent'; checked_in_at: string } | undefined;
+    if (existing && existing.status !== 'absent')
       return Response.json({
         outcome: 'duplicate',
         student: person,
@@ -172,8 +165,22 @@ export async function POST(request: Request) {
       });
 
     const status = now.time > school.checkin_late_after ? 'late' : 'present';
-    const id = randomUUID();
+    const id = existing?.id || randomUUID();
     const created = db().transaction(() => {
+      if (existing?.status === 'absent') {
+        db()
+          .prepare(
+            `UPDATE ${table} SET status=?,source='qr',note='Dipindai melalui kiosk',
+             checked_in_at=datetime('now'),recorded_by=?,updated_at=datetime('now') WHERE id=?`,
+          )
+          .run(status, actor.id, id);
+        audit(actor.email, 'update', table, id, {
+          [foreignKey]: person.id,
+          source: 'qr',
+          status,
+        });
+        return true;
+      }
       const insertion = db()
         .prepare(
           `INSERT OR IGNORE INTO ${table}(id,school_id,${foreignKey},attendance_date,status,source,note,recorded_by)
@@ -202,7 +209,7 @@ export async function POST(request: Request) {
         ...saved,
         ...dashboard(schoolId, now.date),
       },
-      { status: created ? 201 : 200 },
+      { status: created && !existing ? 201 : 200 },
     );
   } catch (error) {
     return failure(error);

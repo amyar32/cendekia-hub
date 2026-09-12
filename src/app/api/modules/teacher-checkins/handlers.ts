@@ -4,19 +4,21 @@ import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { assignAutomaticAbsences } from '@/lib/checkins';
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal cek-in tidak valid.');
 const inputSchema = z.object({
   teacher_id: z.string().uuid('Guru tidak valid.'),
   attendance_date: dateSchema,
-  status: z.enum(['present', 'late']),
+  status: z.enum(['present', 'late', 'absent']),
   note: z.string().trim().max(500).default(''),
 });
 
 export async function GET(request: Request) {
   try {
-    await requireUser('checkins.read');
+    const actor = await requireUser('checkins.read');
     const schoolId = currentSchoolId();
+    assignAutomaticAbsences(schoolId, actor);
     const url = new URL(request.url);
     const date = dateSchema.parse(
       url.searchParams.get('date') || new Date().toISOString().slice(0, 10),

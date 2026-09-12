@@ -4,20 +4,28 @@ import { checkOrigin, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 
-const schema = z.object({
-  checkin_late_after: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Masukkan jam dalam format HH:mm.'),
-});
+const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Masukkan jam dalam format HH:mm.');
+const schema = z
+  .object({
+    checkin_late_after: time,
+    checkin_absent_after: z.union([z.literal(''), time]).default(''),
+  })
+  .refine(
+    (value) => !value.checkin_absent_after || value.checkin_absent_after > value.checkin_late_after,
+    {
+      message: 'Batas otomatis tidak hadir harus setelah batas keterlambatan.',
+      path: ['checkin_absent_after'],
+    },
+  );
 
 export async function GET() {
   try {
     await requireUser('checkins.read');
     const schoolId = currentSchoolId();
     const settings = db()
-      .prepare('SELECT checkin_late_after FROM schools WHERE id=?')
-      .get(schoolId) as { checkin_late_after: string };
-    return Response.json({ checkin_late_after: settings.checkin_late_after });
+      .prepare('SELECT checkin_late_after,checkin_absent_after FROM schools WHERE id=?')
+      .get(schoolId) as { checkin_late_after: string; checkin_absent_after: string };
+    return Response.json(settings);
   } catch (error) {
     return failure(error);
   }
@@ -30,8 +38,11 @@ export async function PATCH(request: Request) {
     const schoolId = currentSchoolId();
     const data = schema.parse(await request.json());
     db()
-      .prepare("UPDATE schools SET checkin_late_after=?, updated_at=datetime('now') WHERE id=?")
-      .run(data.checkin_late_after, schoolId);
+      .prepare(
+        `UPDATE schools SET checkin_late_after=?,checkin_absent_after=?,
+         updated_at=datetime('now') WHERE id=?`,
+      )
+      .run(data.checkin_late_after, data.checkin_absent_after, schoolId);
     audit(actor.email, 'update', 'checkin_settings', schoolId, data);
     return Response.json({ ok: true, ...data });
   } catch (error) {
