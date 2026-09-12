@@ -41,6 +41,7 @@ const academicYearSchema = z
       .max(2, 'Tahun ajaran hanya dapat memiliki Semester Ganjil dan Semester Genap.')
       .default([]),
     classrooms: z.array(classroomSchema).max(100, 'Jumlah rombel terlalu banyak.').default([]),
+    confirm_period_change: z.boolean().default(false),
   })
   .refine((data) => data.start_date < data.end_date, {
     message: 'Tanggal selesai harus setelah tanggal mulai.',
@@ -160,6 +161,26 @@ type AcademicYearRow = {
   is_active: number;
 };
 
+function hasRelatedAcademicData(academicYearId: string) {
+  return Boolean(
+    (
+      db()
+        .prepare(
+          `SELECT
+             EXISTS(SELECT 1 FROM semesters WHERE academic_year_id=?) OR
+             EXISTS(SELECT 1 FROM classes WHERE academic_year_id=?) OR
+             EXISTS(SELECT 1 FROM teaching_assignments WHERE academic_year_id=?) OR
+             EXISTS(SELECT 1 FROM class_memberships WHERE academic_year_id=?) OR
+             EXISTS(SELECT 1 FROM extracurricular_assignments WHERE academic_year_id=?)
+             AS related`,
+        )
+        .get(academicYearId, academicYearId, academicYearId, academicYearId, academicYearId) as {
+        related: number;
+      }
+    ).related,
+  );
+}
+
 export async function GET(request: Request) {
   try {
     await requireUser('academic-years.read');
@@ -195,6 +216,9 @@ export async function GET(request: Request) {
       );
     }
     const { filter, offset } = listParams(request);
+    const activeYear = db()
+      .prepare('SELECT id,start_date FROM academic_years WHERE school_id=? AND is_active=1')
+      .get(schoolId) as { id: string; start_date: string } | undefined;
     const baseRows = db()
       .prepare(
         `SELECT id, school_id, name, start_date, end_date, is_active, created_at, updated_at
@@ -215,6 +239,12 @@ export async function GET(request: Request) {
         .all(year.id, schoolId, year.id) as Array<{ student_count: number }>;
       return {
         ...year,
+        status: year.is_active
+          ? 'active'
+          : activeYear && year.start_date < activeYear.start_date
+            ? 'completed'
+            : 'draft',
+        has_related_data: hasRelatedAcademicData(year.id),
         semesters: db()
           .prepare(
             `SELECT id,name,period,start_date,end_date,is_active FROM semesters
@@ -237,6 +267,7 @@ export async function GET(request: Request) {
         options: {
           academic_year_id: academicYearOptions(schoolId),
         },
+        has_active_year: Boolean(activeYear),
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
@@ -335,11 +366,41 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           }
         }
         const data = academicYearSchema.parse(normalizedInput);
+        const activeYear = db()
+          .prepare('SELECT id,name FROM academic_years WHERE school_id=? AND is_active=1')
+          .get(schoolId) as { id: string; name: string } | undefined;
+        if (data.is_active && !previous?.is_active && activeYear && activeYear.id !== id)
+          throw new HttpError(
+            409,
+            `Tahun ajaran aktif hanya dapat diganti melalui menu Pergantian Tahun Ajaran. Saat ini ${activeYear?.name || 'tahun lain'} masih aktif.`,
+          );
         if (method === 'PATCH' && previous?.is_active && !data.is_active)
           throw new HttpError(
             400,
             'Tahun ajaran aktif tidak dapat dinonaktifkan langsung. Aktifkan tahun ajaran pengganti.',
           );
+        const periodChanged =
+          method === 'PATCH' &&
+          previous &&
+          (previous.start_date !== data.start_date || previous.end_date !== data.end_date);
+        if (periodChanged && previous.is_active) {
+          const semesterOutsidePeriod = db()
+            .prepare(
+              `SELECT id FROM semesters
+               WHERE academic_year_id=? AND (start_date<? OR end_date>?) LIMIT 1`,
+            )
+            .get(id, data.start_date, data.end_date);
+          if (semesterOutsidePeriod)
+            throw new HttpError(
+              409,
+              'Periode baru tidak mencakup seluruh semester. Sesuaikan tanggal semester terlebih dahulu.',
+            );
+          if (hasRelatedAcademicData(id) && !data.confirm_period_change)
+            throw new HttpError(
+              409,
+              'Perubahan periode tahun ajaran aktif memerlukan konfirmasi dampak.',
+            );
+        }
         if (data.is_active) {
           db()
             .prepare(

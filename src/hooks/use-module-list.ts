@@ -19,6 +19,7 @@ export type ModuleListResponse<Row> = {
     }[]
   >;
   selected?: Record<string, string>;
+  has_active_year?: boolean;
 };
 
 export function useModuleList<Row>(endpoint: string, params: Record<string, string> = {}) {

@@ -56,6 +56,8 @@ type AcademicYear = {
   semesters: Array<Omit<SemesterForm, 'is_active'> & { is_active: number }>;
   classrooms: Array<Omit<ClassroomForm, 'is_active'> & { is_active: number }>;
   student_count: number;
+  status: 'active' | 'draft' | 'completed';
+  has_related_data: boolean;
 };
 type AcademicYearForm = {
   name: string;
@@ -101,6 +103,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
   const [removing, setRemoving] = useState<AcademicYear | null>(null);
   const [form, setForm] = useState<AcademicYearForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [confirmingPeriodChange, setConfirmingPeriodChange] = useState(false);
 
   function openEditor(year: AcademicYear | null) {
     setForm(
@@ -128,17 +131,27 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
     setForm((current) => ({ ...current, copy_from_academic_year_id: value || '' }));
   }
 
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
+  const periodChanged = Boolean(
+    editing &&
+    editing.is_active &&
+    (editing.start_date !== form.start_date || editing.end_date !== form.end_date),
+  );
+
+  async function saveYear(confirmPeriodChange = false) {
     setSaving(true);
     try {
-      await moduleMutation(endpoint, editing ? 'PATCH' : 'POST', { ...form, id: editing?.id });
+      await moduleMutation(endpoint, editing ? 'PATCH' : 'POST', {
+        ...form,
+        id: editing?.id,
+        confirm_period_change: confirmPeriodChange,
+      });
       if (form.is_active) {
         publishAcademicContext({
           academic_year: form.name,
           semester: editing?.is_active ? undefined : null,
         });
       }
+      setConfirmingPeriodChange(false);
       setEditing(undefined);
       list.reload();
       notifications.show({
@@ -155,6 +168,15 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function save(event: React.FormEvent) {
+    event.preventDefault();
+    if (periodChanged && editing?.has_related_data) {
+      setConfirmingPeriodChange(true);
+      return;
+    }
+    void saveYear();
   }
 
   async function remove() {
@@ -234,8 +256,21 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge variant="dot" color={year.is_active ? 'green' : 'gray'}>
-                      {year.is_active ? 'Aktif' : 'Nonaktif'}
+                    <Badge
+                      variant="dot"
+                      color={
+                        year.status === 'active'
+                          ? 'green'
+                          : year.status === 'draft'
+                            ? 'blue'
+                            : 'gray'
+                      }
+                    >
+                      {year.status === 'active'
+                        ? 'Aktif'
+                        : year.status === 'draft'
+                          ? 'Draft'
+                          : 'Selesai'}
                     </Badge>
                   </Table.Td>
                   <Table.Td>
@@ -255,6 +290,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                             variant="subtle"
                             color="red"
                             onClick={() => setRemoving(year)}
+                            disabled={Boolean(year.is_active)}
                           >
                             <IconTrash size={17} />
                           </ActionIcon>
@@ -330,14 +366,49 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                   required
                 />
               </SimpleGrid>
-              <Box className={classes.statusCard}>
-                <Switch
-                  label="Jadikan tahun ajaran aktif"
-                  description="Tahun ajaran lain yang aktif akan dinonaktifkan otomatis."
-                  checked={form.is_active}
-                  onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
-                />
-              </Box>
+              {!editing && !list.has_active_year ? (
+                <Box className={classes.statusCard}>
+                  <Switch
+                    label="Aktifkan sebagai tahun ajaran pertama"
+                    description="Pilihan ini hanya tersedia ketika sekolah belum memiliki tahun ajaran aktif."
+                    checked={form.is_active}
+                    onChange={(event) =>
+                      setForm({ ...form, is_active: event.currentTarget.checked })
+                    }
+                  />
+                </Box>
+              ) : (
+                <Box className={classes.statusCard}>
+                  <Group justify="space-between" align="flex-start" wrap="nowrap">
+                    <div>
+                      <Text fw={600} size="sm">
+                        Status tahun ajaran
+                      </Text>
+                      <Text size="xs" c="dimmed" mt={3}>
+                        {editing?.is_active
+                          ? 'Tahun ajaran aktif hanya dapat diganti melalui menu Pergantian Tahun Ajaran.'
+                          : 'Tahun ajaran baru disimpan sebagai draft sampai proses pergantian diselesaikan.'}
+                      </Text>
+                    </div>
+                    <Badge
+                      color={
+                        editing?.is_active
+                          ? 'green'
+                          : editing?.status === 'completed'
+                            ? 'gray'
+                            : 'blue'
+                      }
+                      variant="light"
+                    >
+                      {editing?.is_active
+                        ? 'Aktif'
+                        : editing?.status === 'completed'
+                          ? 'Selesai'
+                          : 'Draft'}
+                    </Badge>
+                  </Group>
+                </Box>
+              )}
             </Stack>
 
             {!editing && list.rows.length > 0 && (
@@ -471,6 +542,30 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
           </Group>
         </form>
       </Modal>
+
+      <ConfirmationDialog
+        opened={confirmingPeriodChange}
+        onClose={() => !saving && setConfirmingPeriodChange(false)}
+        title="Ubah periode tahun ajaran aktif?"
+        loading={saving}
+        onConfirm={() => saveYear(true)}
+        confirmLabel="Ubah periode"
+        color="orange"
+      >
+        <Text size="sm">
+          Tahun ajaran ini sudah memiliki struktur atau data akademik. Perubahan dari{' '}
+          <Text component="span" inherit fw={700}>
+            {editing ? `${formatDate(editing.start_date)} – ${formatDate(editing.end_date)}` : ''}
+          </Text>{' '}
+          menjadi{' '}
+          <Text component="span" inherit fw={700}>
+            {form.start_date && form.end_date
+              ? `${formatDate(form.start_date)} – ${formatDate(form.end_date)}`
+              : ''}
+          </Text>{' '}
+          dapat memengaruhi filter, laporan, jadwal, dan riwayat murid.
+        </Text>
+      </ConfirmationDialog>
 
       <ConfirmationDialog
         opened={!!removing}

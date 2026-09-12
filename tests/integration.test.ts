@@ -27,6 +27,23 @@ async function api(
     redirect: 'manual',
   });
 }
+
+function setActiveAcademicYearForTest(id: string) {
+  const database = new Database(join(dir, 'test.sqlite'));
+  database.pragma('foreign_keys = ON');
+  database.transaction(() => {
+    database.prepare('UPDATE academic_years SET is_active=0').run();
+    database.prepare('UPDATE academic_years SET is_active=1 WHERE id=?').run(id);
+    database.prepare('UPDATE semesters SET is_active=0').run();
+    database
+      .prepare(
+        `UPDATE semesters SET is_active=1
+         WHERE id=(SELECT id FROM semesters WHERE academic_year_id=? ORDER BY period LIMIT 1)`,
+      )
+      .run(id);
+  })();
+  database.close();
+}
 async function uploadApi(
   bytes: Uint8Array,
   mimeType: string,
@@ -195,7 +212,7 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     name: '2025/2026',
     start_date: '2025-07-01',
     end_date: '2026-06-30',
-    is_active: true,
+    is_active: false,
   });
   assert.equal(res.status, 201);
   const firstAcademicYear = await res.json();
@@ -218,6 +235,18 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(
     academicYears.rows.find((row: { id: string }) => row.id === secondAcademicYear.id).is_active,
     1,
+  );
+  assert.equal(
+    (
+      await api('/api/modules/academic-years', 'PATCH', {
+        id: firstAcademicYear.id,
+        name: '2025/2026',
+        start_date: '2025-07-01',
+        end_date: '2026-06-30',
+        is_active: true,
+      })
+    ).status,
+    409,
   );
   assert.equal(
     (
@@ -272,6 +301,23 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   });
   assert.equal(res.status, 201);
   const semester = await res.json();
+  const activePeriodUpdate = {
+    id: secondAcademicYear.id,
+    name: '2026/2027 revisi',
+    start_date: '2026-07-01',
+    end_date: '2027-06-30',
+    is_active: true,
+  };
+  assert.equal((await api('/api/modules/academic-years', 'PATCH', activePeriodUpdate)).status, 409);
+  assert.equal(
+    (
+      await api('/api/modules/academic-years', 'PATCH', {
+        ...activePeriodUpdate,
+        confirm_period_change: true,
+      })
+    ).status,
+    200,
+  );
   assert.equal(
     (
       await api('/api/modules/semesters', 'POST', {
@@ -1093,10 +1139,10 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   );
   res = await api('/api/modules/audit?q=academic_years');
   const academicYearHistory = await res.json();
-  assert.equal(academicYearHistory.total, 4);
+  assert.equal(academicYearHistory.total, 5);
   assert.deepEqual(
     academicYearHistory.rows.map((r: { action: string }) => r.action),
-    ['delete', 'update', 'create', 'create'],
+    ['delete', 'update', 'update', 'create', 'create'],
   );
   assert.equal(
     (await api('/api/modules/audit', 'DELETE', { id: schoolHistory.rows[0].id })).status,
@@ -1238,14 +1284,14 @@ test('academic year context, bulk promotion, and historical reports', async () =
     name: '2027/2028',
     start_date: '2027-07-01',
     end_date: '2028-06-30',
-    is_active: true,
+    is_active: false,
     semesters: [
       {
         name: 'Semester Ganjil',
         period: 1,
         start_date: '2027-07-01',
         end_date: '2027-12-31',
-        is_active: true,
+        is_active: false,
       },
       {
         name: 'Semester Genap',
@@ -1265,6 +1311,7 @@ test('academic year context, bulk promotion, and historical reports', async () =
   });
   assert.equal(res.status, 201);
   const targetYear = await res.json();
+  setActiveAcademicYearForTest(targetYear.id);
   const aggregateYears = await (await api('/api/modules/academic-years')).json();
   const aggregateTarget = aggregateYears.rows.find(
     (row: { id: string }) => row.id === targetYear.id,
@@ -1509,7 +1556,7 @@ test('academic year template copies semesters, classes, teaching assignments, ho
     name: '2028/2029',
     start_date: '2028-07-01',
     end_date: '2029-06-30',
-    is_active: true,
+    is_active: false,
     copy_from_academic_year_id: sourceYear.id,
     copy_semesters: true,
     copy_classrooms: true,
@@ -1521,6 +1568,7 @@ test('academic year template copies semesters, classes, teaching assignments, ho
   });
   assert.equal(res.status, 201);
   const copiedYear = await res.json();
+  setActiveAcademicYearForTest(copiedYear.id);
 
   const copiedSemesters = await (
     await api(`/api/modules/semesters?academic_year_id=${copiedYear.id}`)
