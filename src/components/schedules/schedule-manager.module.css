@@ -94,8 +94,57 @@
 
 .gridRow {
   display: flex;
+  position: relative;
   border-top: 1px solid var(--app-color-border);
   min-height: 108px;
+}
+
+.todayHeader {
+  color: var(--mantine-color-red-7);
+  background: color-mix(in srgb, var(--mantine-color-red-1) 70%, var(--app-color-subtle));
+}
+
+.currentTimeLine,
+.mobileCurrentTimeLine {
+  position: absolute;
+  top: var(--current-time-position);
+  z-index: 4;
+  height: 2px;
+  background: var(--mantine-color-red-6);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--mantine-color-red-8) 30%, transparent);
+  pointer-events: none;
+}
+
+.currentTimeLine {
+  left: calc(145px + (var(--current-day-index) * ((100% - 145px) / var(--schedule-day-count))));
+  width: calc((100% - 145px) / var(--schedule-day-count));
+}
+
+.currentTimeLine::before,
+.mobileCurrentTimeLine::before {
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mantine-color-red-6);
+  content: '';
+  transform: translateY(-50%);
+}
+
+.currentTimeLabel {
+  position: absolute;
+  top: -10px;
+  left: 7px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--mantine-color-red-6);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 18px;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--mantine-color-red-8) 28%, transparent);
 }
 
 .timeCell {
@@ -340,6 +389,7 @@
 
   .mobileSlot {
     display: flex;
+    position: relative;
     width: 100%;
     min-height: 66px;
     padding: 0;
@@ -376,6 +426,11 @@
 
   .mobileBreak {
     color: var(--app-color-muted);
+  }
+
+  .mobileCurrentTimeLine {
+    right: 0;
+    left: 105px;
   }
 }
 

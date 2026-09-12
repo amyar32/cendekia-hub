@@ -309,12 +309,15 @@ export async function GET(request: Request) {
          ORDER BY ay.start_date DESC,c.name`,
       )
       .all(schoolId, selectedAcademicYear.start_date);
+    const school = db().prepare('SELECT timezone FROM schools WHERE id=?').get(schoolId) as
+      { timezone: string } | undefined;
 
     return Response.json(
       {
         entries,
         slots,
         assignments,
+        timezone: school?.timezone || 'Asia/Jakarta',
         selected: {
           academic_year_id: academicYearId,
           semester_id: semesterId,

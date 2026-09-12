@@ -71,6 +71,7 @@ type ScheduleResponse = {
   entries: Entry[];
   slots: Slot[];
   assignments: Option[];
+  timezone: string;
   selected: Record<string, string>;
   options: Record<string, CopyOption[]>;
 };
@@ -78,6 +79,15 @@ type ScheduleResponse = {
 const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const weekdayOptions = days.map((label, index) => ({ value: String(index + 1), label }));
 const weekdayName = (weekday: number) => days[weekday - 1] || '';
+const weekdayByName: Record<string, number> = {
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+  Sun: 7,
+};
 const emptySlotForm = {
   name: '',
   start_time: '',
@@ -86,6 +96,31 @@ const emptySlotForm = {
   is_break: false,
   is_active: true,
 };
+
+function timeToMinutes(value: string) {
+  const [hour, minute] = value.split(':').map(Number);
+  return hour * 60 + minute;
+}
+
+function currentScheduleTime(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value || '';
+  const hour = Number(part('hour'));
+  const minute = Number(part('minute'));
+
+  return {
+    weekday: weekdayByName[part('weekday')] || 0,
+    minutes: hour * 60 + minute,
+    label: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+  };
+}
 
 async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -121,6 +156,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
   const [activeWeekdays, setActiveWeekdays] = useState([1, 2, 3, 4, 5]);
   const [weekdaysLoading, setWeekdaysLoading] = useState(true);
   const [savingWeekdays, setSavingWeekdays] = useState(false);
+  const [now, setNow] = useState<Date | null>(null);
 
   const reload = useCallback(() => setRevision((value) => value + 1), []);
   const reloadSlots = useCallback(() => setSlotRevision((value) => value + 1), []);
@@ -183,6 +219,13 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
       .finally(() => setWeekdaysLoading(false));
   }, []);
 
+  useEffect(() => {
+    const updateNow = () => setNow(new Date());
+    updateNow();
+    const timer = window.setInterval(updateNow, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const entryMap = useMemo(() => {
     const map = new Map<string, Entry[]>();
     for (const entry of data?.entries || []) {
@@ -191,6 +234,24 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
     }
     return map;
   }, [data?.entries]);
+  const timeline = useMemo(() => {
+    if (!now || !data?.slots.length) return null;
+    const current = currentScheduleTime(now, data.timezone || 'Asia/Jakarta');
+    const slot = data.slots.find((item) => {
+      const start = timeToMinutes(item.start_time);
+      const end = timeToMinutes(item.end_time);
+      return current.minutes >= start && current.minutes < end;
+    });
+    if (!slot) return null;
+    const start = timeToMinutes(slot.start_time);
+    const end = timeToMinutes(slot.end_time);
+
+    return {
+      ...current,
+      slotId: slot.id,
+      position: ((current.minutes - start) / (end - start)) * 100,
+    };
+  }, [data, now]);
   const copySemesters = data?.options.copy_semester_id || [];
   const selectedSourceSemester = copySemesters.find((option) => option.value === sourceSemesterId);
   const sourceClasses = (data?.options.copy_class_id || []).filter(
@@ -550,7 +611,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                     <div className={`${styles.headerCell} ${styles.timeHeader}`}>WAKTU</div>
                     {activeWeekdays.map((weekday) => (
                       <div
-                        className={`${styles.headerCell} ${weekday >= 6 ? styles.weekendHeader : ''}`}
+                        className={`${styles.headerCell} ${weekday >= 6 ? styles.weekendHeader : ''} ${timeline?.weekday === weekday ? styles.todayHeader : ''}`}
                         key={weekday}
                       >
                         {weekdayName(weekday)}
@@ -613,6 +674,22 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                           </button>
                         );
                       })}
+                      {timeline?.slotId === slot.id &&
+                        activeWeekdays.includes(timeline.weekday) && (
+                          <div
+                            className={styles.currentTimeLine}
+                            style={
+                              {
+                                '--current-day-index': activeWeekdays.indexOf(timeline.weekday),
+                                '--current-time-position': `${timeline.position}%`,
+                              } as CSSProperties
+                            }
+                            role="status"
+                            aria-label={`Waktu sekarang ${timeline.label}`}
+                          >
+                            <span className={styles.currentTimeLabel}>{timeline.label}</span>
+                          </div>
+                        )}
                     </div>
                   ))}
                 </div>
@@ -665,6 +742,20 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                               <Text variant="caption">{writable ? '+ Tambah pelajaran' : '—'}</Text>
                             )}
                           </Box>
+                          {timeline?.weekday === weekday && timeline.slotId === slot.id && (
+                            <div
+                              className={styles.mobileCurrentTimeLine}
+                              style={
+                                {
+                                  '--current-time-position': `${timeline.position}%`,
+                                } as CSSProperties
+                              }
+                              role="status"
+                              aria-label={`Waktu sekarang ${timeline.label}`}
+                            >
+                              <span className={styles.currentTimeLabel}>{timeline.label}</span>
+                            </div>
+                          )}
                         </button>
                       );
                     })}
