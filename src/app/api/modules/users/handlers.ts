@@ -5,6 +5,7 @@ import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { hashPassword } from '@/lib/password';
 import { listParams } from '@/app/api/modules/_shared/list-params';
+import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 
 const userSchema = z.object({
   name: z.string().trim().min(2, 'Nama minimal 2 karakter.').max(100),
@@ -13,6 +14,7 @@ const userSchema = z.object({
     .max(254)
     .transform((value) => value.toLowerCase()),
   role_id: z.string().min(1),
+  teacher_id: z.union([z.literal(''), z.string().uuid('Guru tidak valid.')]).default(''),
   active: z.boolean().default(true),
   password: z.string().min(12, 'Kata sandi minimal 12 karakter.').max(128).optional(),
 });
@@ -28,12 +30,18 @@ type StoredUser = {
 export async function GET(request: Request) {
   try {
     const user = await requireUser('users.read');
+    const schoolId = currentSchoolId();
     const { filter, offset } = listParams(request);
     const rows = db()
       .prepare(
-        'SELECT u.id,u.name,u.email,u.role_id,u.active,u.created_at,r.name AS role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.name LIKE ? OR u.email LIKE ? ORDER BY u.created_at DESC,u.id LIMIT 10 OFFSET ?',
+        `SELECT u.id,u.name,u.email,u.role_id,u.active,u.created_at,r.name AS role,
+                COALESCE(t.id,'') AS teacher_id,COALESCE(t.name,'') AS teacher_name
+         FROM users u JOIN roles r ON r.id=u.role_id
+         LEFT JOIN teachers t ON t.user_id=u.id AND t.school_id=?
+         WHERE u.name LIKE ? OR u.email LIKE ?
+         ORDER BY u.created_at DESC,u.id LIMIT 10 OFFSET ?`,
       )
-      .all(filter, filter, offset);
+      .all(schoolId, filter, filter, offset);
     const total = (
       db()
         .prepare('SELECT count(*) AS n FROM users WHERE name LIKE ? OR email LIKE ?')
@@ -42,8 +50,33 @@ export async function GET(request: Request) {
     const roles = user.permissions.includes('users.write')
       ? db().prepare('SELECT id,name FROM roles ORDER BY name').all()
       : [];
+    const teacherRows = user.permissions.includes('users.write')
+      ? (db()
+          .prepare(
+            `SELECT id AS value,name,email,
+                    name || ' — ' || employee_code ||
+                      CASE WHEN is_active=0 THEN ' (nonaktif)'
+                           WHEN user_id IS NOT NULL THEN ' (sudah terhubung)'
+                           ELSE '' END AS label,
+                    CASE WHEN is_active=0 OR user_id IS NOT NULL THEN 1 ELSE 0 END AS disabled
+             FROM teachers WHERE school_id=? ORDER BY is_active DESC,name`,
+          )
+          .all(schoolId) as Array<{
+          value: string;
+          name: string;
+          email: string;
+          label: string;
+          disabled: number;
+        }>)
+      : [];
+    const teachers = teacherRows.map(({ disabled, ...teacher }) =>
+      disabled ? { ...teacher, disabled: true } : teacher,
+    );
 
-    return Response.json({ rows, total, roles }, { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json(
+      { rows, total, roles, options: { teacher_id: teachers } },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (error) {
     return failure(error);
   }
@@ -54,6 +87,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
     checkOrigin(request);
     const actor = await requireUser('users.write');
     const input = await request.json();
+    const schoolId = currentSchoolId();
     const id = method === 'POST' ? randomUUID() : z.string().min(1).parse(input.id);
 
     db().transaction(() => {
@@ -106,6 +140,17 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         if (method === 'POST' && !data.password)
           throw new HttpError(400, 'Kata sandi wajib diisi.');
 
+        const teacher = data.teacher_id
+          ? (db()
+              .prepare('SELECT id,user_id,is_active FROM teachers WHERE id=? AND school_id=?')
+              .get(data.teacher_id, schoolId) as
+              { id: string; user_id: string | null; is_active: number } | undefined)
+          : undefined;
+        if (data.teacher_id && (!teacher || (!teacher.is_active && teacher.user_id !== id)))
+          throw new HttpError(400, 'Guru tidak aktif atau tidak valid.');
+        if (teacher?.user_id && teacher.user_id !== id)
+          throw new HttpError(409, 'Guru tersebut sudah terhubung ke akun pengguna lain.');
+
         const role = db().prepare('SELECT permissions FROM roles WHERE id=?').get(data.role_id) as
           { permissions: string } | undefined;
         if (!role) throw new HttpError(400, 'Role tidak ditemukan.');
@@ -127,6 +172,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           name: data.name,
           email: data.email,
           role_id: data.role_id,
+          teacher_id: data.teacher_id || null,
           active: data.active,
         };
         if (method === 'POST') {
@@ -153,6 +199,17 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           }
           db().prepare('DELETE FROM sessions WHERE user_id=?').run(id);
         }
+
+        db()
+          .prepare(
+            `UPDATE teachers SET user_id=NULL,updated_at=datetime('now')
+             WHERE user_id=? AND (?='' OR id<>?)`,
+          )
+          .run(id, data.teacher_id, data.teacher_id);
+        if (data.teacher_id)
+          db()
+            .prepare("UPDATE teachers SET user_id=?,updated_at=datetime('now') WHERE id=?")
+            .run(id, data.teacher_id);
       }
 
       audit(

@@ -66,6 +66,7 @@ const teacher: AcademicEntityConfig = {
       label: 'Email',
       placeholder: 'guru@sekolah.sch.id',
       description: 'Digunakan sebagai email login jika akun aplikasi dibuat.',
+      required: true,
     },
     { key: 'address', label: 'Alamat', kind: 'textarea', placeholder: 'Alamat tempat tinggal' },
     { key: 'join_date', label: 'Tanggal bergabung', kind: 'date' },

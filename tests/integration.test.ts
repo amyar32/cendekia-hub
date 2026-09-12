@@ -859,15 +859,37 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
       .status,
     403,
   );
+  res = await api('/api/modules/users');
+  const availableTeacher = (await res.json()).options.teacher_id.find(
+    (option: { value: string }) => option.value === teacher.id,
+  );
+  assert.equal(availableTeacher.name, 'Budi Santoso');
+  assert.equal(availableTeacher.email, 'budi@cendekia.test');
+  assert.equal('disabled' in availableTeacher, false);
   res = await api('/api/modules/users', 'POST', {
     name: 'Viewer test',
     email: 'viewer@test.local',
     password: 'viewer-password-123',
     role_id: 'viewer',
+    teacher_id: teacher.id,
     active: true,
   });
   assert.equal(res.status, 201);
   const viewer = await res.json();
+  res = await api('/api/modules/users?q=Viewer');
+  const linkedViewer = (await res.json()).rows[0];
+  assert.equal(linkedViewer.teacher_id, teacher.id);
+  assert.equal(linkedViewer.teacher_name, 'Budi Santoso');
+  const linkedDatabase = new Database(join(dir, 'test.sqlite'));
+  assert.equal(
+    (
+      linkedDatabase.prepare('SELECT user_id FROM teachers WHERE id=?').get(teacher.id) as {
+        user_id: string;
+      }
+    ).user_id,
+    viewer.id,
+  );
+  linkedDatabase.close();
   res = await api(
     '/api/auth/login',
     'POST',

@@ -21,7 +21,7 @@ const teacherImportSchema = z.object({
   nama: z.string().trim().min(2).max(100),
   gender: z.enum(['male', 'female']),
   golongan_darah: z.enum(['', 'A', 'B', 'AB', 'O']),
-  email: z.union([z.literal(''), z.email()]),
+  email: z.email('Email guru wajib diisi dan harus valid.'),
   telepon: z.string().trim().max(30),
   employment_status: z.enum(['permanent', 'contract', 'honorary']),
 });
@@ -122,7 +122,8 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
     if (source.data.golongan_darah && !bloodType)
       messages.push('Golongan darah harus A, B, AB, atau O.');
     if (!employment) messages.push('Status harus Tetap, Kontrak, atau Honorer.');
-    if (source.data.email && !z.email().safeParse(source.data.email).success)
+    if (!source.data.email) messages.push('Email guru wajib diisi.');
+    else if (!z.email().safeParse(source.data.email).success)
       messages.push('Format email tidak valid.');
     if (employeeCodes.has(code)) messages.push('Kode Guru duplikat di workbook.');
     employeeCodes.add(code);

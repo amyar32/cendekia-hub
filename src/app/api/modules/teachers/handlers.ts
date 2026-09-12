@@ -34,9 +34,8 @@ const schema = z.object({
   blood_type: z.enum(['', 'A', 'B', 'AB', 'O']).default(''),
   phone: z.string().trim().max(30).default(''),
   email: z
-    .union([z.literal(''), z.email('Email tidak valid.')])
-    .transform((value) => value.toLowerCase())
-    .default(''),
+    .email('Email guru wajib diisi dan harus valid.')
+    .transform((value) => value.toLowerCase()),
   address: z.string().trim().max(500).default(''),
   join_date: optionalDate.default(''),
   employment_status: z.enum(['permanent', 'contract', 'honorary'], {

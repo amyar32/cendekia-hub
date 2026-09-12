@@ -28,6 +28,8 @@ type UserRow = {
   email: string;
   role: string;
   role_id: string;
+  teacher_id: string;
+  teacher_name: string;
   active: number;
 };
 
@@ -36,10 +38,18 @@ type UserForm = {
   email: string;
   password: string;
   role_id: string;
+  teacher_id: string;
   active: boolean;
 };
 
-const emptyForm: UserForm = { name: '', email: '', password: '', role_id: '', active: true };
+const emptyForm: UserForm = {
+  name: '',
+  email: '',
+  password: '',
+  role_id: '',
+  teacher_id: '',
+  active: true,
+};
 const endpoint = '/api/modules/users';
 
 export function UserManager({
@@ -54,6 +64,14 @@ export function UserManager({
   const [removing, setRemoving] = useState<UserRow | null>(null);
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const teacherOptions = (list.options?.teacher_id || [])
+    .filter((teacher) => !teacher.disabled || teacher.value === editing?.teacher_id)
+    .map((teacher) => ({
+      value: teacher.value,
+      label: teacher.label,
+      name: teacher.name,
+      email: teacher.email,
+    }));
 
   function openEditor(user: UserRow | null) {
     setForm(
@@ -63,6 +81,7 @@ export function UserManager({
             email: user.email,
             password: '',
             role_id: user.role_id,
+            teacher_id: user.teacher_id,
             active: Boolean(user.active),
           }
         : emptyForm,
@@ -142,6 +161,7 @@ export function UserManager({
               <Table.Tr>
                 <Table.Th>NAMA</Table.Th>
                 <Table.Th>ROLE</Table.Th>
+                <Table.Th>GURU TERKAIT</Table.Th>
                 <Table.Th>STATUS</Table.Th>
                 <Table.Th ta="right">AKSI</Table.Th>
               </Table.Tr>
@@ -168,6 +188,11 @@ export function UserManager({
                     <Badge variant="light" color="blue">
                       {user.role}
                     </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs" c={user.teacher_name ? undefined : 'dimmed'}>
+                      {user.teacher_name || '—'}
+                    </Text>
                   </Table.Td>
                   <Table.Td>
                     <Badge variant="dot" color={user.active ? 'brand' : 'gray'}>
@@ -216,6 +241,28 @@ export function UserManager({
         centered
       >
         <form onSubmit={save}>
+          <Select
+            label="Akun ini untuk guru"
+            description="Opsional. Nama dan email akun akan diisi dari profil guru yang dipilih."
+            placeholder="Pilih guru (opsional)"
+            data={teacherOptions}
+            value={form.teacher_id || null}
+            onChange={(value) => {
+              const teacher = (list.options?.teacher_id || []).find(
+                (option) => option.value === value,
+              );
+              setForm({
+                ...form,
+                teacher_id: value || '',
+                name: teacher?.name || form.name,
+                email: teacher?.email || form.email,
+              });
+            }}
+            searchable
+            clearable
+            nothingFoundMessage="Tidak ada guru yang belum terhubung ke akun."
+            mb="md"
+          />
           <TextInput
             label="Nama"
             placeholder="Masukkan nama lengkap"
