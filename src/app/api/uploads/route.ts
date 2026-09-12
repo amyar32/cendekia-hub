@@ -11,6 +11,7 @@ import {
   uploadUrl,
   validateImage,
   validateDocument,
+  validateAudio,
 } from '@/lib/uploads';
 
 export const runtime = 'nodejs';
@@ -46,7 +47,9 @@ export async function POST(request: Request) {
       extension =
         scope.kind === 'image'
           ? validateImage(bytes, file.type)
-          : validateDocument(bytes, file.type);
+          : scope.kind === 'audio'
+            ? validateAudio(bytes, file.type)
+            : validateDocument(bytes, file.type);
     } catch (error) {
       throw new HttpError(415, error instanceof Error ? error.message : 'Format file tidak valid.');
     }
@@ -55,7 +58,7 @@ export async function POST(request: Request) {
     storedKey = await storeUpload(
       bytes,
       extension,
-      scope.kind === 'image' ? 'images' : 'documents',
+      scope.kind === 'image' ? 'images' : scope.kind === 'audio' ? 'audio' : 'documents',
     );
     const storageKey = storedKey;
     db().transaction(() => {

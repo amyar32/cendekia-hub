@@ -539,6 +539,38 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   });
   assert.equal(res.status, 201);
   const timeSlot = await res.json();
+  res = await api('/api/modules/schedules/bell');
+  const initialBellSettings = await res.json();
+  assert.equal(initialBellSettings.enabled, false);
+  assert.ok(initialBellSettings.start_times.includes('07:00'));
+  res = await api('/api/modules/schedules/bell', 'PATCH', { enabled: true });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).enabled, true);
+  const wav = new Uint8Array(44);
+  wav.set([82, 73, 70, 70, 36, 0, 0, 0, 87, 65, 86, 69]);
+  res = await uploadApi(wav, 'audio/wav', adminCookie, base, 'schedule.bell-audio');
+  assert.equal(res.status, 201);
+  const uploadedBell = (await res.json()).upload;
+  assert.equal((await fetch(base + uploadedBell.url)).status, 401);
+  assert.equal(
+    (await fetch(base + uploadedBell.url, { headers: { cookie: adminCookie } })).status,
+    200,
+  );
+  res = await api('/api/modules/schedules/bell', 'PATCH', {
+    enabled: true,
+    sound_url: uploadedBell.url,
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).sound_url, uploadedBell.url);
+  assert.equal(
+    (
+      await api('/api/modules/schedules/bell', 'PATCH', {
+        enabled: true,
+        sound_url: uploadedLogo.url,
+      })
+    ).status,
+    400,
+  );
   assert.equal(
     (
       await api('/api/modules/schedule-time-slots', 'POST', {

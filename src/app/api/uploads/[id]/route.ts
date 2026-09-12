@@ -14,7 +14,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const scope = uploadScopes[upload.scope];
     if (!scope) throw new HttpError(404, 'File tidak ditemukan.');
-    if (!scope.public) await requireUser(scope.readPermission);
+    if (!scope.public) await requireUser(scope.readPermission || undefined);
 
     let bytes: Buffer;
     try {

@@ -39,14 +39,21 @@ export const uploadScopes = {
     maxBytes: 10 * 1024 * 1024,
     kind: 'document',
   },
+  'schedule.bell-audio': {
+    readPermission: null,
+    writePermission: 'schedules.write',
+    public: false,
+    maxBytes: 10 * 1024 * 1024,
+    kind: 'audio',
+  },
 } as const satisfies Record<
   string,
   {
-    readPermission: Permission;
+    readPermission: Permission | null;
     writePermission: Permission;
     public: boolean;
     maxBytes: number;
-    kind: 'image' | 'document';
+    kind: 'image' | 'document' | 'audio';
   }
 >;
 
@@ -120,6 +127,48 @@ export function validateDocument(bytes: Uint8Array, mimeType: string) {
   )
     return '.pdf';
   return validateImage(bytes, mimeType);
+}
+
+export function validateAudio(bytes: Uint8Array, mimeType: string) {
+  const prefix = (length: number, offset = 0) =>
+    String.fromCharCode(...bytes.slice(offset, offset + length));
+  const hasMpegFrame = (offset: number) =>
+    bytes.length >= offset + 3 &&
+    bytes[offset] === 0xff &&
+    (bytes[offset + 1] & 0xe0) === 0xe0 &&
+    ((bytes[offset + 1] >> 3) & 0x03) !== 0x01 &&
+    ((bytes[offset + 1] >> 1) & 0x03) !== 0 &&
+    bytes[offset + 2] >> 4 !== 0 &&
+    bytes[offset + 2] >> 4 !== 0x0f &&
+    ((bytes[offset + 2] >> 2) & 0x03) !== 0x03;
+  let mp3FrameOffset = 0;
+  if (bytes.length >= 10 && prefix(3) === 'ID3') {
+    const tagSize =
+      ((bytes[6] & 0x7f) << 21) |
+      ((bytes[7] & 0x7f) << 14) |
+      ((bytes[8] & 0x7f) << 7) |
+      (bytes[9] & 0x7f);
+    mp3FrameOffset = 10 + tagSize + (bytes[5] & 0x10 ? 10 : 0);
+  }
+  const isMp3 =
+    ['audio/mpeg', 'audio/mp3', 'audio/x-mpeg'].includes(mimeType) && hasMpegFrame(mp3FrameOffset);
+  if (isMp3) return '.mp3';
+  if (
+    ['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave'].includes(mimeType) &&
+    bytes.length >= 44 &&
+    prefix(4) === 'RIFF' &&
+    prefix(4, 8) === 'WAVE' &&
+    new DataView(bytes.buffer, bytes.byteOffset + 4, 4).getUint32(0, true) <= bytes.length - 8
+  )
+    return '.wav';
+  if (
+    ['audio/ogg', 'application/ogg'].includes(mimeType) &&
+    bytes.length >= 27 &&
+    prefix(4) === 'OggS' &&
+    bytes[4] === 0
+  )
+    return '.ogg';
+  throw new Error('File harus berupa audio MP3, WAV, atau OGG yang valid.');
 }
 
 function storageRoot() {

@@ -17,6 +17,7 @@ import {
   IconVolumeOff,
 } from '@tabler/icons-react';
 import styles from './checkin-scanner.module.css';
+import { ScheduleBell } from '@/components/schedules/schedule-bell';
 
 type Student = { name: string; nis: string; photo_url: string; class_name: string };
 type Recent = Student & {
@@ -240,238 +241,243 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
   }).format(clock);
 
   return (
-    <main className={styles.kiosk}>
-      <header className={styles.header}>
-        <Group gap="sm" wrap="nowrap">
-          {config?.school.logo_url ? (
-            <Image
-              className={styles.logo}
-              src={config.school.logo_url}
-              alt="Logo sekolah"
-              width={48}
-              height={48}
-              unoptimized
-            />
-          ) : (
-            <div className={styles.logoFallback}>
-              <IconQrcode />
-            </div>
-          )}
-          <div>
-            <Text className={styles.school}>{config?.school.name || 'Cendekia Hub'}</Text>
-            <Text className={styles.subtitle}>GERBANG KEHADIRAN SEKOLAH</Text>
-          </div>
-        </Group>
-        <div className={styles.clock}>
-          <Text>{time}</Text>
-          <span>{fullDate}</span>
-        </div>
-        <Group gap="xs" wrap="nowrap" className={styles.headerActions}>
-          <Button
-            variant="subtle"
-            color="gray"
-            aria-label={sound ? 'Matikan suara' : 'Nyalakan suara'}
-            onClick={() => {
-              const next = !sound;
-              setSound(next);
-              localStorage.setItem('checkin-scanner-sound', next ? 'on' : 'off');
-            }}
-          >
-            {sound ? <IconVolume size={20} /> : <IconVolumeOff size={20} />}
-          </Button>
-          <Button
-            variant="subtle"
-            color="gray"
-            aria-label="Layar penuh"
-            onClick={() =>
-              document.fullscreenElement
-                ? document.exitFullscreen()
-                : document.documentElement.requestFullscreen()
-            }
-          >
-            <IconArrowsMaximize size={20} />
-          </Button>
-          <Button variant="subtle" color="gray" aria-label="Keluar" onClick={() => void logout()}>
-            <IconDoorExit size={20} />
-          </Button>
-        </Group>
-      </header>
-
-      <section className={styles.workspace}>
-        <div className={styles.scannerPanel}>
-          <div className={styles.hidStage}>
-            {!result && !error && (
-              <div className={styles.hidContent}>
-                <div
-                  className={`${styles.hidIcon} ${hidState === 'reading' ? styles.hidReading : ''}`}
-                >
-                  <IconQrcode />
-                  <span className={styles.hidPulse} />
-                </div>
-                <Text className={styles.hidTitle}>
-                  {hidState === 'processing'
-                    ? 'Memproses kartu…'
-                    : hidState === 'reading'
-                      ? 'Membaca kartu…'
-                      : 'Scan kartu sekarang'}
-                </Text>
-                <Text className={styles.hidDescription}>
-                  Arahkan kode QR pada kartu ke scanner. Jika kartu hilang atau rusak, hubungi admin
-                  sekolah untuk mendapatkan kartu pengganti.
-                </Text>
-                <div className={styles.hidStatus} aria-live="polite">
-                  <span className={styles.liveDot} />
-                  {hidState === 'reading'
-                    ? `${receivedCharacters} karakter diterima`
-                    : hidState === 'processing'
-                      ? 'Memverifikasi data'
-                      : 'Siap memindai'}
-                </div>
-                <Text className={styles.hidHint}>
-                  Scan gagal? Coba sekali lagi atau minta bantuan petugas untuk memasukkan NIS atau
-                  kode guru.
-                </Text>
+    <>
+      <ScheduleBell />
+      <main className={styles.kiosk}>
+        <header className={styles.header}>
+          <Group gap="sm" wrap="nowrap">
+            {config?.school.logo_url ? (
+              <Image
+                className={styles.logo}
+                src={config.school.logo_url}
+                alt="Logo sekolah"
+                width={48}
+                height={48}
+                unoptimized
+              />
+            ) : (
+              <div className={styles.logoFallback}>
+                <IconQrcode />
               </div>
             )}
-            {(result || error) && (
-              <div
-                className={`${styles.feedback} ${error ? styles.failed : result?.outcome === 'duplicate' ? styles.duplicate : styles.success}`}
-              >
-                {error ? (
-                  <>
-                    <div className={styles.resultIcon}>
-                      <IconAlertTriangle />
+            <div>
+              <Text className={styles.school}>{config?.school.name || 'Cendekia Hub'}</Text>
+              <Text className={styles.subtitle}>GERBANG KEHADIRAN SEKOLAH</Text>
+            </div>
+          </Group>
+          <div className={styles.clock}>
+            <Text>{time}</Text>
+            <span>{fullDate}</span>
+          </div>
+          <Group gap="xs" wrap="nowrap" className={styles.headerActions}>
+            <Button
+              variant="subtle"
+              color="gray"
+              aria-label={sound ? 'Matikan suara' : 'Nyalakan suara'}
+              onClick={() => {
+                const next = !sound;
+                setSound(next);
+                localStorage.setItem('checkin-scanner-sound', next ? 'on' : 'off');
+              }}
+            >
+              {sound ? <IconVolume size={20} /> : <IconVolumeOff size={20} />}
+            </Button>
+            <Button
+              variant="subtle"
+              color="gray"
+              aria-label="Layar penuh"
+              onClick={() =>
+                document.fullscreenElement
+                  ? document.exitFullscreen()
+                  : document.documentElement.requestFullscreen()
+              }
+            >
+              <IconArrowsMaximize size={20} />
+            </Button>
+            <Button variant="subtle" color="gray" aria-label="Keluar" onClick={() => void logout()}>
+              <IconDoorExit size={20} />
+            </Button>
+          </Group>
+        </header>
+
+        <section className={styles.workspace}>
+          <div className={styles.scannerPanel}>
+            <div className={styles.hidStage}>
+              {!result && !error && (
+                <div className={styles.hidContent}>
+                  <div
+                    className={`${styles.hidIcon} ${hidState === 'reading' ? styles.hidReading : ''}`}
+                  >
+                    <IconQrcode />
+                    <span className={styles.hidPulse} />
+                  </div>
+                  <Text className={styles.hidTitle}>
+                    {hidState === 'processing'
+                      ? 'Memproses kartu…'
+                      : hidState === 'reading'
+                        ? 'Membaca kartu…'
+                        : 'Scan kartu sekarang'}
+                  </Text>
+                  <Text className={styles.hidDescription}>
+                    Arahkan kode QR pada kartu ke scanner. Jika kartu hilang atau rusak, hubungi
+                    admin sekolah untuk mendapatkan kartu pengganti.
+                  </Text>
+                  <div className={styles.hidStatus} aria-live="polite">
+                    <span className={styles.liveDot} />
+                    {hidState === 'reading'
+                      ? `${receivedCharacters} karakter diterima`
+                      : hidState === 'processing'
+                        ? 'Memverifikasi data'
+                        : 'Siap memindai'}
+                  </div>
+                  <Text className={styles.hidHint}>
+                    Scan gagal? Coba sekali lagi atau minta bantuan petugas untuk memasukkan NIS
+                    atau kode guru.
+                  </Text>
+                </div>
+              )}
+              {(result || error) && (
+                <div
+                  className={`${styles.feedback} ${error ? styles.failed : result?.outcome === 'duplicate' ? styles.duplicate : styles.success}`}
+                >
+                  {error ? (
+                    <>
+                      <div className={styles.resultIcon}>
+                        <IconAlertTriangle />
+                      </div>
+                      <Text className={styles.resultTitle}>Kartu tidak dapat diproses</Text>
+                      <Text className={styles.resultMessage}>{error}</Text>
+                    </>
+                  ) : result ? (
+                    <>
+                      <Avatar
+                        src={result.student.photo_url}
+                        size={112}
+                        radius="50%"
+                        className={styles.resultPhoto}
+                      />
+                      <Text className={styles.resultTitle}>
+                        {result.outcome === 'duplicate'
+                          ? 'Sudah cek-in'
+                          : result.status === 'late'
+                            ? 'Cek-in terlambat'
+                            : 'Selamat datang!'}
+                      </Text>
+                      <Text className={styles.personName}>{result.student.name}</Text>
+                      <Text className={styles.resultMessage}>
+                        {result.person_type === 'teacher' ? 'Guru' : 'Murid'} · {result.student.nis}{' '}
+                        · {result.student.class_name}
+                      </Text>
+                      <div className={styles.resultTime}>
+                        {result.outcome === 'success' ? <IconCheck /> : <IconClock />}
+                        {new Intl.DateTimeFormat('id-ID', {
+                          timeZone,
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }).format(new Date(`${result.checked_in_at}Z`))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              )}
+            </div>
+            <div className={styles.scannerFooter}>
+              <Group gap="xs">
+                <span className={styles.liveDot} />
+                <Text>Mode HID aktif</Text>
+              </Group>
+              <Text>{operatorName}</Text>
+            </div>
+          </div>
+
+          <aside className={styles.sidePanel}>
+            <div className={styles.stats}>
+              <div>
+                <span>CHECK-IN HARI INI</span>
+                <strong>{summary.total}</strong>
+              </div>
+              <div>
+                <span>TEPAT WAKTU</span>
+                <strong>{summary.present}</strong>
+              </div>
+              <div>
+                <span>TERLAMBAT</span>
+                <strong>{summary.late}</strong>
+              </div>
+              <div>
+                <span>TIDAK HADIR</span>
+                <strong>{summary.absent}</strong>
+              </div>
+            </div>
+            <div className={styles.recentHeader}>
+              <div>
+                <Text>Aktivitas terbaru</Text>
+                <span>Diperbarui otomatis</span>
+              </div>
+              <Link href="/checkins">Lihat daftar</Link>
+            </div>
+            <div className={styles.recentList}>
+              {recent.length ? (
+                recent.map((item) => (
+                  <div className={styles.recentItem} key={item.id}>
+                    <Avatar src={item.photo_url} size={42} radius="xl">
+                      {item.name[0]}
+                    </Avatar>
+                    <div>
+                      <Text>{item.name}</Text>
+                      <span>
+                        {item.person_type === 'teacher' ? 'Guru' : item.class_name || 'Murid'} ·{' '}
+                        {item.nis}
+                      </span>
                     </div>
-                    <Text className={styles.resultTitle}>Kartu tidak dapat diproses</Text>
-                    <Text className={styles.resultMessage}>{error}</Text>
-                  </>
-                ) : result ? (
-                  <>
-                    <Avatar
-                      src={result.student.photo_url}
-                      size={112}
-                      radius="50%"
-                      className={styles.resultPhoto}
-                    />
-                    <Text className={styles.resultTitle}>
-                      {result.outcome === 'duplicate'
-                        ? 'Sudah cek-in'
-                        : result.status === 'late'
-                          ? 'Cek-in terlambat'
-                          : 'Selamat datang!'}
-                    </Text>
-                    <Text className={styles.personName}>{result.student.name}</Text>
-                    <Text className={styles.resultMessage}>
-                      {result.person_type === 'teacher' ? 'Guru' : 'Murid'} · {result.student.nis} ·{' '}
-                      {result.student.class_name}
-                    </Text>
-                    <div className={styles.resultTime}>
-                      {result.outcome === 'success' ? <IconCheck /> : <IconClock />}
+                    <div className={styles.recentTime}>
                       {new Intl.DateTimeFormat('id-ID', {
                         timeZone,
                         hour: '2-digit',
                         minute: '2-digit',
-                      }).format(new Date(`${result.checked_in_at}Z`))}
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            )}
-          </div>
-          <div className={styles.scannerFooter}>
-            <Group gap="xs">
-              <span className={styles.liveDot} />
-              <Text>Mode HID aktif</Text>
-            </Group>
-            <Text>{operatorName}</Text>
-          </div>
-        </div>
-
-        <aside className={styles.sidePanel}>
-          <div className={styles.stats}>
-            <div>
-              <span>CHECK-IN HARI INI</span>
-              <strong>{summary.total}</strong>
-            </div>
-            <div>
-              <span>TEPAT WAKTU</span>
-              <strong>{summary.present}</strong>
-            </div>
-            <div>
-              <span>TERLAMBAT</span>
-              <strong>{summary.late}</strong>
-            </div>
-            <div>
-              <span>TIDAK HADIR</span>
-              <strong>{summary.absent}</strong>
-            </div>
-          </div>
-          <div className={styles.recentHeader}>
-            <div>
-              <Text>Aktivitas terbaru</Text>
-              <span>Diperbarui otomatis</span>
-            </div>
-            <Link href="/checkins">Lihat daftar</Link>
-          </div>
-          <div className={styles.recentList}>
-            {recent.length ? (
-              recent.map((item) => (
-                <div className={styles.recentItem} key={item.id}>
-                  <Avatar src={item.photo_url} size={42} radius="xl">
-                    {item.name[0]}
-                  </Avatar>
-                  <div>
-                    <Text>{item.name}</Text>
-                    <span>
-                      {item.person_type === 'teacher' ? 'Guru' : item.class_name || 'Murid'} ·{' '}
-                      {item.nis}
-                    </span>
-                  </div>
-                  <div className={styles.recentTime}>
-                    {new Intl.DateTimeFormat('id-ID', {
-                      timeZone,
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }).format(new Date(`${item.checked_in_at}Z`))}
-                    <span
-                      className={
-                        item.status === 'late'
-                          ? styles.late
+                      }).format(new Date(`${item.checked_in_at}Z`))}
+                      <span
+                        className={
+                          item.status === 'late'
+                            ? styles.late
+                            : item.status === 'absent'
+                              ? styles.absent
+                              : ''
+                        }
+                      >
+                        {item.status === 'late'
+                          ? 'Terlambat'
                           : item.status === 'absent'
-                            ? styles.absent
-                            : ''
-                      }
-                    >
-                      {item.status === 'late'
-                        ? 'Terlambat'
-                        : item.status === 'absent'
-                          ? 'Tidak hadir'
-                          : 'Hadir'}
-                    </span>
+                            ? 'Tidak hadir'
+                            : 'Hadir'}
+                      </span>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className={styles.empty}>
+                  Belum ada murid atau guru yang check-in hari ini.
                 </div>
-              ))
-            ) : (
-              <div className={styles.empty}>Belum ada murid atau guru yang check-in hari ini.</div>
-            )}
-          </div>
-          <form className={styles.manual} onSubmit={submitManual}>
-            <IconKeyboard size={18} />
-            <TextInput
-              variant="unstyled"
-              placeholder="Ketik NIS atau Kode Guru jika kartu bermasalah"
-              value={manualCode}
-              onChange={(event) => setManualCode(event.currentTarget.value)}
-            />
-            <Button type="submit" size="xs" disabled={!manualCode.trim()}>
-              Proses
-            </Button>
-          </form>
-          <Text className={styles.cutoff}>
-            Otomatis terlambat setelah pukul {config?.late_after || '07:15'}
-          </Text>
-        </aside>
-      </section>
-    </main>
+              )}
+            </div>
+            <form className={styles.manual} onSubmit={submitManual}>
+              <IconKeyboard size={18} />
+              <TextInput
+                variant="unstyled"
+                placeholder="Ketik NIS atau Kode Guru jika kartu bermasalah"
+                value={manualCode}
+                onChange={(event) => setManualCode(event.currentTarget.value)}
+              />
+              <Button type="submit" size="xs" disabled={!manualCode.trim()}>
+                Proses
+              </Button>
+            </form>
+            <Text className={styles.cutoff}>
+              Otomatis terlambat setelah pukul {config?.late_after || '07:15'}
+            </Text>
+          </aside>
+        </section>
+      </main>
+    </>
   );
 }

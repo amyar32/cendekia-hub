@@ -8,6 +8,7 @@ import {
   Badge,
   Box,
   Button,
+  FileButton,
   Group,
   LoadingOverlay,
   Modal,
@@ -27,6 +28,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { TimePicker } from '@mantine/dates';
 import {
+  IconBell,
   IconCalendarTime,
   IconCheck,
   IconClock,
@@ -35,10 +37,14 @@ import {
   IconPlus,
   IconRefresh,
   IconTrash,
+  IconUpload,
+  IconVolume,
+  IconX,
 } from '@tabler/icons-react';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import { moduleMutation } from '@/hooks/use-module-list';
 import styles from './schedule-manager.module.css';
+import { playBellPreview } from '@/lib/schedule-bell-client';
 
 type Option = { value: string; label: string; type?: 'lesson' | 'extracurricular' };
 type CopyOption = Option & {
@@ -156,6 +162,12 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
   const [activeWeekdays, setActiveWeekdays] = useState([1, 2, 3, 4, 5]);
   const [weekdaysLoading, setWeekdaysLoading] = useState(true);
   const [savingWeekdays, setSavingWeekdays] = useState(false);
+  const [bellEnabled, setBellEnabled] = useState(false);
+  const [bellSoundUrl, setBellSoundUrl] = useState('');
+  const [bellSoundName, setBellSoundName] = useState('');
+  const [bellLoading, setBellLoading] = useState(true);
+  const [bellSaving, setBellSaving] = useState(false);
+  const [bellUploading, setBellUploading] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
 
   const reload = useCallback(() => setRevision((value) => value + 1), []);
@@ -217,6 +229,22 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
         }),
       )
       .finally(() => setWeekdaysLoading(false));
+  }, []);
+
+  useEffect(() => {
+    jsonRequest<{ enabled: boolean; sound_url: string }>('/api/modules/schedules/bell')
+      .then((result) => {
+        setBellEnabled(result.enabled);
+        setBellSoundUrl(result.sound_url);
+      })
+      .catch((error: unknown) =>
+        notifications.show({
+          color: 'red',
+          title: 'Pengaturan bel gagal dimuat',
+          message: error instanceof Error ? error.message : 'Koneksi gagal.',
+        }),
+      )
+      .finally(() => setBellLoading(false));
   }, []);
 
   useEffect(() => {
@@ -302,6 +330,94 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
       });
     } finally {
       setSavingWeekdays(false);
+    }
+  }
+
+  async function saveBellSettings() {
+    setBellSaving(true);
+    try {
+      const result = await jsonRequest<{ enabled: boolean; sound_url: string }>(
+        '/api/modules/schedules/bell',
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: bellEnabled, sound_url: bellSoundUrl }),
+        },
+      );
+      setBellEnabled(result.enabled);
+      setBellSoundUrl(result.sound_url);
+      window.dispatchEvent(new Event('schedule-bell-config-changed'));
+      notifications.show({
+        color: 'green',
+        title: 'Pengaturan bel tersimpan',
+        message: result.enabled
+          ? 'Bel akan berbunyi pada awal setiap slot aktif.'
+          : 'Bel pergantian otomatis dinonaktifkan.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Gagal menyimpan pengaturan bel',
+        message: error instanceof Error ? error.message : 'Koneksi gagal.',
+      });
+    } finally {
+      setBellSaving(false);
+    }
+  }
+
+  async function uploadBellSound(file: File | null) {
+    if (!file) return;
+    if (
+      ![
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/x-mpeg',
+        'audio/wav',
+        'audio/x-wav',
+        'audio/wave',
+        'audio/vnd.wave',
+        'audio/ogg',
+        'application/ogg',
+      ].includes(file.type)
+    ) {
+      notifications.show({
+        color: 'red',
+        title: 'Audio tidak dapat digunakan',
+        message: 'Gunakan file MP3, WAV, atau OGG.',
+      });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      notifications.show({
+        color: 'red',
+        title: 'Audio terlalu besar',
+        message: 'Ukuran audio maksimal 10 MB.',
+      });
+      return;
+    }
+    setBellUploading(true);
+    try {
+      const body = new FormData();
+      body.set('scope', 'schedule.bell-audio');
+      body.set('file', file);
+      const response = await fetch('/api/uploads', { method: 'POST', body });
+      const result = (await response.json()) as { upload?: { url: string }; error?: string };
+      if (!response.ok || !result.upload) throw new Error(result.error || 'Upload audio gagal.');
+      setBellSoundUrl(result.upload.url);
+      setBellSoundName(file.name);
+      notifications.show({
+        color: 'green',
+        title: 'Audio selesai diupload',
+        message: 'Klik Simpan untuk menggunakan audio ini sebagai bel.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Upload audio gagal',
+        message: error instanceof Error ? error.message : 'Koneksi gagal.',
+      });
+    } finally {
+      setBellUploading(false);
     }
   }
 
@@ -816,6 +932,93 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
         </Tabs.Panel>
 
         <Tabs.Panel value="slots" pt="lg">
+          <Paper withBorder p="lg" mb="md" pos="relative">
+            <LoadingOverlay visible={bellLoading} />
+            <Stack gap="md">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Group gap="sm" wrap="nowrap">
+                  <IconBell size={22} />
+                  <Stack gap={2}>
+                    <Text fw={700} size="sm">
+                      Bel Otomatis
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Bunyikan bel pada jam mulai setiap slot aktif, termasuk waktu istirahat.
+                    </Text>
+                  </Stack>
+                </Group>
+                <Group gap="sm">
+                  <Switch
+                    label={bellEnabled ? 'Aktif' : 'Nonaktif'}
+                    checked={bellEnabled}
+                    onChange={(event) => setBellEnabled(event.currentTarget.checked)}
+                    disabled={!writable || bellLoading}
+                  />
+                  {writable && (
+                    <Button loading={bellSaving} onClick={saveBellSettings}>
+                      Simpan
+                    </Button>
+                  )}
+                </Group>
+              </Group>
+              <Group gap="sm" align="center" wrap="wrap">
+                {writable && (
+                  <FileButton
+                    onChange={(file) => void uploadBellSound(file)}
+                    accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
+                  >
+                    {(props) => (
+                      <Button
+                        {...props}
+                        variant="default"
+                        leftSection={<IconUpload size={16} />}
+                        loading={bellUploading}
+                      >
+                        {bellSoundUrl ? 'Ganti audio' : 'Upload audio custom'}
+                      </Button>
+                    )}
+                  </FileButton>
+                )}
+                {bellSoundUrl && (
+                  <>
+                    <audio controls preload="metadata" src={bellSoundUrl}>
+                      Browser tidak mendukung pemutar audio.
+                    </audio>
+                    {writable && (
+                      <Button
+                        variant="subtle"
+                        color="red"
+                        leftSection={<IconX size={16} />}
+                        onClick={() => {
+                          setBellSoundUrl('');
+                          setBellSoundName('');
+                          notifications.show({
+                            color: 'blue',
+                            title: 'Bel bawaan dipilih',
+                            message: 'Klik Simpan untuk menerapkan perubahan.',
+                          });
+                        }}
+                      >
+                        Hapus bel saat ini
+                      </Button>
+                    )}
+                  </>
+                )}
+                <Button
+                  variant="default"
+                  leftSection={<IconVolume size={16} />}
+                  onClick={() => playBellPreview(bellSoundUrl)}
+                >
+                  Bunyikan Bel
+                </Button>
+                <Text size="xs" c="dimmed">
+                  {bellSoundUrl
+                    ? bellSoundName || 'Audio custom tersimpan'
+                    : 'Bel bawaan · MP3, WAV, atau OGG · maks. 10 MB'}
+                </Text>
+              </Group>
+            </Stack>
+          </Paper>
           <Paper className={styles.panel} withBorder pos="relative">
             <LoadingOverlay visible={slotsLoading} />
             <div className={styles.toolbar}>
