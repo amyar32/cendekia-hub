@@ -142,6 +142,14 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
       gender: 'female',
       birth_date: '2023-01-10',
       birth_place: 'Bandung',
+      family_card_number: '1234567890123456',
+      religion: 'Islam',
+      citizenship: 'Indonesia',
+      child_order: 1,
+      sibling_count: 2,
+      birth_certificate_number: 'AKTA-001',
+      has_special_needs: true,
+      special_needs_type: 'Hambatan penglihatan',
       address: 'Jalan Belajar',
       phone: '08123456789',
       email: '',
@@ -210,4 +218,7 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
   assert.equal(students.total, 1);
   assert.equal(students.rows[0].nis, 'S-2030-001');
   assert.equal(students.rows[0].current_class_name, '1-A');
+  assert.equal(students.rows[0].family_card_number, '1234567890123456');
+  assert.equal(students.rows[0].has_special_needs, 1);
+  assert.equal(students.rows[0].special_needs_type, 'Hambatan penglihatan');
 });

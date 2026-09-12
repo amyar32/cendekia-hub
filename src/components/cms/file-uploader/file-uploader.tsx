@@ -21,6 +21,7 @@ export function FileUploader({
   scope,
   value,
   onChange,
+  uploadFile,
   disabled = false,
 }: {
   label: string;
@@ -28,6 +29,7 @@ export function FileUploader({
   scope: UploadScope;
   value: string;
   onChange: (url: string) => void;
+  uploadFile?: (file: File) => Promise<string>;
   disabled?: boolean;
 }) {
   const inputId = useId();
@@ -58,18 +60,25 @@ export function FileUploader({
     }
     setUploading(true);
     try {
-      const body = new FormData();
-      body.set('scope', scope);
-      body.set('file', file);
-      const response = await fetch('/api/uploads', { method: 'POST', body });
-      const result = (await response.json()) as { upload?: { url: string }; error?: string };
-      if (!response.ok || !result.upload) throw new Error(result.error || 'Upload gagal.');
-      onChange(result.upload.url);
+      let url: string;
+      if (uploadFile) url = await uploadFile(file);
+      else {
+        const body = new FormData();
+        body.set('scope', scope);
+        body.set('file', file);
+        const response = await fetch('/api/uploads', { method: 'POST', body });
+        const result = (await response.json()) as { upload?: { url: string }; error?: string };
+        if (!response.ok || !result.upload) throw new Error(result.error || 'Upload gagal.');
+        url = result.upload.url;
+      }
+      onChange(url);
       setFileName(file.name);
       notifications.show({
         color: 'green',
-        title: 'File selesai diupload',
-        message: 'Simpan formulir untuk menggunakan file ini.',
+        title: uploadFile ? 'File siap digunakan' : 'File selesai diupload',
+        message: uploadFile
+          ? 'File siap disertakan dalam formulir.'
+          : 'Simpan formulir untuk menggunakan file ini.',
       });
     } catch (error) {
       notifications.show({

@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const tracking = url.searchParams.get('tracking_token');
     if (tracking) {
-      admissionRateLimit(request);
+      admissionRateLimit(request, 'tracking');
       const token = z
         .string()
         .regex(/^(?:\d{6}|[a-f0-9]{48})$/, 'Token pelacakan tidak valid.')
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     checkOrigin(request);
-    admissionRateLimit(request);
+    admissionRateLimit(request, 'submission');
     const input = await request.json();
     const protection = z
       .object({

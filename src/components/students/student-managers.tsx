@@ -12,6 +12,7 @@ import {
   Divider,
   Group,
   Modal,
+  NumberInput,
   Paper,
   Select,
   SimpleGrid,
@@ -73,6 +74,14 @@ type StudentForm = {
   gender: string;
   birth_date: string;
   birth_place: string;
+  family_card_number: string;
+  religion: string;
+  citizenship: string;
+  child_order: number;
+  sibling_count: number;
+  birth_certificate_number: string;
+  has_special_needs: boolean;
+  special_needs_type: string;
   blood_type: string;
   address: string;
   phone: string;
@@ -121,6 +130,14 @@ const emptyForm = (): StudentForm => ({
   gender: '',
   birth_date: '',
   birth_place: '',
+  family_card_number: '',
+  religion: '',
+  citizenship: 'Indonesia',
+  child_order: 0,
+  sibling_count: 0,
+  birth_certificate_number: '',
+  has_special_needs: false,
+  special_needs_type: '',
   blood_type: '',
   address: '',
   phone: '',
@@ -199,6 +216,14 @@ export function StudentManager({ writable }: { writable: boolean }) {
             gender: row.gender,
             birth_date: row.birth_date || '',
             birth_place: row.birth_place || '',
+            family_card_number: row.family_card_number || '',
+            religion: row.religion || '',
+            citizenship: row.citizenship || 'Indonesia',
+            child_order: row.child_order || 0,
+            sibling_count: row.sibling_count || 0,
+            birth_certificate_number: row.birth_certificate_number || '',
+            has_special_needs: Boolean(row.has_special_needs),
+            special_needs_type: row.special_needs_type || '',
             blood_type: row.blood_type || '',
             address: row.address || '',
             phone: row.phone || '',
@@ -696,6 +721,63 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 disabled={disabled}
                 onChange={(value) => setForm({ ...form, birth_date: value || '' })}
               />
+              <TextInput
+                label="Nomor Kartu Keluarga"
+                placeholder="16 digit nomor KK (opsional)"
+                inputMode="numeric"
+                maxLength={16}
+                value={form.family_card_number}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    family_card_number: event.currentTarget.value.replace(/\D/g, ''),
+                  })
+                }
+              />
+              <Select
+                label="Agama"
+                placeholder="Pilih agama (opsional)"
+                clearable
+                value={form.religion}
+                disabled={disabled}
+                data={['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu', 'Kepercayaan']}
+                onChange={(value) => setForm({ ...form, religion: value || '' })}
+              />
+              <TextInput
+                label="Kewarganegaraan"
+                placeholder="Contoh: Indonesia"
+                value={form.citizenship}
+                disabled={disabled}
+                onChange={(event) => setForm({ ...form, citizenship: event.currentTarget.value })}
+              />
+              <NumberInput
+                label="Anak ke"
+                placeholder="Contoh: 1"
+                min={0}
+                max={99}
+                value={form.child_order}
+                disabled={disabled}
+                onChange={(value) => setForm({ ...form, child_order: Number(value) || 0 })}
+              />
+              <NumberInput
+                label="Jumlah saudara"
+                placeholder="Contoh: 2"
+                min={0}
+                max={99}
+                value={form.sibling_count}
+                disabled={disabled}
+                onChange={(value) => setForm({ ...form, sibling_count: Number(value) || 0 })}
+              />
+              <TextInput
+                label="Nomor akta kelahiran"
+                placeholder="Masukkan nomor akta (opsional)"
+                value={form.birth_certificate_number}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, birth_certificate_number: event.currentTarget.value })
+                }
+              />
               <Select
                 label="Golongan darah"
                 placeholder="Pilih golongan darah (opsional)"
@@ -729,6 +811,30 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 onChange={(value) => setForm({ ...form, enrollment_date: value || '' })}
               />
             </SimpleGrid>
+            <Switch
+              label="Memiliki kebutuhan khusus"
+              checked={form.has_special_needs}
+              disabled={disabled}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  has_special_needs: event.currentTarget.checked,
+                  special_needs_type: event.currentTarget.checked ? form.special_needs_type : '',
+                })
+              }
+            />
+            {form.has_special_needs && (
+              <TextInput
+                label="Jenis kebutuhan khusus"
+                placeholder="Jelaskan kebutuhan khusus murid"
+                required
+                value={form.special_needs_type}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, special_needs_type: event.currentTarget.value })
+                }
+              />
+            )}
             <Textarea
               label="Alamat"
               placeholder="Masukkan alamat tempat tinggal murid"

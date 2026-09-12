@@ -31,11 +31,11 @@ export function db() {
     CREATE TABLE IF NOT EXISTS homeroom_assignments (id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (class_id, academic_year_id), UNIQUE (teacher_id, academic_year_id));
     CREATE TABLE IF NOT EXISTS schedule_time_slots (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, name TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, slot_order INTEGER NOT NULL CHECK (slot_order > 0), is_break INTEGER NOT NULL DEFAULT 0 CHECK (is_break IN (0, 1)), is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), CHECK (start_time < end_time), UNIQUE (school_id, slot_order), UNIQUE (school_id, name));
     CREATE TABLE IF NOT EXISTS class_schedules (id TEXT PRIMARY KEY, teaching_assignment_id TEXT NOT NULL REFERENCES teaching_assignments(id) ON DELETE RESTRICT, semester_id TEXT NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT, time_slot_id TEXT NOT NULL REFERENCES schedule_time_slots(id) ON DELETE RESTRICT, weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teaching_assignment_id, semester_id, time_slot_id, weekday));
-    CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, photo_url TEXT NOT NULL DEFAULT '', nik TEXT NOT NULL DEFAULT '', nis TEXT NOT NULL, nisn TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male', 'female')), birth_date TEXT, birth_place TEXT NOT NULL DEFAULT '', blood_type TEXT NOT NULL DEFAULT '' CHECK (blood_type IN ('', 'A', 'B', 'AB', 'O')), address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', enrollment_date TEXT, previous_school_name TEXT NOT NULL DEFAULT '', previous_school_npsn TEXT NOT NULL DEFAULT '', previous_school_address TEXT NOT NULL DEFAULT '', previous_school_last_grade TEXT NOT NULL DEFAULT '', previous_school_graduation_year TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), qr_token TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, nis));
+    CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, photo_url TEXT NOT NULL DEFAULT '', nik TEXT NOT NULL DEFAULT '', nis TEXT NOT NULL, nisn TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male', 'female')), birth_date TEXT, birth_place TEXT NOT NULL DEFAULT '', family_card_number TEXT NOT NULL DEFAULT '', religion TEXT NOT NULL DEFAULT '', citizenship TEXT NOT NULL DEFAULT 'Indonesia', child_order INTEGER NOT NULL DEFAULT 0, sibling_count INTEGER NOT NULL DEFAULT 0, birth_certificate_number TEXT NOT NULL DEFAULT '', has_special_needs INTEGER NOT NULL DEFAULT 0 CHECK (has_special_needs IN (0,1)), special_needs_type TEXT NOT NULL DEFAULT '', blood_type TEXT NOT NULL DEFAULT '' CHECK (blood_type IN ('', 'A', 'B', 'AB', 'O')), address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', enrollment_date TEXT, previous_school_name TEXT NOT NULL DEFAULT '', previous_school_npsn TEXT NOT NULL DEFAULT '', previous_school_address TEXT NOT NULL DEFAULT '', previous_school_last_grade TEXT NOT NULL DEFAULT '', previous_school_graduation_year TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)), qr_token TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id, nis));
     CREATE TABLE IF NOT EXISTS guardians (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, name TEXT NOT NULL, nik TEXT NOT NULL DEFAULT '', relation TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS student_documents (id TEXT PRIMARY KEY, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, type TEXT NOT NULL, file_url TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS admission_periods (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, name TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, quota INTEGER NOT NULL DEFAULT 0 CHECK (quota >= 0), status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','open','closed')), registration_prefix TEXT NOT NULL DEFAULT 'PMB', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), CHECK (start_date <= end_date), UNIQUE (school_id,name));
-    CREATE TABLE IF NOT EXISTS student_applications (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, admission_period_id TEXT NOT NULL REFERENCES admission_periods(id) ON DELETE RESTRICT, registration_number TEXT NOT NULL, tracking_token TEXT NOT NULL UNIQUE, nik TEXT NOT NULL DEFAULT '', nisn TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male','female')), birth_date TEXT, birth_place TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', previous_school_name TEXT NOT NULL DEFAULT '', previous_school_npsn TEXT NOT NULL DEFAULT '', previous_school_address TEXT NOT NULL DEFAULT '', previous_school_last_grade TEXT NOT NULL DEFAULT '', previous_school_graduation_year TEXT NOT NULL DEFAULT '', target_grade_id TEXT NOT NULL REFERENCES grades(id) ON DELETE RESTRICT, admission_path TEXT NOT NULL DEFAULT 'Reguler', status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('draft','submitted','needs_revision','verified','selection','accepted','waitlisted','rejected','reregistered','converted')), verification_notes TEXT NOT NULL DEFAULT '', assessment_test REAL, assessment_interview REAL, assessment_final REAL, ranking INTEGER, decision_notes TEXT NOT NULL DEFAULT '', verified_by TEXT, verified_at TEXT, submitted_at TEXT, converted_student_id TEXT REFERENCES students(id) ON DELETE RESTRICT, created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id,registration_number));
+    CREATE TABLE IF NOT EXISTS student_applications (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, admission_period_id TEXT NOT NULL REFERENCES admission_periods(id) ON DELETE RESTRICT, registration_number TEXT NOT NULL, tracking_token TEXT NOT NULL UNIQUE, photo_url TEXT NOT NULL DEFAULT '', nik TEXT NOT NULL DEFAULT '', nisn TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, gender TEXT NOT NULL CHECK (gender IN ('male','female')), birth_date TEXT, birth_place TEXT NOT NULL DEFAULT '', family_card_number TEXT NOT NULL DEFAULT '', religion TEXT NOT NULL DEFAULT '', citizenship TEXT NOT NULL DEFAULT 'Indonesia', child_order INTEGER NOT NULL DEFAULT 0, sibling_count INTEGER NOT NULL DEFAULT 0, birth_certificate_number TEXT NOT NULL DEFAULT '', has_special_needs INTEGER NOT NULL DEFAULT 0 CHECK (has_special_needs IN (0,1)), special_needs_type TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', previous_school_name TEXT NOT NULL DEFAULT '', previous_school_npsn TEXT NOT NULL DEFAULT '', previous_school_address TEXT NOT NULL DEFAULT '', previous_school_last_grade TEXT NOT NULL DEFAULT '', previous_school_graduation_year TEXT NOT NULL DEFAULT '', target_grade_id TEXT NOT NULL REFERENCES grades(id) ON DELETE RESTRICT, admission_path TEXT NOT NULL DEFAULT 'Reguler', status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('draft','submitted','needs_revision','verified','selection','accepted','waitlisted','rejected','reregistered','converted')), verification_notes TEXT NOT NULL DEFAULT '', assessment_test REAL, assessment_interview REAL, assessment_final REAL, ranking INTEGER, decision_notes TEXT NOT NULL DEFAULT '', verified_by TEXT, verified_at TEXT, submitted_at TEXT, converted_student_id TEXT REFERENCES students(id) ON DELETE RESTRICT, created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (school_id,registration_number));
     CREATE TABLE IF NOT EXISTS application_guardians (id TEXT PRIMARY KEY, application_id TEXT NOT NULL REFERENCES student_applications(id) ON DELETE CASCADE, name TEXT NOT NULL, nik TEXT NOT NULL DEFAULT '', relation TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0,1)), created_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS application_documents (id TEXT PRIMARY KEY, application_id TEXT NOT NULL REFERENCES student_applications(id) ON DELETE CASCADE, type TEXT NOT NULL, file_url TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', verified INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0,1)), verification_notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS application_status_history (id TEXT PRIMARY KEY, application_id TEXT NOT NULL REFERENCES student_applications(id) ON DELETE CASCADE, from_status TEXT, to_status TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')));
@@ -800,6 +800,108 @@ export function db() {
         update.run(JSON.stringify([...grants]), role.id);
       }
       connection.pragma('user_version = 44');
+    })();
+  }
+  if (schemaVersion < 45) {
+    connection.transaction(() => {
+      const studentColumns = connection.pragma('table_info(students)') as { name: string }[];
+      const applicationColumns = connection.pragma('table_info(student_applications)') as {
+        name: string;
+      }[];
+      const fields = [
+        ['family_card_number', "TEXT NOT NULL DEFAULT ''"],
+        ['religion', "TEXT NOT NULL DEFAULT ''"],
+        ['citizenship', "TEXT NOT NULL DEFAULT 'Indonesia'"],
+        ['child_order', 'INTEGER NOT NULL DEFAULT 0'],
+        ['sibling_count', 'INTEGER NOT NULL DEFAULT 0'],
+        ['birth_certificate_number', "TEXT NOT NULL DEFAULT ''"],
+        ['has_special_needs', 'INTEGER NOT NULL DEFAULT 0 CHECK (has_special_needs IN (0,1))'],
+        ['special_needs_type', "TEXT NOT NULL DEFAULT ''"],
+      ] as const;
+      for (const [name, definition] of fields) {
+        if (!studentColumns.some((column) => column.name === name))
+          connection.exec(`ALTER TABLE students ADD COLUMN ${name} ${definition}`);
+        if (!applicationColumns.some((column) => column.name === name))
+          connection.exec(`ALTER TABLE student_applications ADD COLUMN ${name} ${definition}`);
+      }
+      if (!applicationColumns.some((column) => column.name === 'photo_url'))
+        connection.exec(
+          "ALTER TABLE student_applications ADD COLUMN photo_url TEXT NOT NULL DEFAULT ''",
+        );
+      connection.pragma('user_version = 45');
+    })();
+  }
+  if (schemaVersion < 46) {
+    connection.transaction(() => {
+      const studentColumns = connection.pragma('table_info(students)') as { name: string }[];
+      const applicationColumns = connection.pragma('table_info(student_applications)') as {
+        name: string;
+      }[];
+      const fields = [
+        ['province_code', "TEXT NOT NULL DEFAULT ''"],
+        ['province_name', "TEXT NOT NULL DEFAULT ''"],
+        ['regency_code', "TEXT NOT NULL DEFAULT ''"],
+        ['regency_name', "TEXT NOT NULL DEFAULT ''"],
+        ['district_code', "TEXT NOT NULL DEFAULT ''"],
+        ['district_name', "TEXT NOT NULL DEFAULT ''"],
+        ['village_code', "TEXT NOT NULL DEFAULT ''"],
+        ['village_name', "TEXT NOT NULL DEFAULT ''"],
+        ['rt', "TEXT NOT NULL DEFAULT ''"],
+        ['rw', "TEXT NOT NULL DEFAULT ''"],
+        ['postal_code', "TEXT NOT NULL DEFAULT ''"],
+        [
+          'domicile_matches_family_card',
+          'INTEGER NOT NULL DEFAULT 0 CHECK (domicile_matches_family_card IN (0,1))',
+        ],
+        ['family_card_issued_date', 'TEXT'],
+        ['latitude', 'REAL'],
+        ['longitude', 'REAL'],
+        ['home_distance_km', 'REAL'],
+      ] as const;
+      for (const [name, definition] of fields) {
+        if (!studentColumns.some((column) => column.name === name))
+          connection.exec(`ALTER TABLE students ADD COLUMN ${name} ${definition}`);
+        if (!applicationColumns.some((column) => column.name === name))
+          connection.exec(`ALTER TABLE student_applications ADD COLUMN ${name} ${definition}`);
+      }
+      connection.exec(`
+        CREATE TABLE IF NOT EXISTS administrative_regions (
+          id TEXT PRIMARY KEY,
+          parent_id TEXT NOT NULL DEFAULT '',
+          level TEXT NOT NULL CHECK (level IN ('province','regency','district','village')),
+          name TEXT NOT NULL,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS administrative_regions_parent ON administrative_regions(level,parent_id,name);
+      `);
+      connection.pragma('user_version = 46');
+    })();
+  }
+  if (schemaVersion < 47) {
+    connection.transaction(() => {
+      const guardianColumns = connection.pragma('table_info(guardians)') as { name: string }[];
+      const applicationGuardianColumns = connection.pragma('table_info(application_guardians)') as {
+        name: string;
+      }[];
+      const fields = [
+        ['life_status', "TEXT NOT NULL DEFAULT ''"],
+        ['birth_place', "TEXT NOT NULL DEFAULT ''"],
+        ['birth_date', 'TEXT'],
+        ['last_education', "TEXT NOT NULL DEFAULT ''"],
+        ['occupation', "TEXT NOT NULL DEFAULT ''"],
+        ['monthly_income', 'INTEGER NOT NULL DEFAULT 0'],
+        [
+          'address_matches_student',
+          'INTEGER NOT NULL DEFAULT 0 CHECK (address_matches_student IN (0,1))',
+        ],
+      ] as const;
+      for (const [name, definition] of fields) {
+        if (!guardianColumns.some((column) => column.name === name))
+          connection.exec(`ALTER TABLE guardians ADD COLUMN ${name} ${definition}`);
+        if (!applicationGuardianColumns.some((column) => column.name === name))
+          connection.exec(`ALTER TABLE application_guardians ADD COLUMN ${name} ${definition}`);
+      }
+      connection.pragma('user_version = 47');
     })();
   }
   globalDb.cmsDb = connection;

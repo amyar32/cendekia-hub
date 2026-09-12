@@ -40,16 +40,27 @@ export function verifyAdmissionCaptcha(token: string, answer: number) {
   if (value.answer !== answer) throw new HttpError(400, 'Jawaban captcha salah.');
 }
 
-export function admissionRateLimit(request: Request) {
+type AdmissionRateLimitScope = 'submission' | 'tracking' | 'upload';
+
+const rateLimitPolicies: Record<AdmissionRateLimitScope, { maximum: number; windowMs: number }> = {
+  submission: { maximum: 6, windowMs: 15 * 60_000 },
+  tracking: { maximum: 30, windowMs: 15 * 60_000 },
+  upload: { maximum: 24, windowMs: 15 * 60_000 },
+};
+
+export function admissionRateLimit(request: Request, scope: AdmissionRateLimitScope) {
   const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const key = forwarded || request.headers.get('x-real-ip') || 'local';
+  const client = forwarded || request.headers.get('x-real-ip') || 'local';
+  const key = `${scope}:${client}`;
   const limits = (globalAdmissions.admissionRateLimits ||= new Map());
+  const policy = rateLimitPolicies[scope];
   const now = Date.now();
   const current = limits.get(key);
   if (!current || current.resetsAt <= now) {
-    limits.set(key, { count: 1, resetsAt: now + 15 * 60_000 });
+    limits.set(key, { count: 1, resetsAt: now + policy.windowMs });
     return;
   }
-  if (current.count >= 12) throw new HttpError(429, 'Terlalu banyak percobaan. Coba lagi nanti.');
+  if (current.count >= policy.maximum)
+    throw new HttpError(429, 'Terlalu banyak percobaan. Coba lagi nanti.');
   current.count += 1;
 }

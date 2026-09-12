@@ -25,6 +25,7 @@ export function ImageUploader({
   scope,
   value,
   onChange,
+  uploadFile,
   disabled = false,
   maxSizeMb = 5,
 }: {
@@ -33,6 +34,8 @@ export function ImageUploader({
   scope: UploadScope;
   value: string;
   onChange: (url: string) => void;
+  /** Overrides the default authenticated upload endpoint when the caller owns the upload flow. */
+  uploadFile?: (file: File) => Promise<string>;
   disabled?: boolean;
   maxSizeMb?: number;
 }) {
@@ -60,19 +63,26 @@ export function ImageUploader({
 
     setUploading(true);
     try {
-      const body = new FormData();
-      body.set('scope', scope);
-      body.set('file', file);
-      const response = await fetch('/api/uploads', { method: 'POST', body });
-      const result = (await response.json()) as UploadResponse;
-      if (!response.ok || !result.upload) {
-        throw new Error(result.error || 'Gagal mengupload gambar.');
+      let url: string;
+      if (uploadFile) url = await uploadFile(file);
+      else {
+        const body = new FormData();
+        body.set('scope', scope);
+        body.set('file', file);
+        const response = await fetch('/api/uploads', { method: 'POST', body });
+        const result = (await response.json()) as UploadResponse;
+        if (!response.ok || !result.upload) {
+          throw new Error(result.error || 'Gagal mengupload gambar.');
+        }
+        url = result.upload.url;
       }
-      onChange(result.upload.url);
+      onChange(url);
       notifications.show({
         color: 'green',
-        title: 'Gambar selesai diupload',
-        message: 'Simpan formulir untuk menggunakan gambar ini.',
+        title: uploadFile ? 'Gambar siap digunakan' : 'Gambar selesai diupload',
+        message: uploadFile
+          ? 'Gambar siap disertakan dalam formulir.'
+          : 'Simpan formulir untuk menggunakan gambar ini.',
       });
     } catch (error) {
       notifications.show({

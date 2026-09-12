@@ -59,6 +59,16 @@ const schema = z
     gender: z.enum(['male', 'female'], { error: 'Jenis kelamin wajib dipilih.' }),
     birth_date: optionalDate.default(''),
     birth_place: z.string().trim().max(100).default(''),
+    family_card_number: z
+      .union([z.literal(''), z.string().regex(/^\d{16}$/, 'Nomor KK harus terdiri dari 16 digit.')])
+      .default(''),
+    religion: z.string().trim().max(50).default(''),
+    citizenship: z.string().trim().max(100).default('Indonesia'),
+    child_order: z.coerce.number().int().min(0).max(99).default(0),
+    sibling_count: z.coerce.number().int().min(0).max(99).default(0),
+    birth_certificate_number: z.string().trim().max(100).default(''),
+    has_special_needs: z.boolean().default(false),
+    special_needs_type: z.string().trim().max(150).default(''),
     blood_type: z.enum(['', 'A', 'B', 'AB', 'O']).default(''),
     address: z.string().trim().max(500).default(''),
     phone: z.string().trim().max(30).default(''),
@@ -88,6 +98,12 @@ const schema = z
         code: 'custom',
         path: ['placement', 'start_date'],
         message: 'Tanggal mulai kelas wajib diisi.',
+      });
+    if (data.has_special_needs && !data.special_needs_type)
+      context.addIssue({
+        code: 'custom',
+        path: ['special_needs_type'],
+        message: 'Jenis kebutuhan khusus wajib diisi.',
       });
   });
 
@@ -214,6 +230,10 @@ export async function GET(request: Request) {
     const rows = db()
       .prepare(
         `SELECT s.id,s.school_id,s.photo_url,s.nik,s.nis,s.nisn,s.name,s.gender,s.birth_date,s.birth_place,
+          s.family_card_number,s.religion,s.citizenship,s.child_order,s.sibling_count,s.birth_certificate_number,
+          s.has_special_needs,s.special_needs_type,s.province_code,s.province_name,s.regency_code,s.regency_name,
+          s.district_code,s.district_name,s.village_code,s.village_name,s.rt,s.rw,s.postal_code,
+          s.domicile_matches_family_card,s.family_card_issued_date,s.latitude,s.longitude,s.home_distance_km,
           s.blood_type,s.address,s.phone,s.email,s.enrollment_date,s.previous_school_name,
           s.previous_school_npsn,s.previous_school_address,s.previous_school_last_grade,
           s.previous_school_graduation_year,s.is_active,s.created_at,s.updated_at,
@@ -359,6 +379,14 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         data.gender,
         data.birth_date || null,
         data.birth_place,
+        data.family_card_number,
+        data.religion,
+        data.citizenship,
+        data.child_order,
+        data.sibling_count,
+        data.birth_certificate_number,
+        Number(data.has_special_needs),
+        data.special_needs_type,
         data.blood_type,
         data.address,
         data.phone,
@@ -374,14 +402,14 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       if (method === 'POST')
         db()
           .prepare(
-            `INSERT INTO students(id,school_id,photo_url,nik,nis,nisn,name,gender,birth_date,birth_place,blood_type,address,phone,email,enrollment_date,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,is_active,qr_token)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO students(id,school_id,photo_url,nik,nis,nisn,name,gender,birth_date,birth_place,family_card_number,religion,citizenship,child_order,sibling_count,birth_certificate_number,has_special_needs,special_needs_type,blood_type,address,phone,email,enrollment_date,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,is_active,qr_token)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
           .run(id, schoolId, ...args, randomBytes(24).toString('hex'));
       else
         db()
           .prepare(
-            `UPDATE students SET photo_url=?,nik=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,blood_type=?,address=?,phone=?,email=?,enrollment_date=?,previous_school_name=?,previous_school_npsn=?,previous_school_address=?,previous_school_last_grade=?,previous_school_graduation_year=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
+            `UPDATE students SET photo_url=?,nik=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,family_card_number=?,religion=?,citizenship=?,child_order=?,sibling_count=?,birth_certificate_number=?,has_special_needs=?,special_needs_type=?,blood_type=?,address=?,phone=?,email=?,enrollment_date=?,previous_school_name=?,previous_school_npsn=?,previous_school_address=?,previous_school_last_grade=?,previous_school_graduation_year=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
           )
           .run(...args, id, schoolId);
 

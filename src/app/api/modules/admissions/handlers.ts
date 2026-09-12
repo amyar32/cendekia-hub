@@ -55,9 +55,16 @@ const guardianSchema = z.object({
   name: z.string().trim().min(2).max(100),
   nik: z.union([z.literal(''), z.string().regex(/^\d{16}$/, 'NIK wali harus 16 digit.')]),
   relation: z.string().trim().min(1).max(50),
+  life_status: z.string().trim().max(30).default(''),
+  birth_place: z.string().trim().max(100).default(''),
+  birth_date: optionalDate.default(''),
+  last_education: z.string().trim().max(100).default(''),
+  occupation: z.string().trim().max(100).default(''),
+  monthly_income: z.coerce.number().int().min(0).max(10_000_000_000).default(0),
   phone: z.string().trim().max(30),
   email: z.union([z.literal(''), z.email('Email wali tidak valid.')]),
   address: z.string().trim().max(500),
+  address_matches_student: z.boolean().default(false),
   is_primary: z.boolean(),
 });
 const documentSchema = z.object({
@@ -74,6 +81,31 @@ export const applicationSchema = z
     gender: z.enum(['male', 'female']),
     birth_date: optionalDate,
     birth_place: z.string().trim().max(100),
+    family_card_number: z
+      .union([z.literal(''), z.string().regex(/^\d{16}$/, 'Nomor KK harus 16 digit.')])
+      .default(''),
+    religion: z.string().trim().max(50).default(''),
+    citizenship: z.string().trim().max(100).default('Indonesia'),
+    child_order: z.coerce.number().int().min(0).max(99).default(0),
+    sibling_count: z.coerce.number().int().min(0).max(99).default(0),
+    birth_certificate_number: z.string().trim().max(100).default(''),
+    has_special_needs: z.boolean().default(false),
+    special_needs_type: z.string().trim().max(150).default(''),
+    province_code: z.string().trim().max(10).default(''),
+    province_name: z.string().trim().max(100).default(''),
+    regency_code: z.string().trim().max(10).default(''),
+    regency_name: z.string().trim().max(100).default(''),
+    district_code: z.string().trim().max(10).default(''),
+    district_name: z.string().trim().max(100).default(''),
+    village_code: z.string().trim().max(15).default(''),
+    village_name: z.string().trim().max(100).default(''),
+    rt: z.string().trim().max(5).default(''),
+    rw: z.string().trim().max(5).default(''),
+    postal_code: z.string().trim().max(10).default(''),
+    domicile_matches_family_card: z.boolean().default(false),
+    family_card_issued_date: optionalDate.default(''),
+    latitude: z.union([z.literal(''), z.coerce.number().min(-90).max(90)]).default(''),
+    longitude: z.union([z.literal(''), z.coerce.number().min(-180).max(180)]).default(''),
     address: z.string().trim().max(500),
     phone: z.string().trim().max(30),
     email: z.union([z.literal(''), z.email('Email tidak valid.')]),
@@ -93,6 +125,12 @@ export const applicationSchema = z
         code: 'custom',
         path: ['guardians'],
         message: 'Tentukan tepat satu wali utama.',
+      });
+    if (value.has_special_needs && !value.special_needs_type)
+      context.addIssue({
+        code: 'custom',
+        path: ['special_needs_type'],
+        message: 'Jenis kebutuhan khusus wajib diisi.',
       });
   });
 
@@ -207,8 +245,8 @@ export function createApplication(
   const number = nextRegistrationNumber(period);
   db()
     .prepare(
-      `INSERT INTO student_applications(id,school_id,admission_period_id,registration_number,tracking_token,nik,nisn,name,gender,birth_date,birth_place,address,phone,email,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,target_grade_id,admission_path,status,submitted_at,created_by)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='submitted' THEN datetime('now') ELSE NULL END,?)`,
+      `INSERT INTO student_applications(id,school_id,admission_period_id,registration_number,tracking_token,nik,nisn,name,gender,birth_date,birth_place,family_card_number,religion,citizenship,child_order,sibling_count,birth_certificate_number,has_special_needs,special_needs_type,address,phone,email,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,target_grade_id,admission_path,status,submitted_at,created_by)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='submitted' THEN datetime('now') ELSE NULL END,?)`,
     )
     .run(
       id,
@@ -222,6 +260,14 @@ export function createApplication(
       data.gender,
       data.birth_date || null,
       data.birth_place,
+      data.family_card_number,
+      data.religion,
+      data.citizenship,
+      data.child_order,
+      data.sibling_count,
+      data.birth_certificate_number,
+      Number(data.has_special_needs),
+      data.special_needs_type,
       data.address,
       data.phone,
       data.email,
@@ -237,7 +283,7 @@ export function createApplication(
       actor,
     );
   const insertGuardian = db().prepare(
-    'INSERT INTO application_guardians(id,application_id,name,nik,relation,phone,email,address,is_primary) VALUES(?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO application_guardians(id,application_id,name,nik,relation,life_status,birth_place,birth_date,last_education,occupation,monthly_income,phone,email,address,address_matches_student,is_primary) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
   );
   for (const guardian of data.guardians)
     insertGuardian.run(
@@ -246,9 +292,16 @@ export function createApplication(
       guardian.name,
       guardian.nik,
       guardian.relation,
+      guardian.life_status,
+      guardian.birth_place,
+      guardian.birth_date || null,
+      guardian.last_education,
+      guardian.occupation,
+      guardian.monthly_income,
       guardian.phone,
       guardian.email,
       guardian.address,
+      Number(guardian.address_matches_student),
       Number(guardian.is_primary),
     );
   const insertDocument = db().prepare(
@@ -256,6 +309,28 @@ export function createApplication(
   );
   for (const document of data.documents)
     insertDocument.run(randomUUID(), id, document.type, document.file_url, document.description);
+  db()
+    .prepare(
+      `UPDATE student_applications SET province_code=?,province_name=?,regency_code=?,regency_name=?,district_code=?,district_name=?,village_code=?,village_name=?,rt=?,rw=?,postal_code=?,domicile_matches_family_card=?,family_card_issued_date=?,latitude=?,longitude=?,updated_at=datetime('now') WHERE id=?`,
+    )
+    .run(
+      data.province_code,
+      data.province_name,
+      data.regency_code,
+      data.regency_name,
+      data.district_code,
+      data.district_name,
+      data.village_code,
+      data.village_name,
+      data.rt,
+      data.rw,
+      data.postal_code,
+      Number(data.domicile_matches_family_card),
+      data.family_card_issued_date || null,
+      data.latitude || null,
+      data.longitude || null,
+      id,
+    );
   recordStatus(
     id,
     null,
@@ -439,12 +514,13 @@ export async function POST(request: Request) {
         const studentId = randomUUID();
         db()
           .prepare(
-            `INSERT INTO students(id,school_id,photo_url,nik,nis,nisn,name,gender,birth_date,birth_place,address,phone,email,enrollment_date,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,is_active,qr_token)
-           VALUES(?,?,'',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)`,
+            `INSERT INTO students(id,school_id,photo_url,nik,nis,nisn,name,gender,birth_date,birth_place,family_card_number,religion,citizenship,child_order,sibling_count,birth_certificate_number,has_special_needs,special_needs_type,address,phone,email,enrollment_date,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,is_active,qr_token)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)`,
           )
           .run(
             studentId,
             schoolId,
+            application.photo_url,
             application.nik,
             data.nis,
             application.nisn,
@@ -452,6 +528,14 @@ export async function POST(request: Request) {
             application.gender,
             application.birth_date,
             application.birth_place,
+            application.family_card_number,
+            application.religion,
+            application.citizenship,
+            application.child_order,
+            application.sibling_count,
+            application.birth_certificate_number,
+            application.has_special_needs,
+            application.special_needs_type,
             application.address,
             application.phone,
             application.email,
@@ -465,7 +549,30 @@ export async function POST(request: Request) {
           );
         db()
           .prepare(
-            "INSERT INTO guardians(id,student_id,name,nik,relation,phone,email,address,is_primary) SELECT lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr('89ab',abs(random()) % 4 + 1,1)||substr(lower(hex(randomblob(2))),2)||'-'||lower(hex(randomblob(6))),?,name,nik,relation,phone,email,address,is_primary FROM application_guardians WHERE application_id=?",
+            `UPDATE students SET province_code=?,province_name=?,regency_code=?,regency_name=?,district_code=?,district_name=?,village_code=?,village_name=?,rt=?,rw=?,postal_code=?,domicile_matches_family_card=?,family_card_issued_date=?,latitude=?,longitude=?,home_distance_km=? WHERE id=?`,
+          )
+          .run(
+            application.province_code,
+            application.province_name,
+            application.regency_code,
+            application.regency_name,
+            application.district_code,
+            application.district_name,
+            application.village_code,
+            application.village_name,
+            application.rt,
+            application.rw,
+            application.postal_code,
+            application.domicile_matches_family_card,
+            application.family_card_issued_date,
+            application.latitude,
+            application.longitude,
+            application.home_distance_km,
+            studentId,
+          );
+        db()
+          .prepare(
+            "INSERT INTO guardians(id,student_id,name,nik,relation,life_status,birth_place,birth_date,last_education,occupation,monthly_income,phone,email,address,address_matches_student,is_primary) SELECT lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr('89ab',abs(random()) % 4 + 1,1)||substr(lower(hex(randomblob(2))),2)||'-'||lower(hex(randomblob(6))),?,name,nik,relation,life_status,birth_place,birth_date,last_education,occupation,monthly_income,phone,email,address,address_matches_student,is_primary FROM application_guardians WHERE application_id=?",
           )
           .run(studentId, application.id);
         db()

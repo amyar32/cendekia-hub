@@ -18,17 +18,24 @@ export async function POST(request: Request) {
   let storedKey: string | null = null;
   try {
     checkOrigin(request);
-    admissionRateLimit(request);
+    admissionRateLimit(request, 'upload');
     const form = await request.formData();
     const file = form.get('file');
     const trackingToken = form.get('tracking_token');
     const type = form.get('type');
+    const kind = form.get('kind');
     if (!(file instanceof File) || file.size === 0) throw new HttpError(400, 'Pilih dokumen.');
     if (file.size > 10 * 1024 * 1024) throw new HttpError(413, 'Ukuran dokumen maksimal 10 MB.');
     if (typeof trackingToken !== 'string' || !/^(?:\d{6}|[a-f0-9]{48})$/.test(trackingToken))
       throw new HttpError(400, 'Token pendaftaran tidak valid.');
     if (typeof type !== 'string' || !type.trim() || type.length > 100)
       throw new HttpError(400, 'Jenis dokumen wajib diisi.');
+    if (kind !== null && kind !== 'photo') throw new HttpError(400, 'Jenis unggahan tidak valid.');
+    const isPhoto = kind === 'photo';
+    if (isPhoto && file.size > 5 * 1024 * 1024)
+      throw new HttpError(413, 'Ukuran foto maksimal 5 MB.');
+    if (isPhoto && !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))
+      throw new HttpError(415, 'Foto harus berformat PNG, JPEG, atau WebP.');
     const schoolId = currentSchoolId();
     const application = db()
       .prepare('SELECT id,status FROM student_applications WHERE school_id=? AND tracking_token=?')
@@ -45,7 +52,7 @@ export async function POST(request: Request) {
         error instanceof Error ? error.message : 'Format dokumen tidak valid.',
       );
     }
-    storedKey = await storeUpload(bytes, extension, 'documents');
+    storedKey = await storeUpload(bytes, extension, isPhoto ? 'images' : 'documents');
     const uploadId = randomUUID();
     const documentId = randomUUID();
     db().transaction(() => {
@@ -59,23 +66,33 @@ export async function POST(request: Request) {
           safeOriginalName(file.name),
           file.type,
           file.size,
-          'admission.document',
+          isPhoto ? 'admission.photo' : 'admission.document',
           `public:${application.id}`,
         );
-      db()
-        .prepare(
-          'INSERT INTO application_documents(id,application_id,type,file_url,description) VALUES(?,?,?,?,?)',
-        )
-        .run(
-          documentId,
-          application.id,
-          type.trim(),
-          uploadUrl(uploadId),
-          'Diupload oleh pendaftar',
-        );
+      if (isPhoto)
+        db()
+          .prepare(
+            "UPDATE student_applications SET photo_url=?,updated_at=datetime('now') WHERE id=?",
+          )
+          .run(uploadUrl(uploadId), application.id);
+      else
+        db()
+          .prepare(
+            'INSERT INTO application_documents(id,application_id,type,file_url,description) VALUES(?,?,?,?,?)',
+          )
+          .run(
+            documentId,
+            application.id,
+            type.trim(),
+            uploadUrl(uploadId),
+            'Diupload oleh pendaftar',
+          );
     })();
     storedKey = null;
-    return Response.json({ ok: true, id: documentId, url: uploadUrl(uploadId) }, { status: 201 });
+    return Response.json(
+      { ok: true, id: isPhoto ? uploadId : documentId, url: uploadUrl(uploadId) },
+      { status: 201 },
+    );
   } catch (error) {
     if (storedKey) await removeUpload(storedKey);
     return failure(error);

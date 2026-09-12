@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import {
   ActionIcon,
+  Avatar,
   Badge,
   Box,
   Button,
@@ -11,6 +12,7 @@ import {
   Modal,
   NumberInput,
   Paper,
+  ScrollArea,
   Select,
   SimpleGrid,
   Stack,
@@ -24,9 +26,11 @@ import {
 import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import {
+  IconAlertTriangle,
   IconCalendarPlus,
   IconCheck,
   IconEye,
+  IconExternalLink,
   IconPencil,
   IconUserPlus,
 } from '@tabler/icons-react';
@@ -51,9 +55,17 @@ type Period = {
 };
 type Guardian = {
   name: string;
+  nik: string;
   relation: string;
+  birth_place: string;
+  birth_date: string;
+  last_education: string;
+  occupation: string;
+  monthly_income: number;
   phone: string;
   email: string;
+  address: string;
+  address_matches_student: number;
   is_primary: number;
 };
 type Document = {
@@ -75,12 +87,44 @@ type History = {
 type Application = {
   id: string;
   registration_number: string;
+  photo_url: string;
   name: string;
   nik: string;
   nisn: string;
   gender_label: string;
+  birth_date: string;
+  birth_place: string;
+  family_card_number: string;
+  religion: string;
+  citizenship: string;
+  child_order: number;
+  sibling_count: number;
+  birth_certificate_number: string;
+  has_special_needs: number;
+  special_needs_type: string;
+  address: string;
+  province_code: string;
+  province_name: string;
+  regency_code: string;
+  regency_name: string;
+  district_code: string;
+  district_name: string;
+  village_code: string;
+  village_name: string;
+  rt: string;
+  rw: string;
+  postal_code: string;
+  domicile_matches_family_card: number;
+  latitude: number | null;
+  longitude: number | null;
+  home_distance_km: number | null;
   phone: string;
   email: string;
+  previous_school_name: string;
+  previous_school_npsn: string;
+  previous_school_address: string;
+  previous_school_last_grade: string;
+  previous_school_graduation_year: string;
   period_name: string;
   academic_year_id: string;
   target_grade_name: string;
@@ -92,6 +136,9 @@ type Application = {
   assessment_interview: number | null;
   assessment_final: number | null;
   ranking: number | null;
+  submitted_at: string;
+  created_at: string;
+  updated_at: string;
   converted_student_id?: string;
   guardians: Guardian[];
   documents: Document[];
@@ -108,6 +155,13 @@ type Status =
   | 'rejected'
   | 'reregistered'
   | 'converted';
+type ActionConfirmation = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  color?: string;
+  action: () => void;
+};
 
 const statusLabels: Record<Status, string> = {
   draft: 'Draft',
@@ -152,6 +206,51 @@ const blankPeriod = () => ({
   registration_prefix: 'PMB',
 });
 
+const dateOnlyFormatter = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+const currencyFormatter = new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+});
+
+function displayDate(value?: string) {
+  if (!value) return '—';
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? value : dateOnlyFormatter.format(parsed);
+}
+
+function displayValue(value: unknown) {
+  return value === null || value === undefined || value === '' ? '—' : String(value);
+}
+
+function DetailItem({ label, value }: { label: string; value: unknown }) {
+  return (
+    <Box>
+      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+        {label}
+      </Text>
+      <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+        {displayValue(value)}
+      </Text>
+    </Box>
+  );
+}
+
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Paper withBorder radius="md" p={{ base: 'md', sm: 'lg' }}>
+      <Text fw={700} mb="md">
+        {title}
+      </Text>
+      {children}
+    </Paper>
+  );
+}
+
 export function AdmissionManager({ writable }: { writable: boolean }) {
   const [view, setView] = useState<'applications' | 'periods'>('applications');
   const [periodId, setPeriodId] = useState('');
@@ -173,7 +272,14 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
   const [enrollmentDate, setEnrollmentDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [pendingAction, setPendingAction] = useState('');
+  const [confirmation, setConfirmation] = useState<ActionConfirmation | null>(null);
   const options = list.options || {};
+
+  function runConfirmedAction() {
+    const action = confirmation?.action;
+    setConfirmation(null);
+    action?.();
+  }
 
   function openApplication(row: Application) {
     setSelected(row);
@@ -184,6 +290,14 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
     setNis('');
     setClassId('');
     setEnrollmentDate('');
+    void refreshApplication(row.id).catch((error) => {
+      notifications.show({
+        color: 'yellow',
+        title: 'Detail belum diperbarui',
+        message:
+          error instanceof Error ? error.message : 'Muat ulang halaman untuk melihat data terbaru.',
+      });
+    });
   }
   function openPeriod(period?: Period) {
     setEditingPeriod(period || null);
@@ -579,99 +693,273 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
       <Modal
         opened={Boolean(selected)}
         onClose={() => !saving && setSelected(null)}
-        title={selected ? `${selected.registration_number} — ${selected.name}` : ''}
+        title={
+          selected ? (
+            <Box>
+              <Text fw={700}>Detail calon murid</Text>
+              <Text size="xs" c="dimmed">
+                {selected.registration_number}
+              </Text>
+            </Box>
+          ) : null
+        }
         size="xl"
         centered
+        scrollAreaComponent={ScrollArea.Autosize}
+        overlayProps={{ backgroundOpacity: 0.45, blur: 2 }}
       >
         {selected && (
           <Stack gap="lg">
-            <SimpleGrid cols={{ base: 1, sm: 3 }}>
-              <Paper withBorder p="md">
-                <Text size="xs" c="dimmed">
-                  STATUS
-                </Text>
-                <Badge mt="xs" color={statusColors[selected.status]}>
-                  {statusLabels[selected.status]}
-                </Badge>
-              </Paper>
-              <Paper withBorder p="md">
-                <Text size="xs" c="dimmed">
-                  TINGKAT TUJUAN
-                </Text>
-                <Text fw={600}>{selected.target_grade_name}</Text>
-              </Paper>
-              <Paper withBorder p="md">
-                <Text size="xs" c="dimmed">
-                  KONTAK
-                </Text>
-                <Text fw={600}>{selected.phone || selected.email || '—'}</Text>
-              </Paper>
-            </SimpleGrid>
-            <Divider label="Orang tua / wali" />
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              {selected.guardians.map((guardian, index) => (
-                <Paper key={`${guardian.name}-${index}`} withBorder p="sm">
-                  <Text fw={600}>
-                    {guardian.name} {guardian.is_primary ? '(utama)' : ''}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {guardian.relation} · {guardian.phone || 'tanpa telepon'}
-                  </Text>
-                </Paper>
-              ))}
-            </SimpleGrid>
-            <Divider label="Dokumen" />
-            {selected.documents.length ? (
-              selected.documents.map((document) => (
-                <Paper key={document.id} withBorder p="sm">
-                  <Group justify="space-between">
+            <Paper withBorder radius="md" p={{ base: 'md', sm: 'lg' }}>
+              <Group wrap="nowrap" align="flex-start">
+                <Avatar
+                  src={selected.photo_url || null}
+                  name={selected.name}
+                  size={72}
+                  radius="md"
+                />
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                  <Group justify="space-between" align="flex-start" gap="xs">
                     <Box>
-                      <Text
-                        component="a"
-                        href={document.file_url}
-                        target="_blank"
-                        fw={600}
-                        size="sm"
-                      >
-                        {document.type}
+                      <Text fw={700} size="lg">
+                        {selected.name}
                       </Text>
                       <Text size="xs" c="dimmed">
-                        {document.verification_notes || document.description || 'Tanpa catatan'}
+                        {selected.target_grade_name} · {selected.admission_path}
                       </Text>
                     </Box>
-                    {writable && (
-                      <Button
-                        size="xs"
-                        variant={document.verified ? 'light' : 'outline'}
-                        color={document.verified ? 'green' : 'gray'}
-                        disabled={saving}
-                        leftSection={document.verified ? <IconCheck size={14} /> : undefined}
-                        onClick={() =>
-                          mutate(
-                            'PATCH',
-                            {
-                              entity: 'document',
-                              id: document.id,
-                              verified: !document.verified,
-                              notes: document.verification_notes || '',
-                            },
-                            'Verifikasi dokumen diperbarui.',
-                            { actionKey: `document:${document.id}` },
-                          )
-                        }
-                        loading={pendingAction === `document:${document.id}`}
-                      >
-                        {document.verified ? 'Terverifikasi' : 'Verifikasi'}
-                      </Button>
-                    )}
+                    <Badge color={statusColors[selected.status]} variant="light">
+                      {statusLabels[selected.status]}
+                    </Badge>
                   </Group>
-                </Paper>
-              ))
-            ) : (
-              <Text c="dimmed" size="sm">
-                Belum ada dokumen.
-              </Text>
-            )}
+                  <Text size="sm" mt="sm">
+                    {selected.period_name}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Dikirim {displayDate(selected.submitted_at || selected.created_at)}
+                  </Text>
+                </Box>
+              </Group>
+            </Paper>
+
+            <DetailSection title="Informasi pendaftaran">
+              <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
+                <DetailItem label="Nomor pendaftaran" value={selected.registration_number} />
+                <DetailItem label="Periode" value={selected.period_name} />
+                <DetailItem label="Tingkat tujuan" value={selected.target_grade_name} />
+                <DetailItem label="Jalur pendaftaran" value={selected.admission_path} />
+                <DetailItem label="Status" value={statusLabels[selected.status]} />
+                <DetailItem label="Terakhir diperbarui" value={displayDate(selected.updated_at)} />
+              </SimpleGrid>
+            </DetailSection>
+
+            <DetailSection title="Identitas calon murid">
+              <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
+                <DetailItem label="Nama lengkap" value={selected.name} />
+                <DetailItem label="NISN" value={selected.nisn} />
+                <DetailItem label="NIK" value={selected.nik} />
+                <DetailItem label="Jenis kelamin" value={selected.gender_label} />
+                <DetailItem label="Tempat lahir" value={selected.birth_place} />
+                <DetailItem label="Tanggal lahir" value={displayDate(selected.birth_date)} />
+                <DetailItem label="Nomor KK" value={selected.family_card_number} />
+                <DetailItem label="Nomor akta lahir" value={selected.birth_certificate_number} />
+                <DetailItem label="Agama" value={selected.religion} />
+                <DetailItem label="Kewarganegaraan" value={selected.citizenship} />
+                <DetailItem label="Anak ke" value={selected.child_order || '—'} />
+                <DetailItem label="Jumlah saudara" value={selected.sibling_count || '—'} />
+                <DetailItem
+                  label="Kebutuhan khusus"
+                  value={selected.has_special_needs ? selected.special_needs_type || 'Ya' : 'Tidak'}
+                />
+                <DetailItem label="No. HP" value={selected.phone} />
+                <DetailItem label="Email" value={selected.email} />
+              </SimpleGrid>
+            </DetailSection>
+
+            <DetailSection title="Alamat calon murid">
+              <Stack gap="md">
+                <DetailItem label="Alamat lengkap" value={selected.address} />
+                <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
+                  <DetailItem
+                    label="Provinsi"
+                    value={
+                      selected.province_name
+                        ? `${selected.province_name} (${selected.province_code})`
+                        : ''
+                    }
+                  />
+                  <DetailItem
+                    label="Kabupaten/Kota"
+                    value={
+                      selected.regency_name
+                        ? `${selected.regency_name} (${selected.regency_code})`
+                        : ''
+                    }
+                  />
+                  <DetailItem
+                    label="Kecamatan"
+                    value={
+                      selected.district_name
+                        ? `${selected.district_name} (${selected.district_code})`
+                        : ''
+                    }
+                  />
+                  <DetailItem
+                    label="Kelurahan/Desa"
+                    value={
+                      selected.village_name
+                        ? `${selected.village_name} (${selected.village_code})`
+                        : ''
+                    }
+                  />
+                  <DetailItem
+                    label="RT / RW"
+                    value={[selected.rt, selected.rw].filter(Boolean).join(' / ')}
+                  />
+                  <DetailItem label="Kode pos" value={selected.postal_code} />
+                  <DetailItem
+                    label="Domisili sesuai KK"
+                    value={selected.domicile_matches_family_card ? 'Ya' : 'Tidak'}
+                  />
+                  <DetailItem label="Latitude" value={selected.latitude} />
+                  <DetailItem label="Longitude" value={selected.longitude} />
+                  <DetailItem
+                    label="Jarak ke sekolah"
+                    value={
+                      selected.home_distance_km == null ? '—' : `${selected.home_distance_km} km`
+                    }
+                  />
+                </SimpleGrid>
+              </Stack>
+            </DetailSection>
+
+            <DetailSection title="Orang tua / wali">
+              <Stack gap="sm">
+                {selected.guardians.map((guardian, index) => (
+                  <Paper key={`${guardian.name}-${index}`} withBorder radius="md" p="md">
+                    <Group justify="space-between" mb="md">
+                      <Text fw={700}>{guardian.name}</Text>
+                      {guardian.is_primary ? <Badge variant="light">Wali utama</Badge> : null}
+                    </Group>
+                    <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
+                      <DetailItem label="Hubungan" value={guardian.relation} />
+                      <DetailItem label="NIK" value={guardian.nik} />
+                      <DetailItem label="Tempat lahir" value={guardian.birth_place} />
+                      <DetailItem label="Tanggal lahir" value={displayDate(guardian.birth_date)} />
+                      <DetailItem label="Pendidikan terakhir" value={guardian.last_education} />
+                      <DetailItem label="Pekerjaan" value={guardian.occupation} />
+                      <DetailItem
+                        label="Penghasilan per bulan"
+                        value={
+                          guardian.monthly_income
+                            ? currencyFormatter.format(guardian.monthly_income)
+                            : '—'
+                        }
+                      />
+                      <DetailItem label="No. HP" value={guardian.phone} />
+                      <DetailItem label="Email" value={guardian.email} />
+                      <DetailItem
+                        label="Alamat"
+                        value={
+                          guardian.address_matches_student
+                            ? `Sama dengan alamat calon murid${guardian.address ? ` — ${guardian.address}` : ''}`
+                            : guardian.address
+                        }
+                      />
+                    </SimpleGrid>
+                  </Paper>
+                ))}
+              </Stack>
+            </DetailSection>
+
+            <DetailSection title="Sekolah asal">
+              <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
+                <DetailItem label="Nama sekolah" value={selected.previous_school_name} />
+                <DetailItem label="NPSN" value={selected.previous_school_npsn} />
+                <DetailItem label="Kelas terakhir" value={selected.previous_school_last_grade} />
+                <DetailItem label="Tahun lulus" value={selected.previous_school_graduation_year} />
+                <DetailItem label="Alamat sekolah" value={selected.previous_school_address} />
+              </SimpleGrid>
+            </DetailSection>
+
+            <DetailSection title={`Dokumen (${selected.documents.length})`}>
+              <Stack gap="sm">
+                {selected.documents.length ? (
+                  <Text size="xs" c="dimmed">
+                    Gunakan tombol “Lihat dokumen” untuk membuka berkas di tab baru.
+                  </Text>
+                ) : null}
+                {selected.documents.length ? (
+                  selected.documents.map((document) => (
+                    <Paper key={document.id} withBorder radius="md" p="sm">
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Box style={{ minWidth: 180, flex: 1 }}>
+                          <Text fw={600} size="sm">
+                            {document.type}
+                          </Text>
+                          <Text size="xs" c="dimmed" truncate>
+                            {document.verification_notes || document.description || 'Tanpa catatan'}
+                          </Text>
+                        </Box>
+                        <Group gap="xs">
+                          <Button
+                            component="a"
+                            href={document.file_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            size="xs"
+                            variant="subtle"
+                            leftSection={<IconExternalLink size={14} />}
+                          >
+                            Lihat dokumen
+                          </Button>
+                          {writable && (
+                            <Button
+                              size="xs"
+                              variant={document.verified ? 'light' : 'outline'}
+                              color={document.verified ? 'green' : 'gray'}
+                              disabled={saving}
+                              leftSection={document.verified ? <IconCheck size={14} /> : undefined}
+                              onClick={() =>
+                                setConfirmation({
+                                  title: document.verified
+                                    ? 'Batalkan verifikasi dokumen?'
+                                    : 'Verifikasi dokumen?',
+                                  message: `${document.type} akan ditandai ${document.verified ? 'belum terverifikasi' : 'sudah terverifikasi'}.`,
+                                  confirmLabel: document.verified
+                                    ? 'Batalkan verifikasi'
+                                    : 'Ya, verifikasi',
+                                  color: document.verified ? 'orange' : 'green',
+                                  action: () =>
+                                    void mutate(
+                                      'PATCH',
+                                      {
+                                        entity: 'document',
+                                        id: document.id,
+                                        verified: !document.verified,
+                                        notes: document.verification_notes || '',
+                                      },
+                                      'Verifikasi dokumen diperbarui.',
+                                      { actionKey: `document:${document.id}` },
+                                    ),
+                                })
+                              }
+                              loading={pendingAction === `document:${document.id}`}
+                            >
+                              {document.verified ? 'Terverifikasi' : 'Verifikasi'}
+                            </Button>
+                          )}
+                        </Group>
+                      </Group>
+                    </Paper>
+                  ))
+                ) : (
+                  <Text c="dimmed" size="sm">
+                    Belum ada dokumen.
+                  </Text>
+                )}
+              </Stack>
+            </DetailSection>
             {writable &&
               ['verified', 'selection', 'accepted', 'waitlisted'].includes(selected.status) && (
                 <>
@@ -705,20 +993,26 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                     variant="light"
                     disabled={saving}
                     onClick={() =>
-                      mutate(
-                        'PATCH',
-                        {
-                          entity: 'assessment',
-                          id: selected.id,
-                          assessment_test: testScore === '' ? null : Number(testScore),
-                          assessment_interview:
-                            interviewScore === '' ? null : Number(interviewScore),
-                          ranking: ranking === '' ? null : Number(ranking),
-                          notes,
-                        },
-                        'Nilai seleksi disimpan.',
-                        { actionKey: 'assessment' },
-                      )
+                      setConfirmation({
+                        title: 'Simpan penilaian seleksi?',
+                        message: `Nilai seleksi ${selected.name} akan diperbarui dengan data yang terisi saat ini.`,
+                        confirmLabel: 'Ya, simpan nilai',
+                        action: () =>
+                          void mutate(
+                            'PATCH',
+                            {
+                              entity: 'assessment',
+                              id: selected.id,
+                              assessment_test: testScore === '' ? null : Number(testScore),
+                              assessment_interview:
+                                interviewScore === '' ? null : Number(interviewScore),
+                              ranking: ranking === '' ? null : Number(ranking),
+                              notes,
+                            },
+                            'Nilai seleksi disimpan.',
+                            { actionKey: 'assessment' },
+                          ),
+                      })
                     }
                     loading={pendingAction === 'assessment'}
                   >
@@ -743,12 +1037,19 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                       variant="light"
                       disabled={saving}
                       onClick={() =>
-                        mutate(
-                          'PATCH',
-                          { entity: 'status', id: selected.id, status: next, notes },
-                          `Status diubah menjadi ${statusLabels[next]}.`,
-                          { actionKey: `status:${next}` },
-                        )
+                        setConfirmation({
+                          title: `Ubah status menjadi ${statusLabels[next]}?`,
+                          message: `Status ${selected.name} akan berubah dari ${statusLabels[selected.status]} menjadi ${statusLabels[next]}. Perubahan akan dicatat dalam riwayat.`,
+                          confirmLabel: `Ya, ${statusLabels[next]}`,
+                          color: statusColors[next],
+                          action: () =>
+                            void mutate(
+                              'PATCH',
+                              { entity: 'status', id: selected.id, status: next, notes },
+                              `Status diubah menjadi ${statusLabels[next]}.`,
+                              { actionKey: `status:${next}` },
+                            ),
+                        })
                       }
                       loading={pendingAction === `status:${next}`}
                     >
@@ -796,18 +1097,25 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                   color="green"
                   disabled={saving || !nis || !classId || !enrollmentDate}
                   onClick={() =>
-                    mutate(
-                      'POST',
-                      {
-                        entity: 'convert',
-                        id: selected.id,
-                        nis,
-                        class_id: classId,
-                        enrollment_date: enrollmentDate,
-                      },
-                      'Calon murid berhasil menjadi murid aktif.',
-                      { actionKey: 'convert', closeApplication: true },
-                    )
+                    setConfirmation({
+                      title: 'Konversi menjadi murid aktif?',
+                      message: `${selected.name} akan dibuat sebagai murid aktif dengan NIS ${nis}. Identitas, wali, dokumen, dan penempatan rombel akan disalin.`,
+                      confirmLabel: 'Ya, jadikan murid aktif',
+                      color: 'green',
+                      action: () =>
+                        void mutate(
+                          'POST',
+                          {
+                            entity: 'convert',
+                            id: selected.id,
+                            nis,
+                            class_id: classId,
+                            enrollment_date: enrollmentDate,
+                          },
+                          'Calon murid berhasil menjadi murid aktif.',
+                          { actionKey: 'convert', closeApplication: true },
+                        ),
+                    })
                   }
                   loading={pendingAction === 'convert'}
                 >
@@ -827,6 +1135,36 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
                 </Text>
               </Box>
             ))}
+          </Stack>
+        )}
+      </Modal>
+
+      <Modal
+        opened={Boolean(confirmation)}
+        onClose={() => !saving && setConfirmation(null)}
+        title={confirmation?.title || 'Konfirmasi tindakan'}
+        size="sm"
+        centered
+        overlayProps={{ backgroundOpacity: 0.55, blur: 2 }}
+      >
+        {confirmation && (
+          <Stack gap="lg">
+            <Group align="flex-start" wrap="nowrap">
+              <ThemeIcon color={confirmation.color || 'blue'} variant="light" size="lg" radius="xl">
+                <IconAlertTriangle size={19} />
+              </ThemeIcon>
+              <Text size="sm" style={{ flex: 1 }}>
+                {confirmation.message}
+              </Text>
+            </Group>
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setConfirmation(null)}>
+                Batal
+              </Button>
+              <Button color={confirmation.color || 'blue'} onClick={runConfirmedAction}>
+                {confirmation.confirmLabel}
+              </Button>
+            </Group>
           </Stack>
         )}
       </Modal>

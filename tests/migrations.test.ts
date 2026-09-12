@@ -49,8 +49,12 @@ test('database versi 42 menambahkan kolom dan index NIK sebelum dipakai', () => 
     const columns = migrated.pragma('table_info(students)') as { name: string }[];
     const indexes = migrated.pragma('index_list(students)') as { name: string }[];
     assert.ok(columns.some((column) => column.name === 'nik'));
+    assert.ok(columns.some((column) => column.name === 'family_card_number'));
+    assert.ok(columns.some((column) => column.name === 'has_special_needs'));
+    assert.ok(columns.some((column) => column.name === 'province_code'));
+    assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 44);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 47);
     migrated.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
