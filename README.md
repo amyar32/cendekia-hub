@@ -29,6 +29,7 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **Akademik:** tahun ajaran, semester, tingkat, rombel, mata pelajaran, guru, penugasan mengajar, dan wali kelas.
 - **Ekstrakurikuler:** master program, penugasan pembina, peserta, kuota, lokasi, serta jadwal berbasis slot waktu sekolah yang dapat disalin sebagai draft ke tahun ajaran berikutnya.
 - **Murid:** identitas, wali, dokumen, riwayat rombel, proses kenaikan kelas massal yang dapat dibatalkan, serta laporan historis.
+- **Penerimaan murid baru:** periode dan kuota penerimaan, formulir publik, captcha dan rate limit, nomor pendaftaran, pelacakan status, upload serta verifikasi dokumen, penilaian seleksi, keputusan, daftar ulang, dan konversi transaksional ke murid aktif.
 - **Check-in gerbang:** satu scanner untuk kartu QR murid dan guru, daftar bertab, pencatatan manual, deteksi keterlambatan otomatis, rotasi QR, dan kartu identitas siap cetak.
 - **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
@@ -38,7 +39,7 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
   import Excel tervalidasi, penugasan guru, wali kelas, dan pembina, serta checklist kesiapan
   operasional.
 
-Administrator sistem tidak dapat diedit/dihapus, pengguna tidak dapat mengubah akses akunnya sendiri, dan pengguna tidak dapat memberikan akses melebihi permission yang dimilikinya. Akun dibuat administrator; registrasi publik dan reset password melalui email belum disertakan.
+Administrator sistem tidak dapat diedit/dihapus, pengguna tidak dapat mengubah akses akunnya sendiri, dan pengguna tidak dapat memberikan akses melebihi permission yang dimilikinya. Akun pengguna CMS dibuat administrator; reset password melalui email belum disertakan.
 
 ## Struktur
 
@@ -50,6 +51,7 @@ src/
       page.tsx                Ringkasan
       onboarding/            Wizard persiapan dan import data awal sekolah
       annual-transition/      Pergantian tahun ajaran
+      admissions/             Pengelolaan penerimaan murid baru
       master-data/            Murid, guru, tingkat, dan mata pelajaran
       academic/               Tahun ajaran, semester, rombel, dan penugasan
       reports/                Laporan akademik
@@ -57,6 +59,7 @@ src/
       settings/               Pengaturan sekolah dan akun
     api/auth/                 Login, logout, perubahan password
     api/modules/              Route, handler, validasi, dan aturan bisnis per modul
+    api/public/admissions/    Formulir dan pelacakan penerimaan tanpa login
   components/
     cms/                      Komponen bersama halaman CMS
     <nama-modul>/             Komponen UI khusus setiap modul
@@ -111,11 +114,11 @@ Audit keamanan memblokir rilis untuk temuan tingkat tinggi atau kritis. Saat ini
 temuan moderat pada dependensi transitif `exceljs` (`uuid`); `npm audit fix --force` tidak digunakan
 karena akan menurunkan versi ExcelJS secara breaking. Tinjau kembali saat ExcelJS menyediakan jalur
 pembaruan yang kompatibel.
-Tes integrasi membutuhkan build terlebih dahulu. Tes menjalankan server produksi di port 3317,
+Tes integrasi membutuhkan build terlebih dahulu. Tes menjalankan server produksi sementara,
 memakai database sementara, lalu membersihkannya. Cakupan: autentikasi, CRUD modul, konteks tahun
 ajaran, kenaikan kelas, laporan historis, pembatasan role, penolakan origin asing, pencabutan sesi,
-perubahan password, pencegahan eskalasi akses, proteksi audit pada database, serta backup dan
-restore. Pengujian onboarding mencakup konfigurasi SD enam tingkat serta preview dan import workbook
+perubahan password, pencegahan eskalasi akses, proteksi audit pada database, penerimaan publik sampai
+konversi menjadi murid aktif, serta backup dan restore. Pengujian onboarding mencakup konfigurasi SD enam tingkat serta preview dan import workbook
 simulasi berisi 15 guru dan 50 murid.
 
 ## Data simulasi onboarding
@@ -182,7 +185,7 @@ npm run build
 npm start
 ```
 
-Gunakan HTTPS karena cookie sesi memakai `Secure` pada produksi. Jika menggunakan reverse proxy, pertahankan host/origin publik agar pemeriksaan origin cocok. Database SQLite dan direktori `UPLOAD_STORAGE_PATH` membutuhkan disk persisten dengan izin tulis; keduanya perlu dibackup bersama. Rancangan ini ditujukan untuk satu instance Node.js. Untuk deployment serverless atau beberapa instance, pindahkan database ke PostgreSQL dan implementasi fungsi storage di `src/lib/uploads.ts` ke object storage bersama (misalnya S3-compatible), lalu siapkan migrasi dan strategi backup.
+Gunakan HTTPS karena cookie sesi memakai `Secure` pada produksi. Isi `ADMISSION_FORM_SECRET` dengan secret acak yang sama pada setiap instance agar captcha formulir penerimaan tetap valid setelah restart. Jika menggunakan reverse proxy, pertahankan host/origin publik agar pemeriksaan origin cocok. Database SQLite dan direktori `UPLOAD_STORAGE_PATH` membutuhkan disk persisten dengan izin tulis; keduanya perlu dibackup bersama. Rancangan ini ditujukan untuk satu instance Node.js. Untuk deployment serverless atau beberapa instance, pindahkan database ke PostgreSQL dan implementasi fungsi storage di `src/lib/uploads.ts` ke object storage bersama (misalnya S3-compatible), lalu siapkan migrasi dan strategi backup.
 
 Trigger audit mencegah perubahan melalui koneksi aplikasi biasa, tetapi bukan penyimpanan tahan manipulasi oleh pemilik file database. Gunakan layanan audit terpisah jika membutuhkan jaminan tersebut.
 

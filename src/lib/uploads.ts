@@ -39,6 +39,13 @@ export const uploadScopes = {
     maxBytes: 10 * 1024 * 1024,
     kind: 'document',
   },
+  'admission.document': {
+    readPermission: 'admissions.read',
+    writePermission: 'admissions.write',
+    public: false,
+    maxBytes: 10 * 1024 * 1024,
+    kind: 'document',
+  },
   'schedule.bell-audio': {
     readPermission: null,
     writePermission: 'schedules.write',

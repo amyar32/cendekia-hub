@@ -45,6 +45,9 @@ const schema = z
       .max(2048)
       .refine((value) => !value || Boolean(uploadIdFromUrl(value)), 'Foto murid tidak valid.')
       .default(''),
+    nik: z
+      .union([z.literal(''), z.string().regex(/^\d{16}$/, 'NIK harus terdiri dari 16 digit.')])
+      .default(''),
     nis: z
       .string()
       .trim()
@@ -166,9 +169,9 @@ export async function GET(request: Request) {
     const { filter, offset } = listParams(request);
     const conditions = [
       's.school_id=?',
-      '(s.nis LIKE ? OR s.nisn LIKE ? OR s.name LIKE ? OR s.email LIKE ?)',
+      '(s.nis LIKE ? OR s.nisn LIKE ? OR s.nik LIKE ? OR s.name LIKE ? OR s.email LIKE ?)',
     ];
-    const args: Array<string | number> = [schoolId, filter, filter, filter, filter];
+    const args: Array<string | number> = [schoolId, filter, filter, filter, filter, filter];
     if (category === 'active') {
       conditions.push('s.is_active=1');
       if (activeClassId) {
@@ -210,7 +213,7 @@ export async function GET(request: Request) {
     const where = conditions.join(' AND ');
     const rows = db()
       .prepare(
-        `SELECT s.id,s.school_id,s.photo_url,s.nis,s.nisn,s.name,s.gender,s.birth_date,s.birth_place,
+        `SELECT s.id,s.school_id,s.photo_url,s.nik,s.nis,s.nisn,s.name,s.gender,s.birth_date,s.birth_place,
           s.blood_type,s.address,s.phone,s.email,s.enrollment_date,s.previous_school_name,
           s.previous_school_npsn,s.previous_school_address,s.previous_school_last_grade,
           s.previous_school_graduation_year,s.is_active,s.created_at,s.updated_at,
@@ -337,11 +340,19 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
         )
           throw new HttpError(400, 'File hasil upload tidak valid.');
       }
+      if (
+        data.nik &&
+        db()
+          .prepare('SELECT id FROM students WHERE school_id=? AND nik=? AND id<>?')
+          .get(schoolId, data.nik, id)
+      )
+        throw new HttpError(409, 'NIK sudah digunakan oleh murid lain.');
       const classroom = data.placement.class_id
         ? requireClass(schoolId, data.placement.class_id)
         : undefined;
       const args = [
         data.photo_url,
+        data.nik,
         data.nis,
         data.nisn,
         data.name,
@@ -363,14 +374,14 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       if (method === 'POST')
         db()
           .prepare(
-            `INSERT INTO students(id,school_id,photo_url,nis,nisn,name,gender,birth_date,birth_place,blood_type,address,phone,email,enrollment_date,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,is_active,qr_token)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO students(id,school_id,photo_url,nik,nis,nisn,name,gender,birth_date,birth_place,blood_type,address,phone,email,enrollment_date,previous_school_name,previous_school_npsn,previous_school_address,previous_school_last_grade,previous_school_graduation_year,is_active,qr_token)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
           .run(id, schoolId, ...args, randomBytes(24).toString('hex'));
       else
         db()
           .prepare(
-            `UPDATE students SET photo_url=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,blood_type=?,address=?,phone=?,email=?,enrollment_date=?,previous_school_name=?,previous_school_npsn=?,previous_school_address=?,previous_school_last_grade=?,previous_school_graduation_year=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
+            `UPDATE students SET photo_url=?,nik=?,nis=?,nisn=?,name=?,gender=?,birth_date=?,birth_place=?,blood_type=?,address=?,phone=?,email=?,enrollment_date=?,previous_school_name=?,previous_school_npsn=?,previous_school_address=?,previous_school_last_grade=?,previous_school_graduation_year=?,is_active=?,updated_at=datetime('now') WHERE id=? AND school_id=?`,
           )
           .run(...args, id, schoolId);
 

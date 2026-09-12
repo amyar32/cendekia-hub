@@ -44,6 +44,7 @@ import {
   IconLogin,
   IconBallFootball,
   IconChecklist,
+  IconUserPlus,
 } from '@tabler/icons-react';
 import { modules, can, moduleByKey, type ModuleKey } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -70,6 +71,7 @@ const icons = {
   'homeroom-assignments': IconHome2,
   'extracurricular-assignments': IconCalendarTime,
   students: IconUsersGroup,
+  admissions: IconUserPlus,
   promotions: IconArrowUp,
   schedules: IconCalendarTime,
   'student-attendance': IconClipboardCheck,

@@ -20,6 +20,7 @@ export type ModuleListResponse<Row> = {
   >;
   selected?: Record<string, string>;
   has_active_year?: boolean;
+  periods?: unknown[];
 };
 
 export function useModuleList<Row>(endpoint: string, params: Record<string, string> = {}) {

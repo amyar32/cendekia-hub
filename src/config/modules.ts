@@ -29,6 +29,8 @@ export const permissions = [
   'extracurricular-assignments.write',
   'students.read',
   'students.write',
+  'admissions.read',
+  'admissions.write',
   'promotions.read',
   'promotions.write',
   'schedules.read',
@@ -63,6 +65,7 @@ export type ModuleKey =
   | 'homeroom-assignments'
   | 'extracurricular-assignments'
   | 'students'
+  | 'admissions'
   | 'promotions'
   | 'schedules'
   | 'student-attendance'
@@ -190,6 +193,14 @@ export const modules: CmsModule[] = [
     path: '/master-data/students',
     permission: 'students.read',
     group: 'Data Sekolah',
+  },
+  {
+    key: 'admissions',
+    label: 'Penerimaan Murid Baru',
+    description: 'Kelola periode, pendaftaran, verifikasi, seleksi, dan daftar ulang calon murid.',
+    path: '/admissions',
+    permission: 'admissions.read',
+    group: 'Utama',
   },
   {
     key: 'subjects',

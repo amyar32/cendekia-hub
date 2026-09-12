@@ -66,6 +66,7 @@ type ClassHistory = {
 };
 type StudentForm = {
   photo_url: string;
+  nik: string;
   nis: string;
   nisn: string;
   name: string;
@@ -113,6 +114,7 @@ const emptyGuardian = (): Guardian => ({
 const emptyDocument = (): StudentDocument => ({ type: '', file_url: '', description: '' });
 const emptyForm = (): StudentForm => ({
   photo_url: '',
+  nik: '',
   nis: '',
   nisn: '',
   name: '',
@@ -190,6 +192,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
       row
         ? {
             photo_url: row.photo_url || '',
+            nik: row.nik || '',
             nis: row.nis,
             nisn: row.nisn || '',
             name: row.name,
@@ -638,6 +641,17 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 value={form.nis}
                 disabled={disabled}
                 onChange={(event) => setForm({ ...form, nis: event.currentTarget.value })}
+              />
+              <TextInput
+                label="NIK"
+                placeholder="16 digit NIK (opsional)"
+                inputMode="numeric"
+                maxLength={16}
+                value={form.nik}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, nik: event.currentTarget.value.replace(/\D/g, '') })
+                }
               />
               <TextInput
                 label="NISN"

@@ -1,0 +1,9 @@
+.tabs {
+  margin-bottom: 28px;
+}
+
+@media (max-width: 480px) {
+  .tabs {
+    overflow-x: auto;
+  }
+}

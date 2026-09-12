@@ -138,8 +138,9 @@ export function requireSubject(schoolId: string, subjectId: string) {
 
 export function requireClass(schoolId: string, classId: string) {
   const classroom = db()
-    .prepare('SELECT id,academic_year_id FROM classes WHERE id=? AND school_id=?')
-    .get(classId, schoolId) as { id: string; academic_year_id: string } | undefined;
+    .prepare('SELECT id,academic_year_id,grade_id FROM classes WHERE id=? AND school_id=?')
+    .get(classId, schoolId) as
+    { id: string; academic_year_id: string; grade_id: string } | undefined;
   if (!classroom) throw new HttpError(400, 'Rombel tidak valid.');
   return classroom;
 }
