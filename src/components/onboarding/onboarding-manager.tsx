@@ -1024,6 +1024,7 @@ export function OnboardingManager({
               <ImageUploader
                 label="Logo sekolah"
                 description="PNG, JPEG, atau WebP. Maksimal 5 MB."
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
                 scope="school.logo"
                 value={profile.logo_url}
                 onChange={(value) => setProfile({ ...profile, logo_url: value })}
@@ -1062,6 +1063,7 @@ export function OnboardingManager({
               <ImageUploader
                 label="Tanda tangan kepala sekolah"
                 description="Disarankan PNG dengan latar transparan. Maksimal 5 MB."
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
                 scope="school.principal-signature"
                 value={profile.principal_signature_url}
                 onChange={(value) => setProfile({ ...profile, principal_signature_url: value })}
@@ -1589,6 +1591,7 @@ export function OnboardingManager({
               <TimePicker
                 label="Batas keterlambatan"
                 description="Kehadiran setelah waktu ini akan ditandai terlambat."
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
                 value={profile.checkin_late_after}
                 onChange={(value) => setProfile({ ...profile, checkin_late_after: value })}
                 format="24h"
@@ -2319,6 +2322,7 @@ export function OnboardingManager({
                           label="Murid/peserta"
                           placeholder="Pilih murid peserta ekstrakurikuler"
                           description={`${assignment.student_ids.length} peserta dipilih${Number(assignment.quota) > 0 ? ` dari kuota ${assignment.quota}` : ''}.`}
+                          inputWrapperOrder={['label', 'input', 'description', 'error']}
                           data={data.students.map((student) => ({
                             value: student.id,
                             label: `${student.name} — ${student.nis} · ${student.class_name}`,

@@ -28,6 +28,7 @@ export function ImageUploader({
   uploadFile,
   disabled = false,
   maxSizeMb = 5,
+  inputWrapperOrder = ['label', 'description', 'input', 'error'],
 }: {
   label: string;
   description?: string;
@@ -38,6 +39,7 @@ export function ImageUploader({
   uploadFile?: (file: File) => Promise<string>;
   disabled?: boolean;
   maxSizeMb?: number;
+  inputWrapperOrder?: Array<'label' | 'input' | 'description' | 'error'>;
 }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +47,8 @@ export function ImageUploader({
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const inactive = disabled || uploading;
+  const descriptionAfterInput =
+    inputWrapperOrder.indexOf('description') > inputWrapperOrder.indexOf('input');
 
   function rejectFile(message: string) {
     notifications.show({ color: 'red', title: 'File tidak dapat digunakan', message });
@@ -113,7 +117,7 @@ export function ImageUploader({
         <Text component="label" htmlFor={inputId} size="sm" fw={500}>
           {label}
         </Text>
-        {description && (
+        {description && !descriptionAfterInput && (
           <Text size="xs" c="dimmed" mt={2}>
             {description}
           </Text>
@@ -245,6 +249,11 @@ export function ImageUploader({
           </Stack>
         )}
       </div>
+      {description && descriptionAfterInput && (
+        <Text size="xs" c="dimmed">
+          {description}
+        </Text>
+      )}
     </Stack>
   );
 }

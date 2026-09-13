@@ -244,6 +244,7 @@ export function UserManager({
           <Select
             label="Akun ini untuk guru"
             description="Opsional. Nama dan email akun akan diisi dari profil guru yang dipilih."
+            inputWrapperOrder={['label', 'input', 'description', 'error']}
             placeholder="Pilih guru (opsional)"
             data={teacherOptions}
             value={form.teacher_id || null}
@@ -295,6 +296,7 @@ export function UserManager({
             label={editing ? 'Kata sandi baru (opsional)' : 'Kata sandi'}
             placeholder={editing ? 'Kosongkan jika tidak diubah' : 'Masukkan kata sandi'}
             description="Minimal 12 karakter."
+            inputWrapperOrder={['label', 'input', 'description', 'error']}
             autoComplete="new-password"
             value={form.password}
             onChange={(event) => setForm({ ...form, password: event.currentTarget.value })}

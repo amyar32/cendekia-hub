@@ -216,6 +216,7 @@ export function RoleManager({
             label="Permission"
             placeholder="Pilih permission"
             description="Pilih akses baca dan tulis yang diperlukan."
+            inputWrapperOrder={['label', 'input', 'description', 'error']}
             data={permissions.filter((permission) => userPermissions.includes(permission))}
             value={form.permissions}
             onChange={(value) => setForm({ ...form, permissions: value })}

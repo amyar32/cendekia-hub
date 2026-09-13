@@ -467,6 +467,7 @@ export function AcademicEntityManager({
                     key={field.key}
                     label={field.label}
                     description={field.description}
+                    inputWrapperOrder={inputWrapperOrder}
                     scope={field.uploadScope!}
                     value={String(form[field.key] || '')}
                     onChange={(value) => setForm({ ...form, [field.key]: value })}
@@ -479,6 +480,7 @@ export function AcademicEntityManager({
                     key={field.key}
                     label={field.label}
                     description={field.description}
+                    inputWrapperOrder={inputWrapperOrder}
                     scope={field.uploadScope!}
                     value={String(form[field.key] || '')}
                     onChange={(value) => setForm({ ...form, [field.key]: value })}

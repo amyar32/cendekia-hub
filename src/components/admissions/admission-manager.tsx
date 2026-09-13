@@ -1,18 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   ActionIcon,
   Avatar,
   Badge,
   Box,
   Button,
-  Divider,
   Group,
   Modal,
   NumberInput,
   Paper,
-  ScrollArea,
   Select,
   SimpleGrid,
   Stack,
@@ -27,6 +26,7 @@ import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconCalendarPlus,
   IconCheck,
   IconEye,
@@ -34,6 +34,7 @@ import {
   IconPencil,
   IconUserPlus,
 } from '@tabler/icons-react';
+import { useRouter } from 'next/navigation';
 import 'dayjs/locale/id';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
@@ -140,6 +141,7 @@ type Application = {
   created_at: string;
   updated_at: string;
   converted_student_id?: string;
+  conversion_class_options?: Option[];
   guardians: Guardian[];
   documents: Document[];
   history: History[];
@@ -196,6 +198,74 @@ const nextStatuses: Partial<Record<Status, Status[]>> = {
   accepted: ['reregistered'],
   waitlisted: ['accepted', 'rejected'],
 };
+const preferredNextStatus: Partial<Record<Status, Status>> = {
+  draft: 'submitted',
+  submitted: 'verified',
+  needs_revision: 'submitted',
+  verified: 'selection',
+  selection: 'accepted',
+  accepted: 'reregistered',
+  waitlisted: 'accepted',
+};
+const processStages = [
+  'Pendaftaran',
+  'Verifikasi',
+  'Seleksi',
+  'Keputusan',
+  'Daftar ulang',
+  'Murid',
+];
+
+function processStage(status: Status) {
+  if (status === 'converted') return 5;
+  if (status === 'reregistered') return 4;
+  if (['accepted', 'waitlisted', 'rejected'].includes(status)) return 3;
+  if (status === 'selection') return 2;
+  if (status === 'verified') return 1;
+  return 0;
+}
+
+function ProcessProgress({ status }: { status: Status }) {
+  const current = processStage(status);
+  const stopped = status === 'rejected';
+  return (
+    <Paper withBorder radius="lg" p={{ base: 'md', sm: 'lg' }}>
+      <Group justify="space-between" mb="md">
+        <Box>
+          <Text fw={700}>Proses penerimaan</Text>
+          <Text size="xs" c="dimmed">
+            Posisi calon murid dalam alur penerimaan.
+          </Text>
+        </Box>
+        <Badge color={statusColors[status]} variant="light">
+          {statusLabels[status]}
+        </Badge>
+      </Group>
+      <Box className={styles.processTrack}>
+        {processStages.map((label, index) => {
+          const complete = index < current || (index === current && status === 'converted');
+          const active = index === current && !complete;
+          return (
+            <Box
+              key={label}
+              className={styles.processStep}
+              data-complete={complete || undefined}
+              data-active={active || undefined}
+              data-stopped={(stopped && active) || undefined}
+            >
+              <Box className={styles.processDot}>
+                {complete ? <IconCheck size={14} /> : index + 1}
+              </Box>
+              <Text size="xs" fw={active || complete ? 700 : 500}>
+                {label}
+              </Text>
+            </Box>
+          );
+        })}
+      </Box>
+    </Paper>
+  );
+}
 const blankPeriod = () => ({
   academic_year_id: '',
   name: '',
@@ -251,7 +321,14 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
   );
 }
 
-export function AdmissionManager({ writable }: { writable: boolean }) {
+export function AdmissionManager({
+  writable,
+  applicationId,
+}: {
+  writable: boolean;
+  applicationId?: string;
+}) {
+  const router = useRouter();
   const [view, setView] = useState<'applications' | 'periods'>('applications');
   const [periodId, setPeriodId] = useState('');
   const [status, setStatus] = useState('');
@@ -267,12 +344,15 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
   const [testScore, setTestScore] = useState<number | string>('');
   const [interviewScore, setInterviewScore] = useState<number | string>('');
   const [ranking, setRanking] = useState<number | string>('');
-  const [nis, setNis] = useState('');
   const [classId, setClassId] = useState('');
   const [enrollmentDate, setEnrollmentDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [pendingAction, setPendingAction] = useState('');
   const [confirmation, setConfirmation] = useState<ActionConfirmation | null>(null);
+  const [detailTab, setDetailTab] = useState<string | null>('overview');
+  const [targetStatus, setTargetStatus] = useState<Status | null>(null);
+  const [detailLoading, setDetailLoading] = useState(Boolean(applicationId));
+  const [detailError, setDetailError] = useState('');
   const options = list.options || {};
 
   function runConfirmedAction() {
@@ -282,22 +362,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
   }
 
   function openApplication(row: Application) {
-    setSelected(row);
-    setNotes(row.decision_notes || row.verification_notes || '');
-    setTestScore(row.assessment_test ?? '');
-    setInterviewScore(row.assessment_interview ?? '');
-    setRanking(row.ranking ?? '');
-    setNis('');
-    setClassId('');
-    setEnrollmentDate('');
-    void refreshApplication(row.id).catch((error) => {
-      notifications.show({
-        color: 'yellow',
-        title: 'Detail belum diperbarui',
-        message:
-          error instanceof Error ? error.message : 'Muat ulang halaman untuk melihat data terbaru.',
-      });
-    });
+    router.push(`/admissions/${row.id}`);
   }
   function openPeriod(period?: Period) {
     setEditingPeriod(period || null);
@@ -315,17 +380,48 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
         : blankPeriod(),
     );
   }
-  async function refreshApplication(id: string) {
+  async function fetchApplication(id: string) {
     const response = await fetch(`/api/modules/admissions?id=${encodeURIComponent(id)}`);
     const result = (await response.json()) as { application?: Application; error?: string };
     if (!response.ok || !result.application)
       throw new Error(result.error || 'Detail calon murid gagal dimuat ulang.');
-    setSelected(result.application);
-    setNotes(result.application.decision_notes || result.application.verification_notes || '');
-    setTestScore(result.application.assessment_test ?? '');
-    setInterviewScore(result.application.assessment_interview ?? '');
-    setRanking(result.application.ranking ?? '');
+    return result.application;
   }
+
+  function applyApplication(application: Application) {
+    setSelected(application);
+    setNotes(application.decision_notes || application.verification_notes || '');
+    setTestScore(application.assessment_test ?? '');
+    setInterviewScore(application.assessment_interview ?? '');
+    setRanking(application.ranking ?? '');
+    setTargetStatus(preferredNextStatus[application.status] || null);
+  }
+
+  async function refreshApplication(id: string) {
+    applyApplication(await fetchApplication(id));
+  }
+
+  useEffect(() => {
+    if (!applicationId) return;
+    let active = true;
+    fetchApplication(applicationId)
+      .then((application) => {
+        if (active) applyApplication(application);
+      })
+      .catch((error) => {
+        if (active) {
+          setDetailError(
+            error instanceof Error ? error.message : 'Detail calon murid gagal dimuat.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [applicationId]);
 
   async function mutate(
     method: string,
@@ -343,7 +439,7 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
       await moduleMutation('/api/modules/admissions', method, body);
       list.reload();
       if (behavior.closePeriod) setEditingPeriod(undefined);
-      if (behavior.closeApplication) setSelected(null);
+      if (behavior.closeApplication) router.push('/admissions');
       notifications.show({ color: 'green', title: 'Berhasil', message: success });
       if (!behavior.closeApplication && selected) {
         try {
@@ -386,210 +482,212 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
 
   return (
     <>
-      <ModuleListLayout
-        eyebrow="PENERIMAAN"
-        title="Penerimaan Murid Baru"
-        description="Kelola pendaftaran dari formulir masuk hingga calon murid resmi ditempatkan ke rombel."
-        total={view === 'applications' ? list.total : periods.length}
-        page={view === 'applications' ? list.page : 1}
-        onPageChange={list.setPage}
-        query={list.query}
-        onQueryChange={list.setQuery}
-        search={list.search}
-        loading={list.loading}
-        error={list.error}
-        onReload={list.reload}
-        note="Setiap perubahan status dicatat. Data pendaftaran tetap terpisah dari data murid sampai proses konversi selesai."
-        navigation={
-          <Tabs
-            value={view}
-            onChange={(value) => value && setView(value as typeof view)}
-            className={styles.tabs}
-          >
-            <Tabs.List>
-              <Tabs.Tab value="periods" leftSection={<IconCalendarPlus size={17} />}>
-                Periode
-              </Tabs.Tab>
-              <Tabs.Tab value="applications" leftSection={<IconUserPlus size={17} />}>
-                Calon Murid
-              </Tabs.Tab>
-            </Tabs.List>
-          </Tabs>
-        }
-        toolbarLeading={
-          view === 'applications' ? (
-            <Group gap="xs" wrap="wrap">
-              <Select
-                placeholder="Semua periode"
-                clearable
-                searchable
-                size="sm"
-                w={200}
-                value={periodId || null}
-                data={(options.period_id || []) as Option[]}
-                onChange={(value) => {
-                  setPeriodId(value || '');
-                  list.setPage(1);
-                }}
-              />
-              <Select
-                placeholder="Semua status"
-                clearable
-                size="sm"
-                w={200}
-                value={status || null}
-                data={statusOptions}
-                onChange={(value) => {
-                  setStatus(value || '');
-                  list.setPage(1);
-                }}
-              />
-            </Group>
-          ) : undefined
-        }
-        addLabel={view === 'periods' ? 'Tambah periode' : 'Formulir publik'}
-        onAdd={
-          view === 'periods'
-            ? writable
-              ? () => openPeriod()
-              : undefined
-            : () => window.open('/admissions/apply', '_blank', 'noopener,noreferrer')
-        }
-      >
-        {view === 'applications' ? (
-          <Table.ScrollContainer minWidth={900}>
-            <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>NO. DAFTAR</Table.Th>
-                  <Table.Th>NAMA</Table.Th>
-                  <Table.Th>PERIODE</Table.Th>
-                  <Table.Th>TINGKAT/JALUR</Table.Th>
-                  <Table.Th>STATUS</Table.Th>
-                  <Table.Th>NILAI</Table.Th>
-                  <Table.Th ta="right">AKSI</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {list.rows.map((row) => (
-                  <Table.Tr key={row.id}>
-                    <Table.Td>
-                      <Badge variant="light">{row.registration_number}</Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" fw={600}>
-                        {row.name}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {row.nisn || row.nik || 'Identitas belum lengkap'}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{row.period_name}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{row.target_grade_name}</Text>
-                      <Text size="xs" c="dimmed">
-                        {row.admission_path}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={statusColors[row.status]} variant="light">
-                        {statusLabels[row.status]}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">
-                        {row.assessment_final == null
-                          ? '—'
-                          : Number(row.assessment_final).toFixed(1)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={6} justify="flex-end">
-                        <ActionIcon
-                          variant="subtle"
-                          aria-label={`Lihat ${row.name}`}
-                          onClick={() => openApplication(row)}
-                        >
-                          <IconEye size={17} />
-                        </ActionIcon>
-                      </Group>
-                    </Table.Td>
+      <Box display={applicationId ? 'none' : undefined}>
+        <ModuleListLayout
+          eyebrow="PENERIMAAN"
+          title="Penerimaan Murid Baru"
+          description="Kelola pendaftaran dari formulir masuk hingga calon murid resmi ditempatkan ke rombel."
+          total={view === 'applications' ? list.total : periods.length}
+          page={view === 'applications' ? list.page : 1}
+          onPageChange={list.setPage}
+          query={list.query}
+          onQueryChange={list.setQuery}
+          search={list.search}
+          loading={list.loading}
+          error={list.error}
+          onReload={list.reload}
+          note="Setiap perubahan status dicatat. Data pendaftaran tetap terpisah dari data murid sampai proses konversi selesai."
+          navigation={
+            <Tabs
+              value={view}
+              onChange={(value) => value && setView(value as typeof view)}
+              className={styles.tabs}
+            >
+              <Tabs.List>
+                <Tabs.Tab value="periods" leftSection={<IconCalendarPlus size={17} />}>
+                  Periode
+                </Tabs.Tab>
+                <Tabs.Tab value="applications" leftSection={<IconUserPlus size={17} />}>
+                  Calon Murid
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
+          }
+          toolbarLeading={
+            view === 'applications' ? (
+              <Group gap="xs" wrap="wrap">
+                <Select
+                  placeholder="Semua periode"
+                  clearable
+                  searchable
+                  size="sm"
+                  w={200}
+                  value={periodId || null}
+                  data={(options.period_id || []) as Option[]}
+                  onChange={(value) => {
+                    setPeriodId(value || '');
+                    list.setPage(1);
+                  }}
+                />
+                <Select
+                  placeholder="Semua status"
+                  clearable
+                  size="sm"
+                  w={200}
+                  value={status || null}
+                  data={statusOptions}
+                  onChange={(value) => {
+                    setStatus(value || '');
+                    list.setPage(1);
+                  }}
+                />
+              </Group>
+            ) : undefined
+          }
+          addLabel={view === 'periods' ? 'Tambah periode' : 'Formulir publik'}
+          onAdd={
+            view === 'periods'
+              ? writable
+                ? () => openPeriod()
+                : undefined
+              : () => window.open('/admissions/apply', '_blank', 'noopener,noreferrer')
+          }
+        >
+          {view === 'applications' ? (
+            <Table.ScrollContainer minWidth={900}>
+              <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>NO. DAFTAR</Table.Th>
+                    <Table.Th>NAMA</Table.Th>
+                    <Table.Th>PERIODE</Table.Th>
+                    <Table.Th>TINGKAT/JALUR</Table.Th>
+                    <Table.Th>STATUS</Table.Th>
+                    <Table.Th>NILAI</Table.Th>
+                    <Table.Th ta="right">AKSI</Table.Th>
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        ) : (
-          <Table.ScrollContainer minWidth={820}>
-            <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>PERIODE</Table.Th>
-                  <Table.Th>TAHUN AJARAN</Table.Th>
-                  <Table.Th>JADWAL</Table.Th>
-                  <Table.Th>KUOTA</Table.Th>
-                  <Table.Th>PENDAFTAR</Table.Th>
-                  <Table.Th>STATUS</Table.Th>
-                  <Table.Th ta="right">AKSI</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {periods.map((period) => (
-                  <Table.Tr key={period.id}>
-                    <Table.Td>
-                      <Text size="sm" fw={600}>
-                        {period.name}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {period.registration_prefix}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>{period.academic_year_name}</Table.Td>
-                    <Table.Td>
-                      {period.start_date} – {period.end_date}
-                    </Table.Td>
-                    <Table.Td>{period.quota || 'Tak terbatas'}</Table.Td>
-                    <Table.Td>
-                      {period.application_count} ({period.accepted_count} diterima)
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge
-                        color={
-                          period.status === 'open'
-                            ? 'green'
+                </Table.Thead>
+                <Table.Tbody>
+                  {list.rows.map((row) => (
+                    <Table.Tr key={row.id}>
+                      <Table.Td>
+                        <Badge variant="light">{row.registration_number}</Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" fw={600}>
+                          {row.name}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {row.nisn || row.nik || 'Identitas belum lengkap'}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm">{row.period_name}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm">{row.target_grade_name}</Text>
+                        <Text size="xs" c="dimmed">
+                          {row.admission_path}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge color={statusColors[row.status]} variant="light">
+                          {statusLabels[row.status]}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm">
+                          {row.assessment_final == null
+                            ? '—'
+                            : Number(row.assessment_final).toFixed(1)}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={6} justify="flex-end">
+                          <ActionIcon
+                            variant="subtle"
+                            aria-label={`Lihat ${row.name}`}
+                            onClick={() => openApplication(row)}
+                          >
+                            <IconEye size={17} />
+                          </ActionIcon>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          ) : (
+            <Table.ScrollContainer minWidth={820}>
+              <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>PERIODE</Table.Th>
+                    <Table.Th>TAHUN AJARAN</Table.Th>
+                    <Table.Th>JADWAL</Table.Th>
+                    <Table.Th>KUOTA</Table.Th>
+                    <Table.Th>PENDAFTAR</Table.Th>
+                    <Table.Th>STATUS</Table.Th>
+                    <Table.Th ta="right">AKSI</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {periods.map((period) => (
+                    <Table.Tr key={period.id}>
+                      <Table.Td>
+                        <Text size="sm" fw={600}>
+                          {period.name}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {period.registration_prefix}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>{period.academic_year_name}</Table.Td>
+                      <Table.Td>
+                        {period.start_date} – {period.end_date}
+                      </Table.Td>
+                      <Table.Td>{period.quota || 'Tak terbatas'}</Table.Td>
+                      <Table.Td>
+                        {period.application_count} ({period.accepted_count} diterima)
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge
+                          color={
+                            period.status === 'open'
+                              ? 'green'
+                              : period.status === 'draft'
+                                ? 'gray'
+                                : 'red'
+                          }
+                        >
+                          {period.status === 'open'
+                            ? 'Dibuka'
                             : period.status === 'draft'
-                              ? 'gray'
-                              : 'red'
-                        }
-                      >
-                        {period.status === 'open'
-                          ? 'Dibuka'
-                          : period.status === 'draft'
-                            ? 'Draft'
-                            : 'Ditutup'}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={6} justify="flex-end">
-                        <ActionIcon
-                          variant="subtle"
-                          disabled={!writable}
-                          aria-label={`Edit periode ${period.name}`}
-                          onClick={() => openPeriod(period)}
-                        >
-                          <IconPencil size={17} />
-                        </ActionIcon>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </ModuleListLayout>
+                              ? 'Draft'
+                              : 'Ditutup'}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={6} justify="flex-end">
+                          <ActionIcon
+                            variant="subtle"
+                            disabled={!writable}
+                            aria-label={`Edit periode ${period.name}`}
+                            onClick={() => openPeriod(period)}
+                          >
+                            <IconPencil size={17} />
+                          </ActionIcon>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          )}
+        </ModuleListLayout>
+      </Box>
 
       <Modal
         opened={editingPeriod !== undefined}
@@ -690,454 +788,565 @@ export function AdmissionManager({ writable }: { writable: boolean }) {
         </form>
       </Modal>
 
-      <Modal
-        opened={Boolean(selected)}
-        onClose={() => !saving && setSelected(null)}
-        title={
-          selected ? (
-            <Box>
-              <Text fw={700}>Detail calon murid</Text>
-              <Text size="xs" c="dimmed">
-                {selected.registration_number}
-              </Text>
-            </Box>
-          ) : null
-        }
-        size="xl"
-        centered
-        scrollAreaComponent={ScrollArea.Autosize}
-        overlayProps={{ backgroundOpacity: 0.45, blur: 2 }}
-      >
-        {selected && (
-          <Stack gap="lg">
-            <Paper withBorder radius="md" p={{ base: 'md', sm: 'lg' }}>
-              <Group wrap="nowrap" align="flex-start">
-                <Avatar
-                  src={selected.photo_url || null}
-                  name={selected.name}
-                  size={72}
-                  radius="md"
-                />
-                <Box style={{ flex: 1, minWidth: 0 }}>
-                  <Group justify="space-between" align="flex-start" gap="xs">
-                    <Box>
-                      <Text fw={700} size="lg">
-                        {selected.name}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {selected.target_grade_name} · {selected.admission_path}
-                      </Text>
-                    </Box>
-                    <Badge color={statusColors[selected.status]} variant="light">
-                      {statusLabels[selected.status]}
-                    </Badge>
-                  </Group>
-                  <Text size="sm" mt="sm">
-                    {selected.period_name}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    Dikirim {displayDate(selected.submitted_at || selected.created_at)}
-                  </Text>
-                </Box>
-              </Group>
-            </Paper>
-
-            <DetailSection title="Informasi pendaftaran">
-              <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
-                <DetailItem label="Nomor pendaftaran" value={selected.registration_number} />
-                <DetailItem label="Periode" value={selected.period_name} />
-                <DetailItem label="Tingkat tujuan" value={selected.target_grade_name} />
-                <DetailItem label="Jalur pendaftaran" value={selected.admission_path} />
-                <DetailItem label="Status" value={statusLabels[selected.status]} />
-                <DetailItem label="Terakhir diperbarui" value={displayDate(selected.updated_at)} />
-              </SimpleGrid>
-            </DetailSection>
-
-            <DetailSection title="Identitas calon murid">
-              <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
-                <DetailItem label="Nama lengkap" value={selected.name} />
-                <DetailItem label="NISN" value={selected.nisn} />
-                <DetailItem label="NIK" value={selected.nik} />
-                <DetailItem label="Jenis kelamin" value={selected.gender_label} />
-                <DetailItem label="Tempat lahir" value={selected.birth_place} />
-                <DetailItem label="Tanggal lahir" value={displayDate(selected.birth_date)} />
-                <DetailItem label="Nomor KK" value={selected.family_card_number} />
-                <DetailItem label="Nomor akta lahir" value={selected.birth_certificate_number} />
-                <DetailItem label="Agama" value={selected.religion} />
-                <DetailItem label="Kewarganegaraan" value={selected.citizenship} />
-                <DetailItem label="Anak ke" value={selected.child_order || '—'} />
-                <DetailItem label="Jumlah saudara" value={selected.sibling_count || '—'} />
-                <DetailItem
-                  label="Kebutuhan khusus"
-                  value={selected.has_special_needs ? selected.special_needs_type || 'Ya' : 'Tidak'}
-                />
-                <DetailItem label="No. HP" value={selected.phone} />
-                <DetailItem label="Email" value={selected.email} />
-              </SimpleGrid>
-            </DetailSection>
-
-            <DetailSection title="Alamat calon murid">
-              <Stack gap="md">
-                <DetailItem label="Alamat lengkap" value={selected.address} />
-                <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
-                  <DetailItem
-                    label="Provinsi"
-                    value={
-                      selected.province_name
-                        ? `${selected.province_name} (${selected.province_code})`
-                        : ''
-                    }
+      {applicationId && detailLoading ? (
+        <Paper withBorder className={styles.detailState}>
+          <Text fw={700}>Memuat detail calon murid…</Text>
+        </Paper>
+      ) : null}
+      {applicationId && detailError ? (
+        <Paper withBorder className={styles.detailState}>
+          <Text fw={700} c="red">
+            Detail calon murid tidak dapat dibuka
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            {detailError}
+          </Text>
+          <Button component={Link} href="/admissions" variant="default" mt="lg">
+            Kembali ke daftar
+          </Button>
+        </Paper>
+      ) : null}
+      {applicationId && selected ? (
+        <Box className={styles.detailPage}>
+          {selected && (
+            <Stack gap="lg">
+              <Button
+                component={Link}
+                href="/admissions"
+                variant="subtle"
+                color="gray"
+                className={styles.backButton}
+                leftSection={<IconArrowLeft size={17} />}
+              >
+                Kembali ke daftar calon murid
+              </Button>
+              <Paper withBorder radius="lg" p={{ base: 'md', sm: 'xl' }}>
+                <Group wrap="nowrap" align="flex-start">
+                  <Avatar
+                    src={selected.photo_url || null}
+                    name={selected.name}
+                    size={72}
+                    radius="md"
                   />
-                  <DetailItem
-                    label="Kabupaten/Kota"
-                    value={
-                      selected.regency_name
-                        ? `${selected.regency_name} (${selected.regency_code})`
-                        : ''
-                    }
-                  />
-                  <DetailItem
-                    label="Kecamatan"
-                    value={
-                      selected.district_name
-                        ? `${selected.district_name} (${selected.district_code})`
-                        : ''
-                    }
-                  />
-                  <DetailItem
-                    label="Kelurahan/Desa"
-                    value={
-                      selected.village_name
-                        ? `${selected.village_name} (${selected.village_code})`
-                        : ''
-                    }
-                  />
-                  <DetailItem
-                    label="RT / RW"
-                    value={[selected.rt, selected.rw].filter(Boolean).join(' / ')}
-                  />
-                  <DetailItem label="Kode pos" value={selected.postal_code} />
-                  <DetailItem
-                    label="Domisili sesuai KK"
-                    value={selected.domicile_matches_family_card ? 'Ya' : 'Tidak'}
-                  />
-                  <DetailItem label="Latitude" value={selected.latitude} />
-                  <DetailItem label="Longitude" value={selected.longitude} />
-                  <DetailItem
-                    label="Jarak ke sekolah"
-                    value={
-                      selected.home_distance_km == null ? '—' : `${selected.home_distance_km} km`
-                    }
-                  />
-                </SimpleGrid>
-              </Stack>
-            </DetailSection>
-
-            <DetailSection title="Orang tua / wali">
-              <Stack gap="sm">
-                {selected.guardians.map((guardian, index) => (
-                  <Paper key={`${guardian.name}-${index}`} withBorder radius="md" p="md">
-                    <Group justify="space-between" mb="md">
-                      <Text fw={700}>{guardian.name}</Text>
-                      {guardian.is_primary ? <Badge variant="light">Wali utama</Badge> : null}
+                  <Box style={{ flex: 1, minWidth: 0 }}>
+                    <Group justify="space-between" align="flex-start" gap="xs">
+                      <Box>
+                        <Text fw={700} size="lg">
+                          {selected.name}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {selected.target_grade_name} · {selected.admission_path}
+                        </Text>
+                      </Box>
+                      <Badge color={statusColors[selected.status]} variant="light">
+                        {statusLabels[selected.status]}
+                      </Badge>
                     </Group>
-                    <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
-                      <DetailItem label="Hubungan" value={guardian.relation} />
-                      <DetailItem label="NIK" value={guardian.nik} />
-                      <DetailItem label="Tempat lahir" value={guardian.birth_place} />
-                      <DetailItem label="Tanggal lahir" value={displayDate(guardian.birth_date)} />
-                      <DetailItem label="Pendidikan terakhir" value={guardian.last_education} />
-                      <DetailItem label="Pekerjaan" value={guardian.occupation} />
-                      <DetailItem
-                        label="Penghasilan per bulan"
-                        value={
-                          guardian.monthly_income
-                            ? currencyFormatter.format(guardian.monthly_income)
-                            : '—'
-                        }
-                      />
-                      <DetailItem label="No. HP" value={guardian.phone} />
-                      <DetailItem label="Email" value={guardian.email} />
-                      <DetailItem
-                        label="Alamat"
-                        value={
-                          guardian.address_matches_student
-                            ? `Sama dengan alamat calon murid${guardian.address ? ` — ${guardian.address}` : ''}`
-                            : guardian.address
-                        }
-                      />
-                    </SimpleGrid>
-                  </Paper>
-                ))}
-              </Stack>
-            </DetailSection>
+                    <Text size="sm" mt="sm">
+                      {selected.period_name}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Dikirim {displayDate(selected.submitted_at || selected.created_at)}
+                    </Text>
+                  </Box>
+                </Group>
+              </Paper>
 
-            <DetailSection title="Sekolah asal">
-              <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
-                <DetailItem label="Nama sekolah" value={selected.previous_school_name} />
-                <DetailItem label="NPSN" value={selected.previous_school_npsn} />
-                <DetailItem label="Kelas terakhir" value={selected.previous_school_last_grade} />
-                <DetailItem label="Tahun lulus" value={selected.previous_school_graduation_year} />
-                <DetailItem label="Alamat sekolah" value={selected.previous_school_address} />
-              </SimpleGrid>
-            </DetailSection>
+              <ProcessProgress status={selected.status} />
 
-            <DetailSection title={`Dokumen (${selected.documents.length})`}>
-              <Stack gap="sm">
-                {selected.documents.length ? (
-                  <Text size="xs" c="dimmed">
-                    Gunakan tombol “Lihat dokumen” untuk membuka berkas di tab baru.
-                  </Text>
-                ) : null}
-                {selected.documents.length ? (
-                  selected.documents.map((document) => (
-                    <Paper key={document.id} withBorder radius="md" p="sm">
-                      <Group justify="space-between" align="center" wrap="wrap">
-                        <Box style={{ minWidth: 180, flex: 1 }}>
-                          <Text fw={600} size="sm">
-                            {document.type}
-                          </Text>
-                          <Text size="xs" c="dimmed" truncate>
-                            {document.verification_notes || document.description || 'Tanpa catatan'}
-                          </Text>
-                        </Box>
-                        <Group gap="xs">
-                          <Button
-                            component="a"
-                            href={document.file_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            size="xs"
-                            variant="subtle"
-                            leftSection={<IconExternalLink size={14} />}
-                          >
-                            Lihat dokumen
-                          </Button>
-                          {writable && (
-                            <Button
-                              size="xs"
-                              variant={document.verified ? 'light' : 'outline'}
-                              color={document.verified ? 'green' : 'gray'}
-                              disabled={saving}
-                              leftSection={document.verified ? <IconCheck size={14} /> : undefined}
-                              onClick={() =>
-                                setConfirmation({
-                                  title: document.verified
-                                    ? 'Batalkan verifikasi dokumen?'
-                                    : 'Verifikasi dokumen?',
-                                  message: `${document.type} akan ditandai ${document.verified ? 'belum terverifikasi' : 'sudah terverifikasi'}.`,
-                                  confirmLabel: document.verified
-                                    ? 'Batalkan verifikasi'
-                                    : 'Ya, verifikasi',
-                                  color: document.verified ? 'orange' : 'green',
-                                  action: () =>
-                                    void mutate(
-                                      'PATCH',
-                                      {
-                                        entity: 'document',
-                                        id: document.id,
-                                        verified: !document.verified,
-                                        notes: document.verification_notes || '',
-                                      },
-                                      'Verifikasi dokumen diperbarui.',
-                                      { actionKey: `document:${document.id}` },
-                                    ),
-                                })
-                              }
-                              loading={pendingAction === `document:${document.id}`}
-                            >
-                              {document.verified ? 'Terverifikasi' : 'Verifikasi'}
-                            </Button>
-                          )}
-                        </Group>
-                      </Group>
-                    </Paper>
-                  ))
-                ) : (
-                  <Text c="dimmed" size="sm">
-                    Belum ada dokumen.
-                  </Text>
-                )}
-              </Stack>
-            </DetailSection>
-            {writable &&
-              ['verified', 'selection', 'accepted', 'waitlisted'].includes(selected.status) && (
-                <>
-                  <Divider label="Penilaian seleksi" />
-                  <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                    <NumberInput
-                      label="Nilai tes"
-                      placeholder="0–100"
-                      min={0}
-                      max={100}
-                      value={testScore}
-                      onChange={setTestScore}
-                    />
-                    <NumberInput
-                      label="Nilai wawancara"
-                      placeholder="0–100"
-                      min={0}
-                      max={100}
-                      value={interviewScore}
-                      onChange={setInterviewScore}
-                    />
-                    <NumberInput
-                      label="Peringkat"
-                      placeholder="Contoh: 1"
-                      min={1}
-                      value={ranking}
-                      onChange={setRanking}
+              <Tabs value={detailTab} onChange={setDetailTab} className={styles.detailTabs}>
+                <Tabs.List>
+                  <Tabs.Tab value="overview">Ringkasan</Tabs.Tab>
+                  <Tabs.Tab value="student">Data diri</Tabs.Tab>
+                  <Tabs.Tab value="guardians">Wali</Tabs.Tab>
+                  <Tabs.Tab value="documents">Dokumen ({selected.documents.length})</Tabs.Tab>
+                  <Tabs.Tab value="assessment">Penilaian</Tabs.Tab>
+                  <Tabs.Tab value="history">Riwayat</Tabs.Tab>
+                </Tabs.List>
+              </Tabs>
+
+              {detailTab === 'overview' ? (
+                <DetailSection title="Informasi pendaftaran">
+                  <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
+                    <DetailItem label="Nomor pendaftaran" value={selected.registration_number} />
+                    <DetailItem label="Periode" value={selected.period_name} />
+                    <DetailItem label="Tingkat tujuan" value={selected.target_grade_name} />
+                    <DetailItem label="Jalur pendaftaran" value={selected.admission_path} />
+                    <DetailItem label="Status" value={statusLabels[selected.status]} />
+                    <DetailItem
+                      label="Terakhir diperbarui"
+                      value={displayDate(selected.updated_at)}
                     />
                   </SimpleGrid>
+                </DetailSection>
+              ) : null}
+
+              {detailTab === 'student' ? (
+                <Stack gap="lg">
+                  <DetailSection title="Identitas calon murid">
+                    <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
+                      <DetailItem label="Nama lengkap" value={selected.name} />
+                      <DetailItem label="NISN" value={selected.nisn} />
+                      <DetailItem label="NIK" value={selected.nik} />
+                      <DetailItem label="Jenis kelamin" value={selected.gender_label} />
+                      <DetailItem label="Tempat lahir" value={selected.birth_place} />
+                      <DetailItem label="Tanggal lahir" value={displayDate(selected.birth_date)} />
+                      <DetailItem label="Nomor KK" value={selected.family_card_number} />
+                      <DetailItem
+                        label="Nomor akta lahir"
+                        value={selected.birth_certificate_number}
+                      />
+                      <DetailItem label="Agama" value={selected.religion} />
+                      <DetailItem label="Kewarganegaraan" value={selected.citizenship} />
+                      <DetailItem label="Anak ke" value={selected.child_order || '—'} />
+                      <DetailItem label="Jumlah saudara" value={selected.sibling_count || '—'} />
+                      <DetailItem
+                        label="Kebutuhan khusus"
+                        value={
+                          selected.has_special_needs ? selected.special_needs_type || 'Ya' : 'Tidak'
+                        }
+                      />
+                      <DetailItem label="No. HP" value={selected.phone} />
+                      <DetailItem label="Email" value={selected.email} />
+                    </SimpleGrid>
+                  </DetailSection>
+
+                  <DetailSection title="Alamat calon murid">
+                    <Stack gap="md">
+                      <DetailItem label="Alamat lengkap" value={selected.address} />
+                      <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
+                        <DetailItem
+                          label="Provinsi"
+                          value={
+                            selected.province_name
+                              ? `${selected.province_name} (${selected.province_code})`
+                              : ''
+                          }
+                        />
+                        <DetailItem
+                          label="Kabupaten/Kota"
+                          value={
+                            selected.regency_name
+                              ? `${selected.regency_name} (${selected.regency_code})`
+                              : ''
+                          }
+                        />
+                        <DetailItem
+                          label="Kecamatan"
+                          value={
+                            selected.district_name
+                              ? `${selected.district_name} (${selected.district_code})`
+                              : ''
+                          }
+                        />
+                        <DetailItem
+                          label="Kelurahan/Desa"
+                          value={
+                            selected.village_name
+                              ? `${selected.village_name} (${selected.village_code})`
+                              : ''
+                          }
+                        />
+                        <DetailItem
+                          label="RT / RW"
+                          value={[selected.rt, selected.rw].filter(Boolean).join(' / ')}
+                        />
+                        <DetailItem label="Kode pos" value={selected.postal_code} />
+                        <DetailItem
+                          label="Domisili sesuai KK"
+                          value={selected.domicile_matches_family_card ? 'Ya' : 'Tidak'}
+                        />
+                        <DetailItem label="Latitude" value={selected.latitude} />
+                        <DetailItem label="Longitude" value={selected.longitude} />
+                        <DetailItem
+                          label="Jarak ke sekolah"
+                          value={
+                            selected.home_distance_km == null
+                              ? '—'
+                              : `${selected.home_distance_km} km`
+                          }
+                        />
+                      </SimpleGrid>
+                    </Stack>
+                  </DetailSection>
+
+                  <DetailSection title="Sekolah asal">
+                    <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
+                      <DetailItem label="Nama sekolah" value={selected.previous_school_name} />
+                      <DetailItem label="NPSN" value={selected.previous_school_npsn} />
+                      <DetailItem
+                        label="Kelas terakhir"
+                        value={selected.previous_school_last_grade}
+                      />
+                      <DetailItem
+                        label="Tahun lulus"
+                        value={selected.previous_school_graduation_year}
+                      />
+                      <DetailItem label="Alamat sekolah" value={selected.previous_school_address} />
+                    </SimpleGrid>
+                  </DetailSection>
+                </Stack>
+              ) : null}
+
+              {detailTab === 'guardians' ? (
+                <DetailSection title="Orang tua / wali">
+                  <Stack gap="sm">
+                    {selected.guardians.map((guardian, index) => (
+                      <Paper key={`${guardian.name}-${index}`} withBorder radius="md" p="md">
+                        <Group justify="space-between" mb="md">
+                          <Text fw={700}>{guardian.name}</Text>
+                          {guardian.is_primary ? <Badge variant="light">Wali utama</Badge> : null}
+                        </Group>
+                        <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="md">
+                          <DetailItem label="Hubungan" value={guardian.relation} />
+                          <DetailItem label="NIK" value={guardian.nik} />
+                          <DetailItem label="Tempat lahir" value={guardian.birth_place} />
+                          <DetailItem
+                            label="Tanggal lahir"
+                            value={displayDate(guardian.birth_date)}
+                          />
+                          <DetailItem label="Pendidikan terakhir" value={guardian.last_education} />
+                          <DetailItem label="Pekerjaan" value={guardian.occupation} />
+                          <DetailItem
+                            label="Penghasilan per bulan"
+                            value={
+                              guardian.monthly_income
+                                ? currencyFormatter.format(guardian.monthly_income)
+                                : '—'
+                            }
+                          />
+                          <DetailItem label="No. HP" value={guardian.phone} />
+                          <DetailItem label="Email" value={guardian.email} />
+                          <DetailItem
+                            label="Alamat"
+                            value={
+                              guardian.address_matches_student
+                                ? `Sama dengan alamat calon murid${guardian.address ? ` — ${guardian.address}` : ''}`
+                                : guardian.address
+                            }
+                          />
+                        </SimpleGrid>
+                      </Paper>
+                    ))}
+                  </Stack>
+                </DetailSection>
+              ) : null}
+
+              {detailTab === 'documents' ? (
+                <DetailSection title={`Dokumen (${selected.documents.length})`}>
+                  <Stack gap="sm">
+                    {selected.documents.length ? (
+                      <Text size="xs" c="dimmed">
+                        Gunakan tombol “Lihat dokumen” untuk membuka berkas di tab baru.
+                      </Text>
+                    ) : null}
+                    {selected.documents.length ? (
+                      selected.documents.map((document) => (
+                        <Paper key={document.id} withBorder radius="md" p="sm">
+                          <Group justify="space-between" align="center" wrap="wrap">
+                            <Box style={{ minWidth: 180, flex: 1 }}>
+                              <Text fw={600} size="sm">
+                                {document.type}
+                              </Text>
+                              <Text size="xs" c="dimmed" truncate>
+                                {document.verification_notes ||
+                                  document.description ||
+                                  'Tanpa catatan'}
+                              </Text>
+                            </Box>
+                            <Group gap="xs">
+                              <Button
+                                component="a"
+                                href={document.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                size="xs"
+                                variant="subtle"
+                                leftSection={<IconExternalLink size={14} />}
+                              >
+                                Lihat dokumen
+                              </Button>
+                              {writable && (
+                                <Button
+                                  size="xs"
+                                  variant={document.verified ? 'light' : 'outline'}
+                                  color={document.verified ? 'green' : 'gray'}
+                                  disabled={saving}
+                                  leftSection={
+                                    document.verified ? <IconCheck size={14} /> : undefined
+                                  }
+                                  onClick={() =>
+                                    setConfirmation({
+                                      title: document.verified
+                                        ? 'Batalkan verifikasi dokumen?'
+                                        : 'Verifikasi dokumen?',
+                                      message: `${document.type} akan ditandai ${document.verified ? 'belum terverifikasi' : 'sudah terverifikasi'}.`,
+                                      confirmLabel: document.verified
+                                        ? 'Batalkan verifikasi'
+                                        : 'Ya, verifikasi',
+                                      color: document.verified ? 'orange' : 'green',
+                                      action: () =>
+                                        void mutate(
+                                          'PATCH',
+                                          {
+                                            entity: 'document',
+                                            id: document.id,
+                                            verified: !document.verified,
+                                            notes: document.verification_notes || '',
+                                          },
+                                          'Verifikasi dokumen diperbarui.',
+                                          { actionKey: `document:${document.id}` },
+                                        ),
+                                    })
+                                  }
+                                  loading={pendingAction === `document:${document.id}`}
+                                >
+                                  {document.verified ? 'Terverifikasi' : 'Verifikasi'}
+                                </Button>
+                              )}
+                            </Group>
+                          </Group>
+                        </Paper>
+                      ))
+                    ) : (
+                      <Text c="dimmed" size="sm">
+                        Belum ada dokumen.
+                      </Text>
+                    )}
+                  </Stack>
+                </DetailSection>
+              ) : null}
+              {detailTab === 'assessment' ? (
+                <DetailSection title="Penilaian seleksi">
+                  {writable &&
+                  ['verified', 'selection', 'accepted', 'waitlisted'].includes(selected.status) ? (
+                    <Stack>
+                      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                        <NumberInput
+                          label="Nilai tes"
+                          placeholder="0–100"
+                          min={0}
+                          max={100}
+                          value={testScore}
+                          onChange={setTestScore}
+                        />
+                        <NumberInput
+                          label="Nilai wawancara"
+                          placeholder="0–100"
+                          min={0}
+                          max={100}
+                          value={interviewScore}
+                          onChange={setInterviewScore}
+                        />
+                        <NumberInput
+                          label="Peringkat"
+                          placeholder="Contoh: 1"
+                          min={1}
+                          value={ranking}
+                          onChange={setRanking}
+                        />
+                      </SimpleGrid>
+                      <Button
+                        variant="light"
+                        disabled={saving}
+                        onClick={() =>
+                          setConfirmation({
+                            title: 'Simpan penilaian seleksi?',
+                            message: `Nilai seleksi ${selected.name} akan diperbarui dengan data yang terisi saat ini.`,
+                            confirmLabel: 'Ya, simpan nilai',
+                            action: () =>
+                              void mutate(
+                                'PATCH',
+                                {
+                                  entity: 'assessment',
+                                  id: selected.id,
+                                  assessment_test: testScore === '' ? null : Number(testScore),
+                                  assessment_interview:
+                                    interviewScore === '' ? null : Number(interviewScore),
+                                  ranking: ranking === '' ? null : Number(ranking),
+                                  notes,
+                                },
+                                'Nilai seleksi disimpan.',
+                                { actionKey: 'assessment' },
+                              ),
+                          })
+                        }
+                        loading={pendingAction === 'assessment'}
+                      >
+                        Simpan penilaian
+                      </Button>
+                    </Stack>
+                  ) : (
+                    <Text c="dimmed" size="sm">
+                      Penilaian tersedia setelah pendaftaran terverifikasi dan masuk tahap seleksi.
+                    </Text>
+                  )}
+                </DetailSection>
+              ) : null}
+              {detailTab === 'history' ? (
+                <DetailSection title="Riwayat proses">
+                  <Stack gap="md">
+                    {selected.history.length ? (
+                      selected.history.map((item) => (
+                        <Box key={item.id} className={styles.historyItem}>
+                          <Text size="sm" fw={600}>
+                            {statusLabels[item.to_status as Status] || item.to_status}
+                          </Text>
+                          <Text size="xs" c="dimmed">
+                            {item.created_at} · {item.actor}
+                            {item.notes ? ` · ${item.notes}` : ''}
+                          </Text>
+                        </Box>
+                      ))
+                    ) : (
+                      <Text c="dimmed" size="sm">
+                        Belum ada riwayat proses.
+                      </Text>
+                    )}
+                  </Stack>
+                </DetailSection>
+              ) : null}
+              {writable && nextStatuses[selected.status]?.length ? (
+                <Paper
+                  withBorder
+                  radius="lg"
+                  p={{ base: 'md', sm: 'lg' }}
+                  className={styles.actionBar}
+                >
+                  <Box>
+                    <Text fw={700}>Langkah berikutnya</Text>
+                    <Text size="xs" c="dimmed">
+                      Pilih hasil proses, tambahkan catatan, lalu lanjutkan.
+                    </Text>
+                  </Box>
+                  <Box className={styles.actionFields}>
+                    {nextStatuses[selected.status]!.length > 1 ? (
+                      <Select
+                        label="Hasil proses"
+                        data={nextStatuses[selected.status]!.map((next) => ({
+                          value: next,
+                          label: statusLabels[next],
+                        }))}
+                        value={targetStatus}
+                        onChange={(value) => setTargetStatus(value as Status | null)}
+                      />
+                    ) : null}
+                    <Textarea
+                      label="Catatan"
+                      placeholder="Tambahkan catatan hasil verifikasi atau keputusan..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.currentTarget.value)}
+                      rows={1}
+                      className={styles.actionNote}
+                    />
+                  </Box>
                   <Button
-                    variant="light"
-                    disabled={saving}
-                    onClick={() =>
+                    color={targetStatus ? statusColors[targetStatus] : 'blue'}
+                    disabled={saving || !targetStatus}
+                    onClick={() => {
+                      const next = targetStatus;
+                      if (!next) return;
                       setConfirmation({
-                        title: 'Simpan penilaian seleksi?',
-                        message: `Nilai seleksi ${selected.name} akan diperbarui dengan data yang terisi saat ini.`,
-                        confirmLabel: 'Ya, simpan nilai',
+                        title: `Ubah status menjadi ${statusLabels[next]}?`,
+                        message: `Status ${selected.name} akan berubah dari ${statusLabels[selected.status]} menjadi ${statusLabels[next]}. Perubahan akan dicatat dalam riwayat.`,
+                        confirmLabel: `Ya, ${statusLabels[next]}`,
+                        color: statusColors[next],
                         action: () =>
                           void mutate(
                             'PATCH',
+                            { entity: 'status', id: selected.id, status: next, notes },
+                            `Status diubah menjadi ${statusLabels[next]}.`,
+                            { actionKey: `status:${next}` },
+                          ),
+                      });
+                    }}
+                    loading={Boolean(targetStatus && pendingAction === `status:${targetStatus}`)}
+                    className={styles.primaryAction}
+                  >
+                    {targetStatus
+                      ? `Lanjutkan ke ${statusLabels[targetStatus]}`
+                      : 'Pilih hasil proses'}
+                  </Button>
+                </Paper>
+              ) : null}
+              {writable && selected.status === 'reregistered' && (
+                <Paper
+                  withBorder
+                  radius="lg"
+                  p={{ base: 'md', sm: 'lg' }}
+                  className={styles.convertPanel}
+                >
+                  <Box>
+                    <Text fw={700}>Jadikan murid aktif</Text>
+                    <Text size="sm" c="dimmed">
+                      Konversi menyalin identitas, wali, dan dokumen, lalu membuat penempatan
+                      rombel. Proses ini tidak dapat diulang.
+                    </Text>
+                  </Box>
+                  <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                    <TextInput
+                      label="NIS otomatis"
+                      value={
+                        enrollmentDate
+                          ? `Awalan ${enrollmentDate.slice(0, 4)} · nomor urut otomatis`
+                          : 'Tentukan tanggal masuk dahulu'
+                      }
+                      readOnly
+                      description="Contoh hasil: 2030-0001. Nomor final dibuat saat konversi."
+                      inputWrapperOrder={['label', 'input', 'description', 'error']}
+                    />
+                    <Select
+                      searchable
+                      required
+                      label="Rombel"
+                      placeholder="Pilih rombel tujuan"
+                      data={selected.conversion_class_options || []}
+                      value={classId || null}
+                      onChange={(value) => setClassId(value || '')}
+                    />
+                    <DateInput
+                      required
+                      label="Tanggal masuk"
+                      placeholder="Pilih tanggal masuk"
+                      value={enrollmentDate}
+                      valueFormat="D MMMM YYYY"
+                      locale="id"
+                      onChange={(value) => setEnrollmentDate(value || '')}
+                    />
+                  </SimpleGrid>
+                  <Button
+                    color="green"
+                    disabled={saving || !classId || !enrollmentDate}
+                    onClick={() =>
+                      setConfirmation({
+                        title: 'Konversi menjadi murid aktif?',
+                        message: `${selected.name} akan dibuat sebagai murid aktif. NIS dibuat otomatis berdasarkan tahun masuk dan nomor urut. Identitas, wali, dokumen, serta penempatan rombel akan disalin.`,
+                        confirmLabel: 'Ya, jadikan murid aktif',
+                        color: 'green',
+                        action: () =>
+                          void mutate(
+                            'POST',
                             {
-                              entity: 'assessment',
+                              entity: 'convert',
                               id: selected.id,
-                              assessment_test: testScore === '' ? null : Number(testScore),
-                              assessment_interview:
-                                interviewScore === '' ? null : Number(interviewScore),
-                              ranking: ranking === '' ? null : Number(ranking),
-                              notes,
+                              class_id: classId,
+                              enrollment_date: enrollmentDate,
                             },
-                            'Nilai seleksi disimpan.',
-                            { actionKey: 'assessment' },
+                            'Calon murid berhasil menjadi murid aktif.',
+                            { actionKey: 'convert', closeApplication: true },
                           ),
                       })
                     }
-                    loading={pendingAction === 'assessment'}
+                    loading={pendingAction === 'convert'}
                   >
-                    Simpan penilaian
+                    Konversi ke murid aktif
                   </Button>
-                </>
+                </Paper>
               )}
-            {writable && nextStatuses[selected.status]?.length ? (
-              <>
-                <Divider label="Proses status" />
-                <Textarea
-                  label="Catatan untuk riwayat / pendaftar"
-                  placeholder="Tambahkan catatan hasil verifikasi atau keputusan..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.currentTarget.value)}
-                />
-                <Group>
-                  {nextStatuses[selected.status]!.map((next) => (
-                    <Button
-                      key={next}
-                      color={statusColors[next]}
-                      variant="light"
-                      disabled={saving}
-                      onClick={() =>
-                        setConfirmation({
-                          title: `Ubah status menjadi ${statusLabels[next]}?`,
-                          message: `Status ${selected.name} akan berubah dari ${statusLabels[selected.status]} menjadi ${statusLabels[next]}. Perubahan akan dicatat dalam riwayat.`,
-                          confirmLabel: `Ya, ${statusLabels[next]}`,
-                          color: statusColors[next],
-                          action: () =>
-                            void mutate(
-                              'PATCH',
-                              { entity: 'status', id: selected.id, status: next, notes },
-                              `Status diubah menjadi ${statusLabels[next]}.`,
-                              { actionKey: `status:${next}` },
-                            ),
-                        })
-                      }
-                      loading={pendingAction === `status:${next}`}
-                    >
-                      {statusLabels[next]}
-                    </Button>
-                  ))}
-                </Group>
-              </>
-            ) : null}
-            {writable && selected.status === 'reregistered' && (
-              <>
-                <Divider label="Jadikan murid aktif" />
-                <Text size="sm" c="dimmed">
-                  Konversi menyalin identitas, wali, dan dokumen, lalu membuat penempatan rombel.
-                  Proses ini tidak dapat diulang.
-                </Text>
-                <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                  <TextInput
-                    required
-                    label="NIS baru"
-                    placeholder="Contoh: S-2030-001"
-                    value={nis}
-                    onChange={(e) => setNis(e.currentTarget.value)}
-                  />
-                  <Select
-                    searchable
-                    required
-                    label="Rombel"
-                    placeholder="Pilih rombel tujuan"
-                    data={(options.class_id || []) as Option[]}
-                    value={classId || null}
-                    onChange={(value) => setClassId(value || '')}
-                  />
-                  <DateInput
-                    required
-                    label="Tanggal masuk"
-                    placeholder="Pilih tanggal masuk"
-                    value={enrollmentDate}
-                    valueFormat="D MMMM YYYY"
-                    locale="id"
-                    onChange={(value) => setEnrollmentDate(value || '')}
-                  />
-                </SimpleGrid>
-                <Button
-                  color="green"
-                  disabled={saving || !nis || !classId || !enrollmentDate}
-                  onClick={() =>
-                    setConfirmation({
-                      title: 'Konversi menjadi murid aktif?',
-                      message: `${selected.name} akan dibuat sebagai murid aktif dengan NIS ${nis}. Identitas, wali, dokumen, dan penempatan rombel akan disalin.`,
-                      confirmLabel: 'Ya, jadikan murid aktif',
-                      color: 'green',
-                      action: () =>
-                        void mutate(
-                          'POST',
-                          {
-                            entity: 'convert',
-                            id: selected.id,
-                            nis,
-                            class_id: classId,
-                            enrollment_date: enrollmentDate,
-                          },
-                          'Calon murid berhasil menjadi murid aktif.',
-                          { actionKey: 'convert', closeApplication: true },
-                        ),
-                    })
-                  }
-                  loading={pendingAction === 'convert'}
-                >
-                  Konversi ke murid aktif
-                </Button>
-              </>
-            )}
-            <Divider label="Riwayat" />
-            {selected.history.map((item) => (
-              <Box key={item.id}>
-                <Text size="sm" fw={600}>
-                  {statusLabels[item.to_status as Status] || item.to_status}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {item.created_at} · {item.actor}
-                  {item.notes ? ` · ${item.notes}` : ''}
-                </Text>
-              </Box>
-            ))}
-          </Stack>
-        )}
-      </Modal>
+            </Stack>
+          )}
+        </Box>
+      ) : null}
 
       <Modal
         opened={Boolean(confirmation)}

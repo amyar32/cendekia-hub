@@ -599,6 +599,7 @@ export function AdmissionPublicForm() {
                   <ImageUploader
                     label="Foto calon murid"
                     description="Opsional. PNG, JPEG, atau WebP dengan ukuran maksimal 5 MB."
+                    inputWrapperOrder={['label', 'input', 'description', 'error']}
                     scope="student.photo"
                     value={photoPreviewUrl}
                     onChange={(url) => {

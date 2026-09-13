@@ -1336,6 +1336,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                           label="Murid/peserta"
                           placeholder="Pilih murid peserta ekstrakurikuler"
                           description={`${assignment.student_ids.length} peserta dipilih${Number(assignment.quota) > 0 ? ` dari kuota ${assignment.quota}` : ''}. Daftar awal disalin dari tahun sebelumnya.`}
+                          inputWrapperOrder={['label', 'input', 'description', 'error']}
                           data={data.students.map((student) => ({
                             value: student.id,
                             label: `${student.name} — ${student.nis} · ${student.source_class_name}`,

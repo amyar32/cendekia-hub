@@ -126,6 +126,7 @@ export function CheckinHub({ writable }: { writable: boolean }) {
               <TimePicker
                 label="Otomatis tidak hadir setelah"
                 description="Opsional. Jika kosong, status tidak hadir tidak akan diberikan otomatis."
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
                 value={absentAfter}
                 onChange={setAbsentAfter}
                 format="24h"

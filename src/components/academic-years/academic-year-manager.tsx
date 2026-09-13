@@ -335,6 +335,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
               <TextInput
                 label="Nama tahun ajaran"
                 description="Gunakan nama yang mudah dikenali."
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
                 placeholder="Contoh: 2026/2027"
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}

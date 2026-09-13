@@ -106,6 +106,14 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
   });
   assert.equal(response.status, 201);
   const grade = await response.json();
+  response = await api('/api/modules/grades', 'POST', {
+    name: 'Kelas 2',
+    level_order: 2,
+    description: '',
+    is_active: true,
+  });
+  assert.equal(response.status, 201);
+  const otherGrade = await response.json();
   response = await api('/api/modules/classes', 'POST', {
     academic_year_id: year.id,
     grade_id: grade.id,
@@ -114,6 +122,21 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
   });
   assert.equal(response.status, 201);
   const classroom = await response.json();
+  response = await api('/api/modules/classes', 'POST', {
+    academic_year_id: year.id,
+    grade_id: otherGrade.id,
+    name: '2-A',
+    is_active: true,
+  });
+  assert.equal(response.status, 201);
+  response = await api('/api/modules/students', 'POST', {
+    nis: '2030-0007',
+    name: 'Murid Existing',
+    gender: 'male',
+    enrollment_date: '2030-01-02',
+    is_active: true,
+  });
+  assert.equal(response.status, 201);
   response = await api('/api/modules/admissions', 'POST', {
     entity: 'period',
     academic_year_id: year.id,
@@ -204,10 +227,15 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
     assert.equal(response.status, 200);
     assert.equal((await response.json()).application.status, status);
   }
+  response = await api(`/api/modules/admissions?id=${application.id}`);
+  assert.equal(response.status, 200);
+  const conversionDetail = await response.json();
+  assert.deepEqual(conversionDetail.application.conversion_class_options, [
+    { value: classroom.id, label: '1-A' },
+  ]);
   response = await api('/api/modules/admissions', 'POST', {
     entity: 'convert',
     id: application.id,
-    nis: 'S-2030-001',
     class_id: classroom.id,
     enrollment_date: '2030-07-01',
   });
@@ -216,9 +244,13 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
   assert.equal(response.status, 200);
   const students = await response.json();
   assert.equal(students.total, 1);
-  assert.equal(students.rows[0].nis, 'S-2030-001');
+  assert.equal(students.rows[0].nis, '2030-0008');
   assert.equal(students.rows[0].current_class_name, '1-A');
   assert.equal(students.rows[0].family_card_number, '1234567890123456');
   assert.equal(students.rows[0].has_special_needs, 1);
   assert.equal(students.rows[0].special_needs_type, 'Hambatan penglihatan');
+  response = await api('/api/modules/students?q=Murid Existing');
+  assert.equal(response.status, 200);
+  const existingStudents = await response.json();
+  assert.equal(existingStudents.rows[0].nis, '2030-0007');
 });

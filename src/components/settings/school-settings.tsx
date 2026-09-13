@@ -188,6 +188,7 @@ export function SchoolSettings({
               label="NPSN"
               placeholder="8 digit NPSN"
               description="Nomor Pokok Sekolah Nasional, terdiri dari 8 digit."
+              inputWrapperOrder={['label', 'input', 'description', 'error']}
               value={form.npsn}
               onChange={(event) => setField('npsn', event.currentTarget.value)}
               inputMode="numeric"
@@ -199,6 +200,7 @@ export function SchoolSettings({
               label="Zona waktu"
               placeholder="Pilih zona waktu"
               description="Pilih zona waktu operasional sekolah."
+              inputWrapperOrder={['label', 'input', 'description', 'error']}
               data={timezoneOptions}
               value={form.timezone}
               onChange={(value) => value && setField('timezone', value)}
@@ -221,6 +223,7 @@ export function SchoolSettings({
           <ImageUploader
             label="Logo sekolah"
             description="PNG, JPEG, atau WebP. Ukuran maksimal 5 MB."
+            inputWrapperOrder={['label', 'input', 'description', 'error']}
             scope="school.logo"
             value={form.logo_url}
             onChange={(value) => setField('logo_url', value)}
@@ -255,6 +258,7 @@ export function SchoolSettings({
             <ImageUploader
               label="Tanda tangan kepala sekolah"
               description="Disarankan PNG dengan latar transparan. Ukuran maksimal 5 MB."
+              inputWrapperOrder={['label', 'input', 'description', 'error']}
               scope="school.principal-signature"
               value={form.principal_signature_url}
               onChange={(value) => setField('principal_signature_url', value)}

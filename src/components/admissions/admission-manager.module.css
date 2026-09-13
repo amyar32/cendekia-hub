@@ -2,6 +2,192 @@
   margin-bottom: 28px;
 }
 
+.detailPage {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 8px 0 40px;
+}
+
+.detailState {
+  width: min(720px, 100%);
+  margin: 40px auto;
+  padding: 28px;
+}
+
+.backButton {
+  align-self: flex-start;
+  padding-inline: 4px;
+}
+
+.detailTabs {
+  overflow-x: auto;
+  border-bottom: 1px solid var(--app-color-border);
+}
+
+.detailTabs :global(.mantine-Tabs-list) {
+  flex-wrap: nowrap;
+}
+
+.processTrack {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.processStep {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--mantine-color-dimmed);
+  text-align: center;
+}
+
+.processStep:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 14px;
+  left: calc(50% + 17px);
+  width: calc(100% - 34px);
+  height: 2px;
+  background: var(--app-color-border);
+}
+
+.processStep[data-complete] {
+  color: var(--app-color-brand);
+}
+
+.processStep[data-complete]:not(:last-child)::after {
+  background: var(--app-color-brand);
+}
+
+.processStep[data-active] {
+  color: var(--mantine-color-text);
+}
+
+.processStep[data-stopped] {
+  color: var(--mantine-color-red-7);
+}
+
+.processDot {
+  position: relative;
+  z-index: 1;
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--app-color-border);
+  border-radius: 999px;
+  background: var(--mantine-color-body);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.processStep[data-complete] .processDot {
+  color: white;
+  border-color: var(--app-color-brand);
+  background: var(--app-color-brand);
+}
+
+.processStep[data-active] .processDot {
+  color: var(--app-color-brand);
+  border-color: var(--app-color-brand);
+  box-shadow: 0 0 0 4px var(--app-color-brand-soft);
+}
+
+.processStep[data-stopped] .processDot {
+  color: var(--mantine-color-red-7);
+  border-color: var(--mantine-color-red-6);
+  box-shadow: 0 0 0 4px var(--mantine-color-red-light);
+}
+
+.actionBar {
+  position: sticky;
+  z-index: 4;
+  bottom: 16px;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(340px, 1.5fr) auto;
+  align-items: end;
+  gap: 16px;
+  background: color-mix(in srgb, var(--mantine-color-body) 94%, transparent);
+  box-shadow: 0 12px 34px rgb(24 18 15 / 14%);
+  backdrop-filter: blur(12px);
+}
+
+.actionFields {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.65fr) minmax(200px, 1fr);
+  align-items: end;
+  gap: 12px;
+}
+
+.actionFields > :only-child {
+  grid-column: 1 / -1;
+}
+
+.actionNote :global(.mantine-Textarea-input) {
+  height: 36px;
+  min-height: 36px;
+  resize: none;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.primaryAction {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.convertPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.historyItem {
+  padding-left: 14px;
+  border-left: 2px solid var(--app-color-border);
+}
+
+@media (max-width: 900px) {
+  .actionBar {
+    position: static;
+    grid-template-columns: 1fr;
+  }
+
+  .primaryAction {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .detailPage {
+    padding-top: 0;
+  }
+
+  .processTrack {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .processStep {
+    grid-template-columns: 29px 1fr;
+    justify-items: start;
+    align-items: center;
+    text-align: left;
+  }
+
+  .processStep:not(:last-child)::after {
+    top: 31px;
+    left: 14px;
+    width: 2px;
+    height: 14px;
+  }
+
+  .actionFields {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 480px) {
   .tabs {
     overflow-x: auto;

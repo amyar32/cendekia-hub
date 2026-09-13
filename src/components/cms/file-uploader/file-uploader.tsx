@@ -23,6 +23,7 @@ export function FileUploader({
   onChange,
   uploadFile,
   disabled = false,
+  inputWrapperOrder = ['label', 'description', 'input', 'error'],
 }: {
   label: string;
   description?: string;
@@ -31,6 +32,7 @@ export function FileUploader({
   onChange: (url: string) => void;
   uploadFile?: (file: File) => Promise<string>;
   disabled?: boolean;
+  inputWrapperOrder?: Array<'label' | 'input' | 'description' | 'error'>;
 }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,6 +41,8 @@ export function FileUploader({
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState('');
   const inactive = disabled || uploading;
+  const descriptionAfterInput =
+    inputWrapperOrder.indexOf('description') > inputWrapperOrder.indexOf('input');
 
   async function upload(file: File | null) {
     if (!file || inactive) return;
@@ -109,7 +113,7 @@ export function FileUploader({
         <Text component="label" htmlFor={inputId} size="sm" fw={500}>
           {label}
         </Text>
-        {description && (
+        {description && !descriptionAfterInput && (
           <Text size="xs" c="dimmed" mt={2}>
             {description}
           </Text>
@@ -249,6 +253,11 @@ export function FileUploader({
           </Stack>
         )}
       </div>
+      {description && descriptionAfterInput && (
+        <Text size="xs" c="dimmed">
+          {description}
+        </Text>
+      )}
     </Stack>
   );
 }

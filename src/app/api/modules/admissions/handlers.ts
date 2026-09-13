@@ -30,6 +30,22 @@ const status = z.enum([
 ]);
 type ApplicationStatus = z.infer<typeof status>;
 
+function generateStudentNumber(schoolId: string, enrollmentDate: string) {
+  const year = enrollmentDate.slice(0, 4);
+  const pattern = `${year}-[0-9][0-9][0-9][0-9]`;
+  const row = db()
+    .prepare(
+      `SELECT COALESCE(MAX(CAST(substr(nis, 6) AS INTEGER)), 0) AS last_number
+       FROM students
+       WHERE school_id=? AND nis GLOB ?`,
+    )
+    .get(schoolId, pattern) as { last_number: number };
+  const nextNumber = Number(row.last_number) + 1;
+  if (nextNumber > 9999)
+    throw new HttpError(409, `Nomor urut NIS tahun ${year} sudah mencapai batas.`);
+  return `${year}-${String(nextNumber).padStart(4, '0')}`;
+}
+
 const periodSchema = z
   .object({
     academic_year_id: uuid,
@@ -358,8 +374,17 @@ export async function GET(request: Request) {
         )
         .get(id, schoolId) as ApplicationRow | undefined;
       if (!row) throw new HttpError(404, 'Pendaftaran tidak ditemukan.');
+      const conversionClassOptions = db()
+        .prepare(
+          `SELECT c.id AS value, c.name AS label
+           FROM classes c
+           WHERE c.school_id=? AND c.academic_year_id=? AND c.grade_id=? AND c.is_active=1
+           ORDER BY c.name`,
+        )
+        .all(schoolId, row.academic_year_id, row.target_grade_id);
+      const application = applicationRelations([row])[0];
       return Response.json(
-        { application: applicationRelations([row])[0] },
+        { application: { ...application, conversion_class_options: conversionClassOptions } },
         { headers: { 'Cache-Control': 'no-store' } },
       );
     }
@@ -477,12 +502,6 @@ export async function POST(request: Request) {
         const data = z
           .object({
             id: uuid,
-            nis: z
-              .string()
-              .trim()
-              .min(1)
-              .max(30)
-              .transform((v) => v.toUpperCase()),
             class_id: uuid,
             enrollment_date: date,
           })
@@ -498,12 +517,7 @@ export async function POST(request: Request) {
           throw new HttpError(400, 'Rombel harus berada pada tahun ajaran periode penerimaan.');
         if (classroom.grade_id !== application.target_grade_id)
           throw new HttpError(400, 'Tingkat rombel tidak sesuai tingkat tujuan calon murid.');
-        if (
-          db()
-            .prepare('SELECT id FROM students WHERE school_id=? AND nis=?')
-            .get(schoolId, data.nis)
-        )
-          throw new HttpError(409, 'NIS sudah digunakan.');
+        const nis = generateStudentNumber(schoolId, data.enrollment_date);
         if (
           application.nik &&
           db()
@@ -522,7 +536,7 @@ export async function POST(request: Request) {
             schoolId,
             application.photo_url,
             application.nik,
-            data.nis,
+            nis,
             application.nisn,
             application.name,
             application.gender,
@@ -600,14 +614,14 @@ export async function POST(request: Request) {
           application.id,
           application.status,
           'converted',
-          `Dikonversi menjadi murid dengan NIS ${data.nis}.`,
+          `Dikonversi menjadi murid dengan NIS ${nis}.`,
           actor.email,
         );
         audit(actor.email, 'convert', 'student_applications', application.id, {
           student_id: studentId,
-          nis: data.nis,
+          nis,
         });
-        result = { id: application.id, student_id: studentId };
+        result = { id: application.id, student_id: studentId, nis };
       }
     })();
     return Response.json({ ok: true, ...result }, { status: 201 });

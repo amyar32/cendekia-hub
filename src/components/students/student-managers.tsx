@@ -653,6 +653,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
             <ImageUploader
               label="Foto murid"
               description="PNG, JPEG, atau WebP. Ukuran maksimal 5 MB."
+              inputWrapperOrder={['label', 'input', 'description', 'error']}
               scope="student.photo"
               value={form.photo_url}
               disabled={disabled}
@@ -906,6 +907,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
                     ? 'Penempatan historis dikunci. Gunakan Proses Kenaikan Kelas untuk tahun ajaran baru.'
                     : 'Pilihan hanya menampilkan rombel pada tahun ajaran aktif.'
                 }
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
                 searchable
                 clearable
                 data={list.options?.class_id || []}
@@ -927,6 +929,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
                   setForm({ ...form, placement: { ...form.placement, start_date: value || '' } })
                 }
                 description="Pilih tanggal mulai penempatan murid di rombel aktif."
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
               />
             </SimpleGrid>
 
@@ -1127,6 +1130,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
                     <FileUploader
                       label="File dokumen"
                       description="PDF, PNG, JPEG, atau WebP; maksimal 10 MB."
+                      inputWrapperOrder={['label', 'input', 'description', 'error']}
                       scope="student.document"
                       value={document.file_url}
                       disabled={disabled}
