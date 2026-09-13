@@ -534,16 +534,6 @@ export function AdmissionPublicForm() {
               </Paper>
             </SimpleGrid>
 
-            <Group justify="center" gap="xl">
-              <Group gap={7}>
-                <IconCheck size={16} color="var(--app-color-brand)" />
-                <Text variant="caption">Proses singkat</Text>
-              </Group>
-              <Group gap={7}>
-                <IconCheck size={16} color="var(--app-color-brand)" />
-                <Text variant="caption">Status mudah dilacak</Text>
-              </Group>
-            </Group>
             <AdmissionHelp phone={data.school.phone} email={data.school.email} />
           </Stack>
         </Container>
