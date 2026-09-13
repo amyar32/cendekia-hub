@@ -48,9 +48,11 @@ import {
   GUARDIAN_RELATION_OPTIONS,
   RELIGION_OPTIONS,
 } from '@/lib/student-options';
+import styles from './admission-public-form.module.css';
 
 type Option = { value: string; label: string; full?: boolean };
 type RegionLevel = 'province' | 'regency' | 'district' | 'village';
+type AdmissionView = 'landing' | 'apply' | 'track';
 type PublicData = {
   school: { name: string; logo_url: string; address: string; phone: string; email: string };
   periods: Option[];
@@ -194,6 +196,69 @@ function AdmissionHelp({ phone, email }: Pick<PublicData['school'], 'phone' | 'e
   );
 }
 
+function AdmissionHeader({
+  school,
+  view,
+  canApply,
+  onNavigate,
+}: {
+  school: PublicData['school'];
+  view: AdmissionView;
+  canApply: boolean;
+  onNavigate: (view: AdmissionView) => void;
+}) {
+  return (
+    <Group justify="space-between" align="center" gap="lg" className={styles.publicHeader}>
+      <Group gap="sm" wrap="nowrap" className={styles.publicIdentity}>
+        {school.logo_url ? (
+          <Image src={school.logo_url} w={50} h={50} fit="contain" alt="Logo sekolah" />
+        ) : (
+          <ThemeIcon size={50} radius="md">
+            <IconSchool size={26} />
+          </ThemeIcon>
+        )}
+        <Box>
+          <Text variant="eyebrow">SISTEM PENERIMAAN MURID BARU</Text>
+          <Text fw={700} c="var(--app-color-text)">
+            {school.name}
+          </Text>
+          {school.address && <Text variant="caption">{school.address}</Text>}
+        </Box>
+      </Group>
+      <Group gap={4} className={styles.publicNav} component="nav" aria-label="Navigasi SPMB">
+        <Button
+          variant={view === 'landing' ? 'light' : 'subtle'}
+          size="compact-sm"
+          className={styles.navButton}
+          aria-current={view === 'landing' ? 'page' : undefined}
+          onClick={() => onNavigate('landing')}
+        >
+          Beranda
+        </Button>
+        <Button
+          variant={view === 'apply' ? 'light' : 'subtle'}
+          size="compact-sm"
+          className={styles.navButton}
+          aria-current={view === 'apply' ? 'page' : undefined}
+          disabled={!canApply}
+          onClick={() => onNavigate('apply')}
+        >
+          Formulir
+        </Button>
+        <Button
+          variant={view === 'track' ? 'light' : 'subtle'}
+          size="compact-sm"
+          className={styles.navButton}
+          aria-current={view === 'track' ? 'page' : undefined}
+          onClick={() => onNavigate('track')}
+        >
+          Cek status
+        </Button>
+      </Group>
+    </Group>
+  );
+}
+
 export function AdmissionPublicForm() {
   const [data, setData] = useState<PublicData | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -206,7 +271,7 @@ export function AdmissionPublicForm() {
   const [applicationFileUrls, setApplicationFileUrls] = useState<Record<string, string>>({});
   const [tracking, setTracking] = useState('');
   const [tracked, setTracked] = useState<Record<string, string> | null>(null);
-  const [view, setView] = useState<'landing' | 'apply' | 'track'>('landing');
+  const [view, setView] = useState<AdmissionView>('landing');
   const [regionOptions, setRegionOptions] = useState<Record<RegionLevel, Option[]>>({
     province: [],
     regency: [],
@@ -446,32 +511,12 @@ export function AdmissionPublicForm() {
       >
         <Container size="md">
           <Stack gap={48}>
-            <Group justify="space-between" wrap="nowrap">
-              <Group gap="sm" wrap="nowrap">
-                {data.school.logo_url ? (
-                  <Image
-                    src={data.school.logo_url}
-                    w={46}
-                    h={46}
-                    fit="contain"
-                    alt="Logo sekolah"
-                  />
-                ) : (
-                  <ThemeIcon size={46} radius="md">
-                    <IconSchool size={24} />
-                  </ThemeIcon>
-                )}
-                <Box>
-                  <Text variant="eyebrow">PENERIMAAN MURID BARU</Text>
-                  <Text fw={700} c="var(--app-color-text)">
-                    {data.school.name}
-                  </Text>
-                </Box>
-              </Group>
-              <Button variant="subtle" size="compact-md" onClick={() => setView('track')}>
-                Cek status
-              </Button>
-            </Group>
+            <AdmissionHeader
+              school={data.school}
+              view={view}
+              canApply={Boolean(data.periods.length)}
+              onNavigate={setView}
+            />
 
             <Box ta="center" maw={680} mx="auto">
               <Badge color="brand" size="lg" mb="lg">
@@ -551,25 +596,12 @@ export function AdmissionPublicForm() {
     <Box mih="100vh" bg="var(--app-color-background)" py={{ base: 24, sm: 48 }}>
       <Container size="md">
         <Stack gap="xl">
-          <Group justify="space-between" align="flex-start">
-            <Group wrap="nowrap">
-              {data.school.logo_url ? (
-                <Image src={data.school.logo_url} w={58} h={58} fit="contain" alt="Logo sekolah" />
-              ) : (
-                <ThemeIcon size={58} radius="md">
-                  <IconSchool size={30} />
-                </ThemeIcon>
-              )}
-              <Box>
-                <Text variant="eyebrow">PENERIMAAN MURID BARU</Text>
-                <Title order={2}>{data.school.name}</Title>
-                <Text variant="description">{data.school.address}</Text>
-              </Box>
-            </Group>
-            <Button variant="subtle" onClick={() => setView('landing')}>
-              Beranda
-            </Button>
-          </Group>
+          <AdmissionHeader
+            school={data.school}
+            view={view}
+            canApply={Boolean(data.periods.length)}
+            onNavigate={setView}
+          />
           {view === 'apply' && !data.periods.length && (
             <Alert color="yellow" title="Pendaftaran belum dibuka">
               Saat ini tidak ada periode penerimaan aktif. Silakan hubungi sekolah untuk informasi

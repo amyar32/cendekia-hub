@@ -29,9 +29,7 @@ type AttendanceSession = { id: string; teacher_id: string; status: 'open' | 'clo
 
 function weekday(date: string) {
   const value = new Date(`${date}T12:00:00Z`).getUTCDay();
-  if (value === 0)
-    throw new HttpError(400, 'Absensi sesi pelajaran tidak tersedia pada hari Minggu.');
-  return value;
+  return value === 0 ? 7 : value;
 }
 
 function teacherForUser(userId: string, schoolId: string) {

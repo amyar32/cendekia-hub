@@ -1,0 +1,48 @@
+.publicHeader {
+  padding-block: 2px;
+}
+
+.publicIdentity {
+  min-width: 0;
+}
+
+.publicIdentity > div:last-child {
+  min-width: 0;
+}
+
+.publicIdentity p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publicNav {
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+
+.navButton {
+  padding-inline: 9px;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+}
+
+@media (max-width: 680px) {
+  .publicHeader {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .publicIdentity {
+    width: 100%;
+  }
+
+  .publicNav {
+    width: 100%;
+  }
+
+  .navButton {
+    flex: 1;
+    padding-inline: 6px;
+  }
+}

@@ -12,6 +12,8 @@ import {
   IconCircleCheck,
   IconSparkles,
   IconChecklist,
+  IconSchool,
+  IconUserPlus,
 } from '@tabler/icons-react';
 import type { SessionUser } from '@/lib/auth';
 import { modules, can } from '@/config/modules';
@@ -20,44 +22,36 @@ import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import styles from './dashboard.module.css';
 const cards = [
   {
-    key: 'users',
-    label: 'Total pengguna',
-    icon: IconUsers,
-    color: 'blue',
-    note: 'Anggota workspace',
-    path: '/administration/users',
-  },
-  {
-    key: 'roles',
-    label: 'Role aktif',
-    icon: IconShieldCheck,
-    color: 'grape',
-    note: 'Konfigurasi hak akses',
-    path: '/administration/roles',
-  },
-  {
-    key: 'teachers',
-    label: 'Guru',
-    icon: IconChalkboardTeacher,
-    color: 'brand',
-    note: 'Data tersimpan',
-    path: '/master-data/teachers',
-  },
-  {
     key: 'students',
-    label: 'Murid',
+    label: 'Murid aktif',
     icon: IconUsers,
     color: 'cyan',
-    note: 'Data tersimpan',
+    note: 'Data murid saat ini',
     path: '/master-data/students',
   },
   {
-    key: 'audit',
-    label: 'Aktivitas tercatat',
-    icon: IconHistory,
+    key: 'teachers',
+    label: 'Guru aktif',
+    icon: IconChalkboardTeacher,
+    color: 'brand',
+    note: 'Tenaga pengajar saat ini',
+    path: '/master-data/teachers',
+  },
+  {
+    key: 'classes',
+    label: 'Rombel aktif',
+    icon: IconSchool,
+    color: 'blue',
+    note: 'Pada tahun ajaran aktif',
+    path: '/academic/classes',
+  },
+  {
+    key: 'applications',
+    label: 'Proses SPMB',
+    icon: IconUserPlus,
     color: 'orange',
-    note: 'Riwayat audit trail',
-    path: '/administration/audit',
+    note: 'Pendaftar belum dikonversi',
+    path: '/admissions',
   },
 ] as const;
 export function Dashboard({
@@ -65,18 +59,28 @@ export function Dashboard({
   stats,
   activities,
   onboardingComplete,
+  academicContext,
 }: {
   user: SessionUser;
   stats: Record<string, number | null>;
   activities: { id: number; actor: string; action: string; entity: string; created_at: string }[];
   onboardingComplete: boolean;
+  academicContext: { year: string; semester: string };
 }) {
+  const primaryAction = can(user.permissions, 'live-display.read')
+    ? { label: 'Buka Live Report', path: '/live' }
+    : can(user.permissions, 'schedules.read')
+      ? { label: 'Lihat jadwal', path: '/schedules' }
+      : can(user.permissions, 'students.read')
+        ? { label: 'Kelola data murid', path: '/master-data/students' }
+        : null;
+
   return (
     <>
       <PageHeading
-        eyebrow="WORKSPACE OVERVIEW"
+        eyebrow="RINGKASAN SEKOLAH"
         title="Ringkasan"
-        description="Pantau data, akses, dan aktivitas workspace dalam satu tempat."
+        description="Pantau kondisi data sekolah dan aktivitas terbaru dalam satu tempat."
         action={
           <Badge
             size="lg"
@@ -84,7 +88,7 @@ export function Dashboard({
             color="brand"
             leftSection={<Box className={styles.statusDot} />}
           >
-            Workspace aktif
+            {academicContext.year} · {academicContext.semester}
           </Badge>
         }
       />
@@ -120,17 +124,17 @@ export function Dashboard({
             Halo, {user.name.split(' ')[0]} 👋
           </Title>
           <Text c="var(--app-color-muted-strong)" size="xs" lh={1.9} mb="xl">
-            Semua yang Anda butuhkan untuk mengelola workspace.
+            Ringkasan ini menggunakan data aktif sekolah saat ini.
             <br />
-            Mulai dari data yang rapi hingga akses tim yang terkendali.
+            Pantau murid, guru, rombel, dan proses penerimaan terbaru.
           </Text>
-          {can(user.permissions, 'teachers.read') && (
+          {primaryAction && (
             <Button
               component={Link}
-              href="/master-data/teachers"
+              href={primaryAction.path}
               rightSection={<IconArrowRight size={17} />}
             >
-              Kelola data guru
+              {primaryAction.label}
             </Button>
           )}
         </div>
@@ -227,8 +231,8 @@ export function Dashboard({
         <Paper component="section" className={styles.panel} withBorder>
           <div className={styles.panelHeader}>
             <Stack gap={5}>
-              <Title order={3}>Modul workspace</Title>
-              <Text variant="caption">Fondasi yang siap dikembangkan</Text>
+              <Title order={3}>Modul tersedia</Title>
+              <Text variant="caption">Akses fitur sesuai peran Anda</Text>
             </Stack>
             <Badge color="gray" variant="light">
               {modules.filter((m) => can(user.permissions, m.permission)).length} modul

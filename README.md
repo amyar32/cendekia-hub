@@ -29,7 +29,7 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **Akademik:** tahun ajaran, semester, tingkat, rombel, mata pelajaran, guru, penugasan mengajar, dan wali kelas.
 - **Ekstrakurikuler:** master program, penugasan pembina, peserta, kuota, lokasi, serta jadwal berbasis slot waktu sekolah yang dapat disalin sebagai draft ke tahun ajaran berikutnya.
 - **Murid:** identitas, wali, dokumen, riwayat rombel, proses kenaikan kelas massal yang dapat dibatalkan, serta laporan historis.
-- **Penerimaan murid baru:** periode dan kuota penerimaan, formulir publik, captcha dan rate limit, nomor pendaftaran, pelacakan status, upload serta verifikasi dokumen, penilaian seleksi, keputusan, daftar ulang, dan konversi transaksional ke murid aktif.
+- **Sistem Penerimaan Murid Baru (SPMB):** periode dan kuota penerimaan, formulir publik, captcha dan rate limit, nomor pendaftaran, pelacakan status, upload serta verifikasi dokumen, penilaian seleksi, keputusan, daftar ulang, dan konversi transaksional ke murid aktif.
 - **Check-in gerbang:** satu scanner untuk kartu QR murid dan guru, daftar bertab, pencatatan manual, deteksi keterlambatan otomatis, rotasi QR, dan kartu identitas siap cetak.
 - **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
@@ -51,7 +51,7 @@ src/
       page.tsx                Ringkasan
       onboarding/            Wizard persiapan dan import data awal sekolah
       annual-transition/      Pergantian tahun ajaran
-      admissions/             Pengelolaan penerimaan murid baru
+      admissions/             Pengelolaan Sistem Penerimaan Murid Baru
       master-data/            Murid, guru, tingkat, dan mata pelajaran
       academic/               Tahun ajaran, semester, rombel, dan penugasan
       reports/                Laporan akademik

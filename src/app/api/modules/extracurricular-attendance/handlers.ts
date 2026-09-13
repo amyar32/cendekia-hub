@@ -21,8 +21,7 @@ const patchSchema = z.discriminatedUnion('action', [
 ]);
 function weekday(date: string) {
   const day = new Date(`${date}T12:00:00Z`).getUTCDay();
-  if (!day) throw new HttpError(400, 'Sesi ekstrakurikuler tidak tersedia pada hari Minggu.');
-  return day;
+  return day === 0 ? 7 : day;
 }
 function teacherForUser(userId: string, schoolId: string) {
   return db()

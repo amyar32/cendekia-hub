@@ -206,7 +206,7 @@ export const modules: CmsModule[] = [
   },
   {
     key: 'admissions',
-    label: 'Penerimaan Murid Baru',
+    label: 'Sistem Penerimaan Murid Baru',
     description: 'Kelola periode, pendaftaran, verifikasi, seleksi, dan daftar ulang calon murid.',
     path: '/admissions',
     permission: 'admissions.read',

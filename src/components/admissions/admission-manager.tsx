@@ -232,7 +232,7 @@ function ProcessProgress({ status }: { status: Status }) {
     <Paper withBorder radius="lg" p={{ base: 'md', sm: 'lg' }}>
       <Group justify="space-between" mb="md">
         <Box>
-          <Text fw={700}>Proses penerimaan</Text>
+          <Text fw={700}>Proses SPMB</Text>
           <Text size="xs" c="dimmed">
             Posisi calon murid dalam alur penerimaan.
           </Text>
@@ -273,7 +273,7 @@ const blankPeriod = () => ({
   end_date: '',
   quota: 0,
   status: 'draft' as Period['status'],
-  registration_prefix: 'PMB',
+  registration_prefix: 'SPMB',
 });
 
 const dateOnlyFormatter = new Intl.DateTimeFormat('id-ID', {
@@ -484,8 +484,8 @@ export function AdmissionManager({
     <>
       <Box display={applicationId ? 'none' : undefined}>
         <ModuleListLayout
-          eyebrow="PENERIMAAN"
-          title="Penerimaan Murid Baru"
+          eyebrow="SPMB"
+          title="Sistem Penerimaan Murid Baru"
           description="Kelola pendaftaran dari formulir masuk hingga calon murid resmi ditempatkan ke rombel."
           total={view === 'applications' ? list.total : periods.length}
           page={view === 'applications' ? list.page : 1}
@@ -766,7 +766,7 @@ export function AdmissionManager({
               <TextInput
                 required
                 label="Prefix nomor pendaftaran"
-                placeholder="Contoh: PMB"
+                placeholder="Contoh: SPMB"
                 value={periodForm.registration_prefix}
                 onChange={(e) =>
                   setPeriodForm({
