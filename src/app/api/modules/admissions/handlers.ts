@@ -122,6 +122,7 @@ export const applicationSchema = z
     family_card_issued_date: optionalDate.default(''),
     latitude: z.union([z.literal(''), z.coerce.number().min(-90).max(90)]).default(''),
     longitude: z.union([z.literal(''), z.coerce.number().min(-180).max(180)]).default(''),
+    home_distance_km: z.union([z.literal(''), z.coerce.number().min(0).max(10000)]).default(''),
     address: z.string().trim().max(500),
     phone: z.string().trim().max(30),
     email: z.union([z.literal(''), z.email('Email tidak valid.')]),
@@ -327,7 +328,7 @@ export function createApplication(
     insertDocument.run(randomUUID(), id, document.type, document.file_url, document.description);
   db()
     .prepare(
-      `UPDATE student_applications SET province_code=?,province_name=?,regency_code=?,regency_name=?,district_code=?,district_name=?,village_code=?,village_name=?,rt=?,rw=?,postal_code=?,domicile_matches_family_card=?,family_card_issued_date=?,latitude=?,longitude=?,updated_at=datetime('now') WHERE id=?`,
+      `UPDATE student_applications SET province_code=?,province_name=?,regency_code=?,regency_name=?,district_code=?,district_name=?,village_code=?,village_name=?,rt=?,rw=?,postal_code=?,domicile_matches_family_card=?,family_card_issued_date=?,latitude=?,longitude=?,home_distance_km=?,updated_at=datetime('now') WHERE id=?`,
     )
     .run(
       data.province_code,
@@ -343,8 +344,9 @@ export function createApplication(
       data.postal_code,
       Number(data.domicile_matches_family_card),
       data.family_card_issued_date || null,
-      data.latitude || null,
-      data.longitude || null,
+      data.latitude === '' ? null : data.latitude,
+      data.longitude === '' ? null : data.longitude,
+      data.home_distance_km === '' ? null : data.home_distance_km,
       id,
     );
   recordStatus(

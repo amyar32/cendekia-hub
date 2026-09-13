@@ -45,15 +45,31 @@ import { ModuleListLayout } from '@/components/cms/module-list-layout/module-lis
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
 import classes from '@/components/academic/academic-entity-manager.module.css';
 import { IdentityCardModal } from '@/components/identity-card/identity-card-modal';
+import {
+  GUARDIAN_EDUCATION_OPTIONS,
+  GUARDIAN_OCCUPATION_OPTIONS,
+  GUARDIAN_RELATION_OPTIONS,
+  RELIGION_OPTIONS,
+} from '@/lib/student-options';
 import studentStyles from './student-managers.module.css';
+
+type RegionLevel = 'province' | 'regency' | 'district' | 'village';
+type RegionOption = { value: string; label: string };
 
 type Guardian = {
   name: string;
   nik: string;
   relation: string;
+  life_status: string;
+  birth_place: string;
+  birth_date: string;
+  last_education: string;
+  occupation: string;
+  monthly_income: number;
   phone: string;
   email: string;
   address: string;
+  address_matches_student: boolean;
   is_primary: boolean;
 };
 type StudentDocument = { type: string; file_url: string; description: string };
@@ -84,6 +100,22 @@ type StudentForm = {
   special_needs_type: string;
   blood_type: string;
   address: string;
+  province_code: string;
+  province_name: string;
+  regency_code: string;
+  regency_name: string;
+  district_code: string;
+  district_name: string;
+  village_code: string;
+  village_name: string;
+  rt: string;
+  rw: string;
+  postal_code: string;
+  domicile_matches_family_card: boolean;
+  family_card_issued_date: string;
+  latitude: number | string;
+  longitude: number | string;
+  home_distance_km: number | string;
   phone: string;
   email: string;
   enrollment_date: string;
@@ -115,9 +147,16 @@ const emptyGuardian = (): Guardian => ({
   name: '',
   nik: '',
   relation: '',
+  life_status: '',
+  birth_place: '',
+  birth_date: '',
+  last_education: '',
+  occupation: '',
+  monthly_income: 0,
   phone: '',
   email: '',
   address: '',
+  address_matches_student: false,
   is_primary: false,
 });
 const emptyDocument = (): StudentDocument => ({ type: '', file_url: '', description: '' });
@@ -140,6 +179,22 @@ const emptyForm = (): StudentForm => ({
   special_needs_type: '',
   blood_type: '',
   address: '',
+  province_code: '',
+  province_name: '',
+  regency_code: '',
+  regency_name: '',
+  district_code: '',
+  district_name: '',
+  village_code: '',
+  village_name: '',
+  rt: '',
+  rw: '',
+  postal_code: '',
+  domicile_matches_family_card: false,
+  family_card_issued_date: '',
+  latitude: '',
+  longitude: '',
+  home_distance_km: '',
   phone: '',
   email: '',
   enrollment_date: '',
@@ -153,17 +208,6 @@ const emptyForm = (): StudentForm => ({
   documents: [],
   placement: { class_id: '', start_date: '' },
 });
-const guardianRelations = [
-  'Ayah',
-  'Ibu',
-  'Kakek',
-  'Nenek',
-  'Kakak',
-  'Paman',
-  'Bibi',
-  'Saudara',
-  'Wali lainnya',
-];
 const documentTypes = [
   'Akta Kelahiran',
   'Kartu Keluarga',
@@ -203,8 +247,75 @@ export function StudentManager({ writable }: { writable: boolean }) {
   const [form, setForm] = useState<StudentForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [cardStudentId, setCardStudentId] = useState<string | null>(null);
+  const [regionOptions, setRegionOptions] = useState<Record<RegionLevel, RegionOption[]>>({
+    province: [],
+    regency: [],
+    district: [],
+    village: [],
+  });
+  const [loadingRegion, setLoadingRegion] = useState<RegionLevel | null>(null);
+
+  async function loadRegions(level: RegionLevel, parent = '') {
+    setLoadingRegion(level);
+    try {
+      const response = await fetch(
+        `/api/public/regions?level=${level}${parent ? `&parent=${encodeURIComponent(parent)}` : ''}`,
+      );
+      const value = (await response.json()) as { regions?: RegionOption[]; error?: string };
+      if (!response.ok || !value.regions)
+        throw new Error(value.error || 'Data wilayah gagal dimuat.');
+      setRegionOptions((current) => ({ ...current, [level]: value.regions || [] }));
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Data wilayah gagal dimuat',
+        message: error instanceof Error ? error.message : 'Coba lagi sebentar.',
+      });
+    } finally {
+      setLoadingRegion(null);
+    }
+  }
+
+  function selectRegion(level: RegionLevel, value: string | null) {
+    const selectedRegion = regionOptions[level].find((item) => item.value === value);
+    setForm((current) => {
+      const next = {
+        ...current,
+        [`${level}_code`]: value || '',
+        [`${level}_name`]: selectedRegion?.label || '',
+      } as StudentForm;
+      if (level === 'province')
+        Object.assign(next, {
+          regency_code: '',
+          regency_name: '',
+          district_code: '',
+          district_name: '',
+          village_code: '',
+          village_name: '',
+        });
+      if (level === 'regency')
+        Object.assign(next, {
+          district_code: '',
+          district_name: '',
+          village_code: '',
+          village_name: '',
+        });
+      if (level === 'district') Object.assign(next, { village_code: '', village_name: '' });
+      return next;
+    });
+    const nextLevel: RegionLevel | undefined =
+      level === 'province'
+        ? 'regency'
+        : level === 'regency'
+          ? 'district'
+          : level === 'district'
+            ? 'village'
+            : undefined;
+    if (value && nextLevel) void loadRegions(nextLevel, value);
+  }
 
   function openEditor(row: StudentRow | null) {
+    void loadRegions('province');
     setForm(
       row
         ? {
@@ -226,6 +337,22 @@ export function StudentManager({ writable }: { writable: boolean }) {
             special_needs_type: row.special_needs_type || '',
             blood_type: row.blood_type || '',
             address: row.address || '',
+            province_code: row.province_code || '',
+            province_name: row.province_name || '',
+            regency_code: row.regency_code || '',
+            regency_name: row.regency_name || '',
+            district_code: row.district_code || '',
+            district_name: row.district_name || '',
+            village_code: row.village_code || '',
+            village_name: row.village_name || '',
+            rt: row.rt || '',
+            rw: row.rw || '',
+            postal_code: row.postal_code || '',
+            domicile_matches_family_card: Boolean(row.domicile_matches_family_card),
+            family_card_issued_date: row.family_card_issued_date || '',
+            latitude: row.latitude ?? '',
+            longitude: row.longitude ?? '',
+            home_distance_km: row.home_distance_km ?? '',
             phone: row.phone || '',
             email: row.email || '',
             enrollment_date: row.enrollment_date || '',
@@ -237,6 +364,7 @@ export function StudentManager({ writable }: { writable: boolean }) {
             is_active: Boolean(row.is_active),
             guardians: row.guardians.map((guardian) => ({
               ...guardian,
+              address_matches_student: Boolean(guardian.address_matches_student),
               is_primary: Boolean(guardian.is_primary),
             })),
             documents: row.documents.map((document) => ({ ...document })),
@@ -244,6 +372,10 @@ export function StudentManager({ writable }: { writable: boolean }) {
           }
         : emptyForm(),
     );
+    setRegionOptions((current) => ({ ...current, regency: [], district: [], village: [] }));
+    if (row?.province_code) void loadRegions('regency', row.province_code);
+    if (row?.regency_code) void loadRegions('district', row.regency_code);
+    if (row?.district_code) void loadRegions('village', row.district_code);
     setEditing(row);
   }
   function updateGuardian(index: number, changes: Partial<Guardian>) {
@@ -736,13 +868,22 @@ export function StudentManager({ writable }: { writable: boolean }) {
                   })
                 }
               />
+              <DateInput
+                label="Tanggal terbit Kartu Keluarga"
+                placeholder="Pilih tanggal terbit (opsional)"
+                locale="id"
+                valueFormat="D MMMM YYYY"
+                value={form.family_card_issued_date}
+                disabled={disabled}
+                onChange={(value) => setForm({ ...form, family_card_issued_date: value || '' })}
+              />
               <Select
                 label="Agama"
                 placeholder="Pilih agama (opsional)"
                 clearable
                 value={form.religion}
                 disabled={disabled}
-                data={['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu', 'Kepercayaan']}
+                data={[...RELIGION_OPTIONS]}
                 onChange={(value) => setForm({ ...form, religion: value || '' })}
               />
               <TextInput
@@ -836,13 +977,122 @@ export function StudentManager({ writable }: { writable: boolean }) {
                 }
               />
             )}
+            <Divider label="Alamat dan domisili" labelPosition="left" />
             <Textarea
-              label="Alamat"
+              label="Alamat lengkap"
               placeholder="Masukkan alamat tempat tinggal murid"
               minRows={2}
               value={form.address}
               disabled={disabled}
               onChange={(event) => setForm({ ...form, address: event.currentTarget.value })}
+            />
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <Select
+                label="Provinsi"
+                placeholder="Pilih provinsi"
+                searchable
+                data={regionOptions.province}
+                value={form.province_code || null}
+                disabled={disabled || loadingRegion === 'province'}
+                onChange={(value) => selectRegion('province', value)}
+              />
+              <Select
+                label="Kabupaten/Kota"
+                placeholder="Pilih kabupaten/kota"
+                searchable
+                data={regionOptions.regency}
+                value={form.regency_code || null}
+                disabled={disabled || !form.province_code || loadingRegion === 'regency'}
+                onChange={(value) => selectRegion('regency', value)}
+              />
+              <Select
+                label="Kecamatan"
+                placeholder="Pilih kecamatan"
+                searchable
+                data={regionOptions.district}
+                value={form.district_code || null}
+                disabled={disabled || !form.regency_code || loadingRegion === 'district'}
+                onChange={(value) => selectRegion('district', value)}
+              />
+              <Select
+                label="Kelurahan/Desa"
+                placeholder="Pilih kelurahan/desa"
+                searchable
+                data={regionOptions.village}
+                value={form.village_code || null}
+                disabled={disabled || !form.district_code || loadingRegion === 'village'}
+                onChange={(value) => selectRegion('village', value)}
+              />
+              <TextInput
+                label="RT"
+                placeholder="Nomor RT"
+                inputMode="numeric"
+                value={form.rt}
+                maxLength={5}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, rt: event.currentTarget.value.replace(/\D/g, '') })
+                }
+              />
+              <TextInput
+                label="RW"
+                placeholder="Nomor RW"
+                inputMode="numeric"
+                value={form.rw}
+                maxLength={5}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, rw: event.currentTarget.value.replace(/\D/g, '') })
+                }
+              />
+              <TextInput
+                label="Kode pos"
+                placeholder="Kode pos"
+                inputMode="numeric"
+                value={form.postal_code}
+                maxLength={10}
+                disabled={disabled}
+                onChange={(event) =>
+                  setForm({ ...form, postal_code: event.currentTarget.value.replace(/\D/g, '') })
+                }
+              />
+              <NumberInput
+                label="Jarak ke sekolah (km)"
+                placeholder="Dihitung otomatis dari lokasi"
+                min={0}
+                decimalScale={2}
+                value={form.home_distance_km}
+                disabled={disabled}
+                onChange={(value) => setForm({ ...form, home_distance_km: value })}
+              />
+              <NumberInput
+                label="Latitude (−90 s.d. 90)"
+                placeholder="Contoh: -6.200000"
+                min={-90}
+                max={90}
+                decimalScale={7}
+                value={form.latitude}
+                disabled={disabled}
+                onChange={(value) => setForm({ ...form, latitude: value })}
+              />
+              <NumberInput
+                label="Longitude (−180 s.d. 180)"
+                placeholder="Contoh: 106.816666"
+                min={-180}
+                max={180}
+                decimalScale={7}
+                value={form.longitude}
+                disabled={disabled}
+                onChange={(value) => setForm({ ...form, longitude: value })}
+              />
+            </SimpleGrid>
+            <Switch
+              label="Domisili sesuai Kartu Keluarga"
+              checked={form.domicile_matches_family_card}
+              disabled={disabled}
+              onChange={(event) =>
+                setForm({ ...form, domicile_matches_family_card: event.currentTarget.checked })
+              }
             />
 
             <Divider label="Sekolah sebelumnya" labelPosition="left" />
@@ -1016,12 +1266,90 @@ export function StudentManager({ writable }: { writable: boolean }) {
                         value={guardian.relation}
                         disabled={disabled}
                         data={[
-                          ...guardianRelations,
-                          ...(guardian.relation && !guardianRelations.includes(guardian.relation)
+                          ...GUARDIAN_RELATION_OPTIONS,
+                          ...(guardian.relation &&
+                          !GUARDIAN_RELATION_OPTIONS.includes(
+                            guardian.relation as (typeof GUARDIAN_RELATION_OPTIONS)[number],
+                          )
                             ? [guardian.relation]
                             : []),
                         ]}
                         onChange={(value) => updateGuardian(index, { relation: value || '' })}
+                      />
+                      <Select
+                        label="Status hidup"
+                        placeholder="Pilih status (opsional)"
+                        clearable
+                        value={guardian.life_status || null}
+                        disabled={disabled}
+                        data={['Hidup', 'Meninggal']}
+                        onChange={(value) => updateGuardian(index, { life_status: value || '' })}
+                      />
+                      <TextInput
+                        label="Tempat lahir"
+                        placeholder="Kota kelahiran wali"
+                        value={guardian.birth_place}
+                        disabled={disabled}
+                        onChange={(event) =>
+                          updateGuardian(index, { birth_place: event.currentTarget.value })
+                        }
+                      />
+                      <DateInput
+                        label="Tanggal lahir"
+                        placeholder="Pilih tanggal lahir"
+                        locale="id"
+                        valueFormat="D MMMM YYYY"
+                        value={guardian.birth_date}
+                        disabled={disabled}
+                        onChange={(value) => updateGuardian(index, { birth_date: value || '' })}
+                      />
+                      <Select
+                        label="Pendidikan terakhir"
+                        placeholder="Pilih pendidikan terakhir"
+                        clearable
+                        data={[
+                          ...GUARDIAN_EDUCATION_OPTIONS,
+                          ...(guardian.last_education &&
+                          !GUARDIAN_EDUCATION_OPTIONS.includes(
+                            guardian.last_education as (typeof GUARDIAN_EDUCATION_OPTIONS)[number],
+                          )
+                            ? [guardian.last_education]
+                            : []),
+                        ]}
+                        value={guardian.last_education || null}
+                        disabled={disabled}
+                        onChange={(value) => updateGuardian(index, { last_education: value || '' })}
+                      />
+                      <Select
+                        label="Pekerjaan"
+                        placeholder="Pilih pekerjaan"
+                        searchable
+                        clearable
+                        data={[
+                          ...GUARDIAN_OCCUPATION_OPTIONS,
+                          ...(guardian.occupation &&
+                          !GUARDIAN_OCCUPATION_OPTIONS.includes(
+                            guardian.occupation as (typeof GUARDIAN_OCCUPATION_OPTIONS)[number],
+                          )
+                            ? [guardian.occupation]
+                            : []),
+                        ]}
+                        value={guardian.occupation || null}
+                        disabled={disabled}
+                        onChange={(value) => updateGuardian(index, { occupation: value || '' })}
+                      />
+                      <NumberInput
+                        label="Penghasilan per bulan"
+                        placeholder="Jumlah penghasilan"
+                        min={0}
+                        thousandSeparator="."
+                        decimalSeparator=","
+                        prefix="Rp "
+                        value={guardian.monthly_income}
+                        disabled={disabled}
+                        onChange={(value) =>
+                          updateGuardian(index, { monthly_income: Number(value) || 0 })
+                        }
                       />
                       <TextInput
                         label="Telepon"
@@ -1050,6 +1378,17 @@ export function StudentManager({ writable }: { writable: boolean }) {
                       disabled={disabled}
                       onChange={(event) =>
                         updateGuardian(index, { address: event.currentTarget.value })
+                      }
+                    />
+                    <Switch
+                      label="Alamat sama dengan murid"
+                      checked={guardian.address_matches_student}
+                      disabled={disabled}
+                      onChange={(event) =>
+                        updateGuardian(index, {
+                          address_matches_student: event.currentTarget.checked,
+                          address: event.currentTarget.checked ? form.address : guardian.address,
+                        })
                       }
                     />
                     <Switch

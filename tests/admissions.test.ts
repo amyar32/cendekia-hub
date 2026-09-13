@@ -174,6 +174,22 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
       has_special_needs: true,
       special_needs_type: 'Hambatan penglihatan',
       address: 'Jalan Belajar',
+      province_code: '32',
+      province_name: 'Jawa Barat',
+      regency_code: '3273',
+      regency_name: 'Kota Bandung',
+      district_code: '3273010',
+      district_name: 'Sukasari',
+      village_code: '3273010001',
+      village_name: 'Sukarasa',
+      rt: '001',
+      rw: '002',
+      postal_code: '40152',
+      domicile_matches_family_card: true,
+      family_card_issued_date: '2029-01-02',
+      latitude: -6.873,
+      longitude: 107.587,
+      home_distance_km: 3.5,
       phone: '08123456789',
       email: '',
       previous_school_name: 'TK Ceria',
@@ -188,9 +204,16 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
           name: 'Orang Tua Murid',
           nik: '',
           relation: 'Ibu',
+          life_status: 'Hidup',
+          birth_place: 'Bandung',
+          birth_date: '1990-02-03',
+          last_education: 'SMA / sederajat',
+          occupation: 'Wiraswasta',
+          monthly_income: 5000000,
           phone: '08120000000',
           email: '',
           address: '',
+          address_matches_student: true,
           is_primary: true,
         },
       ],
@@ -249,6 +272,31 @@ test('alur penerimaan publik sampai konversi menjadi murid aktif', async () => {
   assert.equal(students.rows[0].family_card_number, '1234567890123456');
   assert.equal(students.rows[0].has_special_needs, 1);
   assert.equal(students.rows[0].special_needs_type, 'Hambatan penglihatan');
+  assert.equal(students.rows[0].province_name, 'Jawa Barat');
+  assert.equal(students.rows[0].village_name, 'Sukarasa');
+  assert.equal(students.rows[0].family_card_issued_date, '2029-01-02');
+  assert.equal(students.rows[0].home_distance_km, 3.5);
+  assert.equal(students.rows[0].guardians[0].birth_place, 'Bandung');
+  assert.equal(students.rows[0].guardians[0].occupation, 'Wiraswasta');
+  assert.equal(students.rows[0].guardians[0].monthly_income, 5000000);
+  const convertedStudent = students.rows[0];
+  response = await api('/api/modules/students', 'PATCH', {
+    ...convertedStudent,
+    has_special_needs: Boolean(convertedStudent.has_special_needs),
+    domicile_matches_family_card: Boolean(convertedStudent.domicile_matches_family_card),
+    is_active: Boolean(convertedStudent.is_active),
+    guardians: convertedStudent.guardians.map((guardian: Record<string, unknown>) => ({
+      ...guardian,
+      address_matches_student: Boolean(guardian.address_matches_student),
+      is_primary: Boolean(guardian.is_primary),
+    })),
+  });
+  assert.equal(response.status, 200, await response.clone().text());
+  response = await api('/api/modules/students?q=1234567890123456');
+  const updatedStudents = await response.json();
+  assert.equal(updatedStudents.rows[0].province_name, 'Jawa Barat');
+  assert.equal(updatedStudents.rows[0].home_distance_km, 3.5);
+  assert.equal(updatedStudents.rows[0].guardians[0].occupation, 'Wiraswasta');
   response = await api('/api/modules/students?q=Murid Existing');
   assert.equal(response.status, 200);
   const existingStudents = await response.json();

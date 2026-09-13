@@ -42,6 +42,12 @@ import {
 import 'dayjs/locale/id';
 import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
 import { FileUploader } from '@/components/cms/file-uploader/file-uploader';
+import {
+  GUARDIAN_EDUCATION_OPTIONS,
+  GUARDIAN_OCCUPATION_OPTIONS,
+  GUARDIAN_RELATION_OPTIONS,
+  RELIGION_OPTIONS,
+} from '@/lib/student-options';
 
 type Option = { value: string; label: string; full?: boolean };
 type RegionLevel = 'province' | 'regency' | 'district' | 'village';
@@ -82,6 +88,7 @@ const emptyForm = () => ({
   domicile_matches_family_card: false,
   latitude: '',
   longitude: '',
+  home_distance_km: '',
   address: '',
   phone: '',
   email: '',
@@ -419,6 +426,7 @@ export function AdmissionPublicForm() {
   ) => setForm((current) => ({ ...current, [key]: value }));
   const latitudeNumber = Number(form.latitude);
   const longitudeNumber = Number(form.longitude);
+  const homeDistanceNumber = Number(form.home_distance_km);
   const invalidLatitude =
     form.latitude !== '' &&
     (!Number.isFinite(latitudeNumber) || latitudeNumber < -90 || latitudeNumber > 90);
@@ -689,15 +697,7 @@ export function AdmissionPublicForm() {
                       label="Agama"
                       placeholder="Pilih agama"
                       clearable
-                      data={[
-                        'Islam',
-                        'Kristen',
-                        'Katolik',
-                        'Hindu',
-                        'Buddha',
-                        'Konghucu',
-                        'Kepercayaan',
-                      ]}
+                      data={[...RELIGION_OPTIONS]}
                       value={form.religion || null}
                       onChange={(v) => update('religion', v || '')}
                     />
@@ -918,6 +918,21 @@ export function AdmissionPublicForm() {
                             }
                           />
                         </SimpleGrid>
+                        <NumberInput
+                          label="Jarak ke sekolah (km)"
+                          placeholder="Contoh: 3,5"
+                          description="Isi perkiraan jarak rumah ke sekolah dalam kilometer."
+                          inputWrapperOrder={['label', 'input', 'description', 'error']}
+                          min={0}
+                          max={10000}
+                          decimalScale={2}
+                          decimalSeparator=","
+                          suffix=" km"
+                          value={form.home_distance_km === '' ? '' : homeDistanceNumber}
+                          onChange={(value) =>
+                            update('home_distance_km', value === '' ? '' : String(value))
+                          }
+                        />
                         <Group justify="flex-end">
                           <Button
                             size="xs"
@@ -943,10 +958,6 @@ export function AdmissionPublicForm() {
                           </Button>
                         </Group>
                       </Stack>
-                      <Text variant="caption">
-                        Jarak rumah ke sekolah akan dihitung otomatis setelah titik lokasi sekolah
-                        tersedia.
-                      </Text>
                     </>
                   )}
                   {step === 3 && (
@@ -1024,17 +1035,7 @@ export function AdmissionPublicForm() {
                           required
                           label="Hubungan"
                           placeholder="Pilih hubungan"
-                          data={[
-                            'Ayah',
-                            'Ibu',
-                            'Kakek',
-                            'Nenek',
-                            'Kakak',
-                            'Paman',
-                            'Bibi',
-                            'Saudara',
-                            'Wali lainnya',
-                          ]}
+                          data={[...GUARDIAN_RELATION_OPTIONS]}
                           value={form.guardian_relation || null}
                           onChange={(value) => update('guardian_relation', value || '')}
                         />
@@ -1071,17 +1072,7 @@ export function AdmissionPublicForm() {
                         <Select
                           label="Pendidikan terakhir"
                           placeholder="Pilih pendidikan terakhir"
-                          data={[
-                            'Tidak sekolah',
-                            'SD / sederajat',
-                            'SMP / sederajat',
-                            'SMA / sederajat',
-                            'Diploma I / II',
-                            'Diploma III',
-                            'Diploma IV / Sarjana',
-                            'Magister',
-                            'Doktor',
-                          ]}
+                          data={[...GUARDIAN_EDUCATION_OPTIONS]}
                           value={form.guardian_last_education}
                           onChange={(value) => update('guardian_last_education', value || '')}
                         />
@@ -1090,22 +1081,7 @@ export function AdmissionPublicForm() {
                           label="Pekerjaan"
                           placeholder="Pilih pekerjaan"
                           searchable
-                          data={[
-                            'Tidak bekerja',
-                            'Ibu rumah tangga',
-                            'Petani / pekebun',
-                            'Nelayan',
-                            'Pedagang',
-                            'Wiraswasta',
-                            'Karyawan swasta',
-                            'PNS',
-                            'TNI / Polri',
-                            'Guru / dosen',
-                            'Tenaga kesehatan',
-                            'Buruh',
-                            'Pensiunan',
-                            'Lainnya',
-                          ]}
+                          data={[...GUARDIAN_OCCUPATION_OPTIONS]}
                           value={form.guardian_occupation}
                           onChange={(value) => update('guardian_occupation', value || '')}
                         />
@@ -1287,6 +1263,10 @@ export function AdmissionPublicForm() {
                         ],
                         ['RT / RW', form.rt && form.rw ? `${form.rt} / ${form.rw}` : ''],
                         ['Kode pos', form.postal_code],
+                        [
+                          'Jarak ke sekolah',
+                          form.home_distance_km ? `${form.home_distance_km} km` : '',
+                        ],
                         ['Domisili sesuai KK', form.domicile_matches_family_card ? 'Ya' : 'Tidak'],
                       ]}
                     />
