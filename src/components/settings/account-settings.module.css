@@ -32,7 +32,11 @@
       color-mix(in srgb, var(--app-color-surface) 42%, transparent) 0 8%,
       transparent 8.5%
     ),
-    linear-gradient(135deg, var(--app-color-brand-soft), #fff8f4);
+    linear-gradient(
+      135deg,
+      var(--app-color-brand-soft),
+      color-mix(in srgb, var(--app-color-brand-soft) 45%, var(--app-color-surface))
+    );
   border-bottom: 1px solid color-mix(in srgb, var(--app-color-brand) 16%, transparent);
 }
 

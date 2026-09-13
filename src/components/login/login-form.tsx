@@ -19,6 +19,7 @@ import {
   IconHistory,
 } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
+import { APP_BRAND_PRIMARY, APP_BRAND_SUFFIX, APP_NAME } from '@/config/branding';
 import styles from './login-form.module.css';
 export function LoginForm() {
   const [busy, setBusy] = useState(false);
@@ -59,10 +60,12 @@ export function LoginForm() {
           <ThemeIcon className={styles.brandIcon} size={34} radius={10}>
             <IconLayersIntersect />
           </ThemeIcon>
-          Cendekia
-          <Text component="span" className={styles.brandLight}>
-            Hub
-          </Text>
+          {APP_BRAND_PRIMARY}
+          {APP_BRAND_SUFFIX && (
+            <Text component="span" className={styles.brandLight}>
+              {APP_BRAND_SUFFIX}
+            </Text>
+          )}
         </Text>
         <div>
           <Text variant="eyebrow">RUANG KERJA, LEBIH TERATUR</Text>
@@ -101,7 +104,7 @@ export function LoginForm() {
           </Stack>
         </div>
         <Text className={styles.copyright} size="xs" c="var(--app-color-muted-soft)">
-          © {new Date().getFullYear()} Cendekia Hub
+          © {new Date().getFullYear()} {APP_NAME}
         </Text>
       </section>
       <section className={styles.formWrap}>

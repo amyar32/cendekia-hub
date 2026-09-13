@@ -28,6 +28,7 @@ import {
 } from '@tabler/icons-react';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import styles from './academic-report.module.css';
+import { APP_NAME } from '@/config/branding';
 
 type Option = { value: string; label: string };
 type ReportRow = {
@@ -167,7 +168,7 @@ export function AcademicReport() {
   const reportClass = selectedClass || 'Semua rombel';
   const reportStatus =
     data?.options.status.find((option) => option.value === status)?.label || 'Semua status';
-  const schoolName = data?.school?.name || 'Cendekia Hub';
+  const schoolName = data?.school?.name || APP_NAME;
   const schoolIdentifiers = [data?.school?.npsn && `NPSN ${data.school.npsn}`, data?.school?.code]
     .filter(Boolean)
     .join('   •   ');

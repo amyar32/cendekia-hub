@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
+import { APP_BRAND_SLUG, APP_NAME } from '@/config/branding';
 import { z } from 'zod';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
@@ -219,10 +220,10 @@ function simulationNames() {
 
 async function template(level: Level, simulation: boolean, classroomNames: string[]) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Cendekia Hub';
+  workbook.creator = APP_NAME;
   const guide = workbook.addWorksheet('Petunjuk');
   guide.addRows([
-    ['Template Import Onboarding Cendekia Hub'],
+    [`Template Import Onboarding ${APP_NAME}`],
     ['1. Jangan mengubah nama sheet atau judul kolom.'],
     ['2. Nama rombel harus sama persis dengan rombel yang dibuat pada langkah sebelumnya.'],
     ['3. Tanggal menggunakan format YYYY-MM-DD.'],
@@ -349,7 +350,7 @@ export async function GET(request: Request) {
     return new Response(Buffer.from(bytes), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="cendekia-${url.searchParams.get('simulation') === '1' ? 'simulasi' : 'template'}-${level}.xlsx"`,
+        'Content-Disposition': `attachment; filename="${APP_BRAND_SLUG}-${url.searchParams.get('simulation') === '1' ? 'simulasi' : 'template'}-${level}.xlsx"`,
         'Cache-Control': 'no-store',
       },
     });

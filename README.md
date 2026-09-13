@@ -13,6 +13,18 @@ cp .env.example .env
 
 Isi `SEED_ADMIN_EMAIL` dan `SEED_ADMIN_PASSWORD` di `.env`. Password wajib minimal 12 karakter; tidak ada password admin bawaan.
 
+Tema warna dapat dipilih melalui `NEXT_PUBLIC_APP_THEME`. Gunakan `classic` untuk palet oranye
+bawaan atau `fresh` untuk palet hijau jade. Restart aplikasi setelah nilainya diubah.
+
+```dotenv
+NEXT_PUBLIC_APP_THEME=fresh
+NEXT_PUBLIC_APP_BRAND_NAME=Cendekia
+NEXT_PUBLIC_APP_NAME=Cendekia Hub
+```
+
+`NEXT_PUBLIC_APP_BRAND_NAME` digunakan untuk nama singkat pada logo, sedangkan
+`NEXT_PUBLIC_APP_NAME` digunakan untuk judul lengkap, metadata, dan footer aplikasi.
+
 ```bash
 npm run db:seed
 npm run dev

@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation';
 import type { SessionUser } from '@/lib/auth';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import styles from './account-settings.module.css';
+import { APP_NAME } from '@/config/branding';
 
 export function AccountSettings({ user }: { user: SessionUser }) {
   const [busy, setBusy] = useState(false);
@@ -119,7 +120,7 @@ export function AccountSettings({ user }: { user: SessionUser }) {
               {user.name}
             </Title>
             <Text size="xs" c="dimmed" mt={5}>
-              Profil pengguna Cendekia Hub
+              Profil pengguna {APP_NAME}
             </Text>
 
             <div className={styles.profileDetails}>

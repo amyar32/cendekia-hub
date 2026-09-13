@@ -5,6 +5,7 @@ import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { assignAutomaticAbsences, localDateTime } from '@/lib/checkins';
+import { APP_BRAND_NAME } from '@/config/branding';
 
 const scanSchema = z.object({
   code: z.string().trim().min(1).max(200),
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
     const isStudentQr = code.startsWith(studentPrefix);
     const isTeacherQr = code.startsWith(teacherPrefix);
     if (!manual && !isStudentQr && !isTeacherQr)
-      throw new HttpError(400, 'QR bukan kartu Cendekia yang valid.');
+      throw new HttpError(400, `QR bukan kartu ${APP_BRAND_NAME} yang valid.`);
     const token = isTeacherQr
       ? code.slice(teacherPrefix.length)
       : isStudentQr

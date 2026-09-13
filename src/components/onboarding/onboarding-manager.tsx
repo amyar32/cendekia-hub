@@ -54,6 +54,7 @@ import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import { publishAcademicContext } from '@/lib/academic-context-client';
 import styles from './onboarding-manager.module.css';
+import { APP_BRAND_NAME } from '@/config/branding';
 
 type EducationLevel = 'sd' | 'smp' | 'sma';
 type Grade = { id?: string; name: string; level_order: number; description: string };
@@ -963,7 +964,7 @@ export function OnboardingManager({
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <TextInput
                   label="Nama sekolah"
-                  placeholder="Contoh: SMA Cendekia Utama"
+                  placeholder={`Contoh: SMA ${APP_BRAND_NAME} Utama`}
                   required
                   value={profile.name}
                   onChange={(event) => setProfile({ ...profile, name: event.currentTarget.value })}

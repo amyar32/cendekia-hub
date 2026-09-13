@@ -17,6 +17,7 @@ import {
   IconVolumeOff,
 } from '@tabler/icons-react';
 import styles from './checkin-scanner.module.css';
+import { APP_NAME } from '@/config/branding';
 import { ScheduleBell } from '@/components/schedules/schedule-bell';
 
 type Student = { name: string; nis: string; photo_url: string; class_name: string };
@@ -261,7 +262,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
               </div>
             )}
             <div>
-              <Text className={styles.school}>{config?.school.name || 'Cendekia Hub'}</Text>
+              <Text className={styles.school}>{config?.school.name || APP_NAME}</Text>
               <Text className={styles.subtitle}>GERBANG KEHADIRAN SEKOLAH</Text>
             </div>
           </Group>

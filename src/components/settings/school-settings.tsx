@@ -21,6 +21,7 @@ import { ImageUploader } from '@/components/cms/image-uploader/image-uploader';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import { formatDate } from '@/lib/format';
 import styles from './school-settings.module.css';
+import { APP_BRAND_NAME } from '@/config/branding';
 
 export type School = {
   id: string;
@@ -150,7 +151,7 @@ export function SchoolSettings({
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
             <TextInput
               label="Nama sekolah"
-              placeholder="Contoh: SMA Cendekia Utama"
+              placeholder={`Contoh: SMA ${APP_BRAND_NAME} Utama`}
               value={form.name}
               onChange={(event) => setField('name', event.currentTarget.value)}
               required

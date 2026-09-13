@@ -20,6 +20,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { APP_BRAND_PRIMARY, APP_BRAND_SUFFIX, APP_NAME } from '@/config/branding';
 import {
   IconLayersIntersect,
   IconLayoutDashboard,
@@ -173,10 +174,12 @@ export function CmsShell({
             <ThemeIcon className={styles.brandIcon} size={34} radius={10}>
               <IconLayersIntersect />
             </ThemeIcon>
-            Cendekia
-            <Text component="span" className={styles.brandLight}>
-              Hub
-            </Text>
+            {APP_BRAND_PRIMARY}
+            {APP_BRAND_SUFFIX && (
+              <Text component="span" className={styles.brandLight}>
+                {APP_BRAND_SUFFIX}
+              </Text>
+            )}
           </Text>
           <Paper className={styles.workspaceCard} withBorder>
             <ThemeIcon className={styles.workspaceAvatar} variant="light" size={38} radius={8}>
@@ -348,7 +351,7 @@ export function CmsShell({
             justify="space-between"
           >
             <Text size="xs" c="dimmed">
-              © {new Date().getFullYear()} Cendekia Hub
+              © {new Date().getFullYear()} {APP_NAME}
             </Text>
             <Button
               component={Link}
