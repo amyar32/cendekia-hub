@@ -55,10 +55,13 @@ export async function POST(request: Request) {
     const permissions = JSON.parse(user.permissions) as string[];
     const scannerOnly =
       permissions.includes('checkins.write') && !permissions.includes('dashboard.read');
+    const displayOnly =
+      permissions.includes('live-display.read') &&
+      !permissions.some((permission) => permission !== 'live-display.read');
     return Response.json({
       ok: true,
       must_change_password: Boolean(user.must_change_password),
-      redirect_to: scannerOnly ? '/checkins/scanner' : '/',
+      redirect_to: displayOnly ? '/live' : scannerOnly ? '/checkins/scanner' : '/',
     });
   } catch (error) {
     return failure(error);

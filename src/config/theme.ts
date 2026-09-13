@@ -21,6 +21,17 @@ const appColors = {
   mutedStrong: '#68696b',
   mutedSoft: '#9a9a9c',
   subtle: '#faf8f7',
+  success: '#2f7d5d',
+  successSoft: '#e8f4ee',
+  warning: '#a96516',
+  warningSoft: '#fff1dd',
+  danger: '#b4443c',
+  dangerSoft: '#fbe9e7',
+} as const;
+
+const appShadows = {
+  card: '0 8px 28px rgba(56, 44, 38, 0.06)',
+  elevated: '0 14px 36px rgba(56, 44, 38, 0.14)',
 } as const;
 
 export const theme = createTheme({
@@ -54,6 +65,7 @@ export const theme = createTheme({
   },
   other: {
     appColors,
+    appShadows,
   },
   components: {
     Button: {
@@ -173,6 +185,14 @@ export const cssVariablesResolver: CSSVariablesResolver = (resolvedTheme) => ({
     '--app-color-muted-strong': resolvedTheme.other.appColors.mutedStrong,
     '--app-color-muted-soft': resolvedTheme.other.appColors.mutedSoft,
     '--app-color-subtle': resolvedTheme.other.appColors.subtle,
+    '--app-color-success': resolvedTheme.other.appColors.success,
+    '--app-color-success-soft': resolvedTheme.other.appColors.successSoft,
+    '--app-color-warning': resolvedTheme.other.appColors.warning,
+    '--app-color-warning-soft': resolvedTheme.other.appColors.warningSoft,
+    '--app-color-danger': resolvedTheme.other.appColors.danger,
+    '--app-color-danger-soft': resolvedTheme.other.appColors.dangerSoft,
+    '--app-shadow-card': resolvedTheme.other.appShadows.card,
+    '--app-shadow-elevated': resolvedTheme.other.appShadows.elevated,
   },
   light: { '--mantine-color-default-border': resolvedTheme.other.appColors.border },
   dark: {},

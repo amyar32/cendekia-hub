@@ -1,5 +1,6 @@
 export const permissions = [
   'dashboard.read',
+  'live-display.read',
   'users.read',
   'users.write',
   'roles.read',
@@ -50,6 +51,7 @@ export const permissions = [
 export type Permission = (typeof permissions)[number];
 export type ModuleKey =
   | 'onboarding'
+  | 'live-display'
   | 'users'
   | 'roles'
   | 'audit'
@@ -82,6 +84,14 @@ export type CmsModule = {
 };
 
 export const modules: CmsModule[] = [
+  {
+    key: 'live-display',
+    label: 'Cendekia Live',
+    description: 'Pantau aktivitas sekolah secara langsung dalam tampilan khusus layar besar.',
+    path: '/live',
+    permission: 'live-display.read',
+    group: 'Utama',
+  },
   {
     key: 'onboarding',
     label: 'Persiapan Sekolah',

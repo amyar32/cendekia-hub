@@ -45,6 +45,7 @@ import {
   IconBallFootball,
   IconChecklist,
   IconUserPlus,
+  IconDeviceTv,
 } from '@tabler/icons-react';
 import { modules, can, moduleByKey, type ModuleKey } from '@/config/modules';
 import type { SessionUser } from '@/lib/auth';
@@ -56,6 +57,7 @@ import styles from './cms-shell.module.css';
 import { ScheduleBell } from '@/components/schedules/schedule-bell';
 const icons = {
   onboarding: IconChecklist,
+  'live-display': IconDeviceTv,
   users: IconUsers,
   roles: IconShieldCheck,
   audit: IconHistory,

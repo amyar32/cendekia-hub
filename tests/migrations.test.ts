@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 
-test('database versi 42 menambahkan kolom dan index NIK sebelum dipakai', () => {
+test('database lama dimigrasikan sampai skema dan role display terbaru', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cms-migration-test-'));
   const databasePath = join(directory, 'legacy.sqlite');
   try {
@@ -54,7 +54,11 @@ test('database versi 42 menambahkan kolom dan index NIK sebelum dipakai', () => 
     assert.ok(columns.some((column) => column.name === 'province_code'));
     assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 47);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 48);
+    const displayRole = migrated
+      .prepare("SELECT permissions FROM roles WHERE id='live-display'")
+      .get() as { permissions: string } | undefined;
+    assert.deepEqual(JSON.parse(displayRole?.permissions || '[]'), ['live-display.read']);
     migrated.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });

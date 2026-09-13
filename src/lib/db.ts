@@ -904,6 +904,31 @@ export function db() {
       connection.pragma('user_version = 47');
     })();
   }
+  if (schemaVersion < 48) {
+    connection.transaction(() => {
+      const roles = connection.prepare('SELECT id,name,permissions FROM roles').all() as Array<{
+        id: string;
+        name: string;
+        permissions: string;
+      }>;
+      const update = connection.prepare('UPDATE roles SET permissions=? WHERE id=?');
+      for (const role of roles) {
+        if (role.name !== 'Administrator') continue;
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        grants.add('live-display.read');
+        update.run(JSON.stringify([...grants]), role.id);
+      }
+      connection
+        .prepare('INSERT OR IGNORE INTO roles(id,name,description,permissions) VALUES (?,?,?,?)')
+        .run(
+          'live-display',
+          'Display Operasional',
+          'Akun khusus layar informasi aktivitas sekolah.',
+          JSON.stringify(['live-display.read']),
+        );
+      connection.pragma('user_version = 48');
+    })();
+  }
   globalDb.cmsDb = connection;
   return connection;
 }
