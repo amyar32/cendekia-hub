@@ -45,6 +45,11 @@ type Row = {
   status: CheckinStatus | null;
   checked_in_at: string | null;
   note: string;
+  schedule_count?: number;
+  first_start_time?: string;
+  last_end_time?: string;
+  scheduled_classes?: string;
+  scheduled_subjects?: string;
 };
 type Option = { value: string; label: string };
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -62,6 +67,7 @@ export function CheckinManager({
   const endpoint = isTeacher ? '/api/modules/teacher-checkins' : '/api/modules/student-checkins';
   const [date, setDate] = useState(today);
   const [classId, setClassId] = useState<string | null>(null);
+  const [teacherScope, setTeacherScope] = useState<'scheduled' | 'all'>('scheduled');
   const [classes, setClasses] = useState<Option[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +88,7 @@ export function CheckinManager({
       try {
         const params = new URLSearchParams({ date });
         if (classId && !isTeacher) params.set('class_id', classId);
+        if (isTeacher) params.set('scope', teacherScope);
         const response = await fetch(`${endpoint}?${params}`);
         const result = await response.json();
         if (!response.ok) throw new Error(result.error);
@@ -98,13 +105,14 @@ export function CheckinManager({
         if (showLoading) setLoading(false);
       }
     },
-    [classId, date, endpoint, isTeacher],
+    [classId, date, endpoint, isTeacher, teacherScope],
   );
 
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams({ date });
     if (classId && !isTeacher) params.set('class_id', classId);
+    if (isTeacher) params.set('scope', teacherScope);
     fetch(`${endpoint}?${params}`, { signal: controller.signal })
       .then(async (response) => {
         const result = await response.json();
@@ -129,7 +137,7 @@ export function CheckinManager({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [date, classId, endpoint, isTeacher]);
+  }, [date, classId, endpoint, isTeacher, teacherScope]);
 
   useEffect(() => {
     const timer = window.setInterval(() => void reload({ showLoading: false }), 60_000);
@@ -263,6 +271,26 @@ export function CheckinManager({
                 w={280}
               />
             )}
+            {isTeacher && (
+              <Select
+                label="Daftar guru"
+                data={[
+                  { value: 'scheduled', label: 'Guru terjadwal hari ini' },
+                  { value: 'all', label: 'Semua guru aktif' },
+                ]}
+                value={teacherScope}
+                allowDeselect={false}
+                disabled={saving !== null || loading}
+                onChange={(value) => {
+                  const next = value === 'all' ? 'all' : 'scheduled';
+                  if (next !== teacherScope) {
+                    setLoading(true);
+                    setTeacherScope(next);
+                  }
+                }}
+                w={250}
+              />
+            )}
           </Group>
           <Button
             variant="default"
@@ -290,11 +318,21 @@ export function CheckinManager({
             <Title order={3}>Daftar kedatangan</Title>
             <Text size="sm" c="dimmed">
               Catat status Hadir, Terlambat, atau Tidak hadir untuk setiap{' '}
-              {isTeacher ? 'guru' : 'siswa'}.
+              {isTeacher && teacherScope === 'scheduled'
+                ? 'guru yang terjadwal'
+                : isTeacher
+                  ? 'guru'
+                  : 'siswa'}
+              .
             </Text>
           </div>
           <Text size="sm" c="dimmed">
-            {rows.length} {isTeacher ? 'guru' : 'siswa'} terdaftar
+            {rows.length}{' '}
+            {isTeacher
+              ? teacherScope === 'scheduled'
+                ? 'guru terjadwal'
+                : 'guru aktif'
+              : 'siswa terdaftar'}
           </Text>
         </Group>
         <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} className={styles.summaryGrid} mb="lg">
@@ -376,7 +414,11 @@ export function CheckinManager({
           </Group>
         ) : visibleRows.length === 0 ? (
           <Alert color="gray" icon={<IconUsers size={18} />}>
-            {isTeacher ? 'Tidak ada guru aktif.' : 'Tidak ada siswa aktif pada rombel ini.'}
+            {isTeacher
+              ? teacherScope === 'scheduled'
+                ? 'Tidak ada guru dengan jadwal pelajaran pada tanggal ini.'
+                : 'Tidak ada guru aktif.'
+              : 'Tidak ada siswa aktif pada rombel ini.'}
           </Alert>
         ) : (
           <Table.ScrollContainer minWidth={680} className={styles.checkinTable}>
@@ -385,6 +427,7 @@ export function CheckinManager({
                 <Table.Tr>
                   <Table.Th>{isTeacher ? 'Kode Guru' : 'NIS'}</Table.Th>
                   <Table.Th>Nama {isTeacher ? 'guru' : 'siswa'}</Table.Th>
+                  {isTeacher && <Table.Th>Jadwal pelajaran</Table.Th>}
                   <Table.Th>Status cek-in</Table.Th>
                   <Table.Th>Waktu</Table.Th>
                   <Table.Th>Catatan</Table.Th>
@@ -420,6 +463,25 @@ export function CheckinManager({
                         </Text>
                       </Group>
                     </Table.Td>
+                    {isTeacher && (
+                      <Table.Td>
+                        {person.schedule_count ? (
+                          <Box>
+                            <Text size="xs" fw={600}>
+                              {person.schedule_count} jadwal · {person.first_start_time}–
+                              {person.last_end_time}
+                            </Text>
+                            <Text size="xs" c="dimmed" lineClamp={1} maw={240}>
+                              {person.scheduled_classes}
+                            </Text>
+                          </Box>
+                        ) : (
+                          <Text size="xs" c="dimmed">
+                            Tidak ada jadwal
+                          </Text>
+                        )}
+                      </Table.Td>
+                    )}
                     <Table.Td>
                       {person.status ? (
                         <Badge

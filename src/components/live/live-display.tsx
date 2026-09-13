@@ -170,7 +170,7 @@ function OverviewScene({ data }: { data: LiveDisplaySnapshot }) {
         </article>
         <CountdownCard data={data} />
         <AttendanceCard icon={IconUsers} label="Kehadiran murid" data={data.attendance.students} />
-        <AttendanceCard icon={IconSchool} label="Kehadiran guru" data={data.attendance.teachers} />
+        <AttendanceCard icon={IconSchool} label="Guru terjadwal" data={data.attendance.teachers} />
       </section>
 
       <section className={styles.contentGrid}>
@@ -194,9 +194,10 @@ function OverviewScene({ data }: { data: LiveDisplaySnapshot }) {
                   </div>
                   <div>
                     <strong>{schedule.subject_name}</strong>
-                    <span>
-                      {schedule.class_name} · {schedule.subject_code}
-                    </span>
+                    <span>{schedule.subject_code}</span>
+                  </div>
+                  <div className={styles.classCell}>
+                    <strong>{schedule.class_name.trim()}</strong>
                   </div>
                   <div className={styles.teacherCell}>
                     <Avatar
@@ -411,7 +412,7 @@ function AttendanceScene({ data }: { data: LiveDisplaySnapshot }) {
               <span className={styles.iconBox}>
                 <IconSchool size={21} />
               </span>
-              <h3>Guru belum check-in</h3>
+              <h3>Guru terjadwal belum check-in</h3>
             </div>
             <span>{data.attendance.teachers.missing}</span>
           </header>
@@ -427,7 +428,49 @@ function AttendanceScene({ data }: { data: LiveDisplaySnapshot }) {
 }
 
 function ScheduleScene({ data }: { data: LiveDisplaySnapshot }) {
-  const visible = data.day_schedules.filter((item) => item.phase !== 'finished').slice(0, 9);
+  const remainingSchedules = data.day_schedules.filter((item) => item.phase === 'upcoming');
+  const allAgendaSlots = Array.from(
+    remainingSchedules
+      .reduce((groups, schedule) => {
+        const key = `${schedule.start_time}-${schedule.end_time}`;
+        const slot = groups.get(key);
+        if (slot) slot.schedules.push(schedule);
+        else
+          groups.set(key, {
+            key,
+            startTime: schedule.start_time,
+            endTime: schedule.end_time,
+            name: schedule.slot_name,
+            schedules: [schedule],
+          });
+        return groups;
+      }, new Map<string, { key: string; startTime: string; endTime: string; name: string; schedules: LiveSchedule[] }>())
+      .values(),
+  ).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const agendaSlots = allAgendaSlots.slice(0, 6);
+  const expandedSlot = agendaSlots[0];
+  const denseAgenda = agendaSlots.length > 4;
+  const upcomingMissingTeachers = Array.from(
+    [...remainingSchedules]
+      .sort((a, b) => a.start_time.localeCompare(b.start_time))
+      .reduce((teachers, schedule) => {
+        if (schedule.teacher_status !== 'missing' || teachers.has(schedule.teacher_id)) {
+          return teachers;
+        }
+        teachers.set(schedule.teacher_id, {
+          id: schedule.teacher_id,
+          name: schedule.teacher_name,
+          code: schedule.subject_name,
+          photo_url: schedule.teacher_photo_url,
+          group_label: `${schedule.start_time} · ${schedule.class_name}`,
+          person_type: 'teacher' as const,
+          status: 'missing' as const,
+          checked_in_at: null,
+        });
+        return teachers;
+      }, new Map<string, LivePerson>())
+      .values(),
+  );
   return (
     <div className={styles.scene}>
       <section className={styles.sceneHeading}>
@@ -437,18 +480,18 @@ function ScheduleScene({ data }: { data: LiveDisplaySnapshot }) {
           </span>
           <div>
             <span>OPERASIONAL AKADEMIK</span>
-            <h2>Jadwal kelas dan kesiapan guru</h2>
+            <h2>Kegiatan dan kesiapan berikutnya</h2>
           </div>
         </div>
         <div className={styles.headingStats}>
           <span>
-            <b>{data.current_schedules.length}</b>Kelas berjalan
+            <b>{allAgendaSlots.length}</b>Slot berikutnya
           </span>
           <span>
-            <b>{visible.filter((item) => item.phase === 'upcoming').length}</b>Berikutnya
+            <b>{remainingSchedules.length}</b>Kelas terjadwal
           </span>
           <span>
-            <b>{data.missing_teachers.length}</b>Guru belum hadir
+            <b>{upcomingMissingTeachers.length}</b>Guru berikutnya belum hadir
           </span>
         </div>
       </section>
@@ -459,46 +502,78 @@ function ScheduleScene({ data }: { data: LiveDisplaySnapshot }) {
               <span className={styles.iconBox}>
                 <IconBook2 size={21} />
               </span>
-              <h3>Agenda hari ini</h3>
+              <h3>Kegiatan selanjutnya</h3>
             </div>
-            <span>{data.day_schedules.length} jadwal</span>
+            <span>
+              {allAgendaSlots.length > agendaSlots.length
+                ? `${agendaSlots.length} dari ${allAgendaSlots.length} slot`
+                : `${allAgendaSlots.length} slot`}{' '}
+              · {remainingSchedules.length} jadwal
+            </span>
           </header>
-          <div className={styles.agendaGrid}>
-            {visible.length ? (
-              visible.map((schedule) => (
-                <div
-                  className={`${styles.agendaCard} ${schedule.phase === 'current' ? styles.agendaCurrent : ''}`}
-                  key={schedule.id}
-                >
-                  <div className={styles.agendaTime}>
-                    <strong>{schedule.start_time}</strong>
-                    <span>{schedule.end_time}</span>
-                  </div>
-                  <div className={styles.agendaInfo}>
-                    <span>
-                      {schedule.phase === 'current' ? 'SEDANG BERLANGSUNG' : schedule.slot_name}
-                    </span>
-                    <strong>{schedule.subject_name}</strong>
-                    <small>{schedule.class_name}</small>
-                  </div>
-                  <div className={styles.agendaTeacher}>
-                    <Avatar
-                      src={schedule.teacher_photo_url || undefined}
-                      size={38}
-                      radius="xl"
-                      color="brand"
+          <div className={`${styles.agendaGrid} ${denseAgenda ? styles.agendaDense : ''}`}>
+            {agendaSlots.length ? (
+              agendaSlots.map((slot) => {
+                const expanded = slot.key === expandedSlot?.key;
+                const missing = slot.schedules.filter(
+                  (schedule) => schedule.teacher_status === 'missing',
+                ).length;
+                return (
+                  <div
+                    className={`${styles.timelineItem} ${expanded ? styles.timelineExpanded : ''} ${expanded && slot.schedules.length > 6 ? styles.timelineExpandedLarge : ''}`}
+                    key={slot.key}
+                  >
+                    <div className={styles.agendaTime}>
+                      <strong>{slot.startTime}</strong>
+                      <span>{slot.endTime}</span>
+                    </div>
+                    <div className={styles.timelineRail}>
+                      <i />
+                    </div>
+                    <div
+                      className={`${styles.agendaCard} ${expanded ? styles.agendaUpcoming : styles.slotCompactCard}`}
                     >
-                      {initials(schedule.teacher_name)}
-                    </Avatar>
-                    <div>
-                      <strong>{schedule.teacher_name}</strong>
-                      <StatusPill status={schedule.teacher_status} />
+                      <div className={styles.slotSummary}>
+                        <span>{expanded ? 'JADWAL BERIKUTNYA' : slot.name}</span>
+                        <strong>{slot.schedules.length} kelas</strong>
+                        <small>
+                          {slot.schedules.length - missing} guru siap
+                          {missing ? ` · ${missing} belum check-in` : ''}
+                        </small>
+                      </div>
+                      {expanded && (
+                        <div className={styles.slotClassList}>
+                          {slot.schedules.map((schedule) => (
+                            <div className={styles.slotClassRow} key={schedule.id}>
+                              <div>
+                                <strong>{schedule.subject_name}</strong>
+                                <span>Kelas {schedule.class_name}</span>
+                              </div>
+                              <div className={styles.slotClassTeacher}>
+                                <Avatar
+                                  src={schedule.teacher_photo_url || undefined}
+                                  size={30}
+                                  radius="xl"
+                                  color="brand"
+                                >
+                                  {initials(schedule.teacher_name)}
+                                </Avatar>
+                                <span>{schedule.teacher_name}</span>
+                                <i
+                                  className={styles[schedule.teacher_status]}
+                                  title={statusLabel(schedule.teacher_status)}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
-              <EmptyState>Tidak ada agenda tersisa hari ini.</EmptyState>
+              <EmptyState>Tidak ada kegiatan berikutnya hari ini.</EmptyState>
             )}
           </div>
         </article>
@@ -508,12 +583,12 @@ function ScheduleScene({ data }: { data: LiveDisplaySnapshot }) {
               <span className={`${styles.iconBox} ${styles.alertIcon}`}>
                 <IconAlertTriangle size={21} />
               </span>
-              <h3>Kesiapan guru</h3>
+              <h3>Guru jadwal berikutnya</h3>
             </div>
-            <span>Prioritas</span>
+            <span>Belum check-in</span>
           </header>
           <PeopleList
-            people={data.missing_teachers.slice(0, 7)}
+            people={upcomingMissingTeachers.slice(0, 7)}
             timezone={data.school.timezone}
             missing
           />
@@ -587,7 +662,7 @@ export function LiveDisplay({ operatorName }: { operatorName: string }) {
         <span className={styles.loadingMark}>
           <IconBroadcast size={34} />
         </span>
-        <h1>Cendekia Live</h1>
+        <h1>Live Report</h1>
         <p>Menyusun informasi operasional sekolah…</p>
         <div className={styles.loadingBar}>
           <i />
@@ -609,7 +684,7 @@ export function LiveDisplay({ operatorName }: { operatorName: string }) {
           </span>
           <div>
             <h1>
-              Cendekia <b>Live</b>
+              Live <b>Report</b>
             </h1>
             <span>{snapshot.school.name}</span>
           </div>

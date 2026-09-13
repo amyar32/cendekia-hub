@@ -51,7 +51,6 @@
 .recentPerson,
 .personRow,
 .sceneHeading > div,
-.agendaTeacher,
 .connection,
 .footer,
 .sceneControls {
@@ -436,7 +435,7 @@
 .scheduleRow {
   min-height: clamp(46px, 5vh, 61px);
   display: grid;
-  grid-template-columns: 64px minmax(130px, 1fr) minmax(130px, 0.8fr) auto;
+  grid-template-columns: 64px minmax(120px, 1fr) minmax(72px, 0.42fr) minmax(130px, 0.8fr) auto;
   gap: 12px;
   align-items: center;
   border-bottom: 1px solid var(--live-border);
@@ -458,6 +457,30 @@
 .scheduleRow > div:nth-child(2) strong,
 .scheduleRow > div:nth-child(2) span {
   display: block;
+}
+.classCell {
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+.classCell strong {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.classCell strong {
+  font-size: clamp(10px, 0.75vw, 13px);
 }
 .scheduleRow > div:nth-child(2) strong {
   font-size: clamp(10px, 0.75vw, 13px);
@@ -742,13 +765,6 @@
   grid-template-columns: 2fr 0.85fr;
   gap: clamp(12px, 1.15vw, 22px);
 }
-.agendaGrid {
-  height: calc(100% - clamp(48px, 5.2vh, 64px));
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(9px, 0.8vw, 14px);
-  padding: clamp(12px, 1vw, 18px);
-}
 .agendaGrid > .empty,
 .recentPeople > .empty {
   grid-column: 1 / -1;
@@ -766,76 +782,228 @@
   min-height: 64px;
   padding: 8px 20px;
 }
-.agendaCard {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 12px;
-  padding: clamp(10px, 1vw, 17px);
-  border: 1px solid var(--live-border);
-  border-radius: var(--mantine-radius-lg);
-  background: var(--live-surface);
+.agendaGrid {
+  height: calc(100% - clamp(48px, 5.2vh, 64px));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(10px, 0.8vw, 16px) clamp(12px, 1vw, 18px);
+  overflow: hidden;
 }
-.agendaCurrent {
-  border-color: var(--live-brand);
-  background: color-mix(in srgb, var(--live-brand-soft) 44%, var(--live-surface));
-  box-shadow: inset 3px 0 var(--live-brand);
+.timelineItem {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: clamp(48px, 3.7vw, 68px) 24px minmax(0, 1fr);
+  align-items: stretch;
+  overflow: hidden;
+}
+.timelineExpanded {
+  flex-grow: 3;
+}
+.timelineExpandedLarge {
+  flex-grow: 5.5;
+}
+.agendaTime {
+  align-self: center;
 }
 .agendaTime strong,
 .agendaTime span {
   display: block;
+  text-align: right;
 }
 .agendaTime strong {
-  color: var(--live-brand);
-  font-size: 12px;
+  color: var(--live-text);
+  font-size: clamp(10px, 0.72vw, 13px);
 }
 .agendaTime span {
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--live-muted);
-  font-size: 8px;
+  font-size: clamp(8px, 0.56vw, 10px);
 }
-.agendaInfo {
+.timelineRail {
+  position: relative;
+  min-height: 100%;
+}
+.timelineRail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--live-border);
+}
+.timelineItem:first-child .timelineRail::before {
+  top: 50%;
+}
+.timelineItem:last-child .timelineRail::before {
+  bottom: 50%;
+}
+.timelineRail i {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--live-surface);
+  border-radius: 50%;
+  background: var(--app-color-muted-soft);
+  box-shadow: 0 0 0 2px var(--live-border);
+}
+.agendaCard {
   min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(105px, 0.62fr) minmax(0, 1.38fr);
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+  padding: clamp(8px, 0.7vw, 12px) clamp(10px, 0.9vw, 16px);
+  border: 1px solid var(--live-border);
+  border-radius: var(--mantine-radius-lg);
+  background: var(--live-surface);
+  overflow: hidden;
 }
-.agendaInfo > span {
+.agendaUpcoming {
+  border-color: color-mix(in srgb, var(--live-brand) 55%, var(--live-border));
+  background: color-mix(in srgb, var(--live-brand-soft) 28%, var(--live-surface));
+  box-shadow: inset 3px 0 var(--live-brand);
+}
+.slotSummary {
+  min-width: 0;
+  width: 100%;
+  align-self: center;
+  padding: 0 4px;
+  text-align: center;
+}
+.slotSummary > span,
+.slotSummary > strong,
+.slotSummary > small {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slotSummary > span {
   color: var(--live-brand);
-  font-size: 7px;
+  font-size: clamp(9px, 0.62vw, 11px);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
-.agendaInfo > strong,
-.agendaInfo > small {
+.slotSummary > strong {
+  margin-top: 7px;
+  font: 700 clamp(18px, 1.35vw, 25px) / 1.05 var(--mantine-font-family-headings);
+}
+.slotSummary > small {
+  margin-top: 7px;
+  color: var(--live-muted);
+  font-size: clamp(10px, 0.7vw, 13px);
+  font-weight: 600;
+}
+.slotCompactCard {
+  grid-template-columns: 1fr;
+}
+.slotClassList {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 6px 0 clamp(14px, 1vw, 18px);
+  border-left: 1px solid var(--live-border);
+}
+.slotClassRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(150px, 0.95fr);
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--live-border);
+}
+.slotClassRow:first-child {
+  padding-top: 0;
+}
+.slotClassRow:last-of-type {
+  border-bottom: 0;
+}
+.slotClassRow > div:first-child {
+  min-width: 0;
+  text-align: left;
+}
+.slotClassRow > div:first-child > strong,
+.slotClassRow > div:first-child > span,
+.slotClassTeacher > span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.agendaInfo > strong {
-  margin-top: 4px;
-  font-size: clamp(10px, 0.72vw, 13px);
+.slotClassRow > div:first-child > strong {
+  font-size: clamp(11px, 0.74vw, 14px);
+  line-height: 1.2;
 }
-.agendaInfo > small {
+.slotClassRow > div:first-child > span {
   margin-top: 3px;
   color: var(--live-muted);
-  font-size: 8px;
+  font-size: clamp(9px, 0.6vw, 11px);
+  line-height: 1.2;
 }
-.agendaTeacher {
-  grid-column: 1 / -1;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--live-border);
-}
-.agendaTeacher > div {
+.slotClassTeacher {
+  width: 100%;
   min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  justify-self: stretch;
+  text-align: left;
 }
-.agendaTeacher strong {
-  display: block;
-  overflow: hidden;
-  margin-bottom: 4px;
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.slotClassTeacher > span {
+  min-width: 0;
+  font-size: clamp(9px, 0.64vw, 12px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.slotClassTeacher > i {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--app-color-muted-soft);
+}
+.slotClassTeacher > i.present {
+  background: var(--live-success);
+}
+.slotClassTeacher > i.late {
+  background: var(--live-warning);
+}
+.slotClassTeacher > i.absent,
+.slotClassTeacher > i.missing {
+  background: var(--live-danger);
+}
+.agendaDense .agendaCard {
+  gap: 8px;
+  margin: 2px 0;
+  padding: 4px clamp(10px, 0.8vw, 14px);
+  border-radius: var(--mantine-radius-md);
+}
+.agendaDense .slotSummary > span {
+  font-size: clamp(8px, 0.56vw, 10px);
+}
+.agendaDense .slotSummary > strong {
+  margin-top: 5px;
+  font-size: clamp(16px, 1.1vw, 21px);
+}
+.agendaDense .slotSummary > small {
+  margin-top: 5px;
+  font-size: clamp(9px, 0.62vw, 11px);
+}
+.agendaDense .slotClassRow {
+  padding: 4px;
 }
 
 .footer {
@@ -986,9 +1154,6 @@
   .teacherMissingPanel {
     display: none;
   }
-  .agendaGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 760px) {
@@ -1048,11 +1213,35 @@
   .scheduleRow {
     grid-template-columns: 52px 1fr auto;
   }
+  .classCell,
   .teacherCell {
     display: none;
   }
   .agendaGrid {
+    height: auto;
+    overflow: visible;
+  }
+  .timelineItem {
+    flex: none;
+    min-height: 82px;
+  }
+  .timelineExpanded {
+    min-height: 230px;
+  }
+  .timelineExpandedLarge {
+    min-height: 400px;
+  }
+  .agendaCard {
     grid-template-columns: 1fr;
+  }
+  .slotClassList {
+    padding: 8px 4px 0;
+    border-top: 1px solid var(--live-border);
+    border-left: 0;
+  }
+  .slotClassRow {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
   .footer {
     position: sticky;

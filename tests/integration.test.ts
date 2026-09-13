@@ -649,6 +649,15 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   });
   assert.equal(res.status, 201);
   const sourceSchedule = await res.json();
+  res = await api('/api/modules/teacher-checkins?date=2026-07-13&scope=scheduled');
+  assert.equal(res.status, 200);
+  const scheduledTeacherCheckins = await res.json();
+  assert.equal(scheduledTeacherCheckins.rows.length, 1);
+  assert.equal(scheduledTeacherCheckins.rows[0].id, teacher.id);
+  assert.equal(scheduledTeacherCheckins.rows[0].schedule_count, 1);
+  assert.equal(scheduledTeacherCheckins.rows[0].scheduled_classes, '7A');
+  res = await api('/api/modules/teacher-checkins?date=2026-07-14&scope=scheduled');
+  assert.equal((await res.json()).rows.length, 0);
   res = await api(
     `/api/modules/schedules?academic_year_id=${secondAcademicYear.id}&semester_id=${semester.id}&class_id=${classroom.id}`,
   );

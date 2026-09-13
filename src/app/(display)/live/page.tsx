@@ -3,7 +3,7 @@ import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 
 export const metadata = {
-  title: 'Cendekia Live · Display Operasional',
+  title: 'Live Report · Display Operasional',
   description: 'Informasi aktivitas sekolah secara langsung.',
 };
 

@@ -86,7 +86,7 @@ export type CmsModule = {
 export const modules: CmsModule[] = [
   {
     key: 'live-display',
-    label: 'Cendekia Live',
+    label: 'Live Report',
     description: 'Pantau aktivitas sekolah secara langsung dalam tampilan khusus layar besar.',
     path: '/live',
     permission: 'live-display.read',

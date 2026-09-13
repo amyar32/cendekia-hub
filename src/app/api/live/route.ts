@@ -49,6 +49,34 @@ function attendanceSummary(table: 'students' | 'teachers', schoolId: string, dat
   return { total: row.total, present, late, absent, missing: row.total - present - late - absent };
 }
 
+function scheduledTeacherAttendanceSummary(
+  schoolId: string,
+  date: string,
+  semesterId: string | undefined,
+  weekday: number,
+) {
+  if (!semesterId) return { total: 0, present: 0, late: 0, absent: 0, missing: 0 };
+  const row = db()
+    .prepare(
+      `SELECT count(*) AS total,
+        sum(CASE WHEN tc.status='present' THEN 1 ELSE 0 END) AS present,
+        sum(CASE WHEN tc.status='late' THEN 1 ELSE 0 END) AS late,
+        sum(CASE WHEN tc.status='absent' THEN 1 ELSE 0 END) AS absent
+       FROM teachers t
+       LEFT JOIN teacher_checkins tc ON tc.teacher_id=t.id AND tc.attendance_date=?
+       WHERE t.school_id=? AND t.is_active=1 AND EXISTS (
+         SELECT 1 FROM class_schedules cs
+         JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
+         WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=?
+       )`,
+    )
+    .get(date, schoolId, semesterId, weekday) as AttendanceRow;
+  const present = row.present || 0;
+  const late = row.late || 0;
+  const absent = row.absent || 0;
+  return { total: row.total, present, late, absent, missing: row.total - present - late - absent };
+}
+
 function personStatus(status: string | null): LivePerson['status'] {
   return status === 'present' || status === 'late' || status === 'absent' ? status : 'missing';
 }
@@ -133,9 +161,21 @@ export async function GET() {
             'teacher' AS person_type,tc.status,tc.checked_in_at
           FROM teacher_checkins tc JOIN teachers t ON t.id=tc.teacher_id
           WHERE tc.school_id=? AND tc.attendance_date=? AND tc.status<>'absent'
+            AND EXISTS (
+              SELECT 1 FROM class_schedules cs
+              JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
+              WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=?
+            )
         ) ORDER BY checked_in_at DESC LIMIT 12`,
       )
-      .all(schoolId, now.date, schoolId, now.date) as LivePerson[];
+      .all(
+        schoolId,
+        now.date,
+        schoolId,
+        now.date,
+        activeSemester?.id || '',
+        now.weekday,
+      ) as LivePerson[];
 
     const missingStudents = db()
       .prepare(
@@ -155,6 +195,10 @@ export async function GET() {
           'teacher' AS person_type,'missing' AS status,NULL AS checked_in_at
          FROM teachers t WHERE t.school_id=? AND t.is_active=1 AND NOT EXISTS (
            SELECT 1 FROM teacher_checkins tc WHERE tc.teacher_id=t.id AND tc.attendance_date=?
+         ) AND EXISTS (
+           SELECT 1 FROM class_schedules cs
+           JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
+           WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=?
          ) ORDER BY CASE WHEN EXISTS (
            SELECT 1 FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
            JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
@@ -166,13 +210,20 @@ export async function GET() {
         now.date,
         activeSemester?.id || '',
         now.weekday,
+        activeSemester?.id || '',
+        now.weekday,
         now.time,
         now.time,
       ) as LivePerson[];
 
     const attendance = {
       students: attendanceSummary('students', schoolId, now.date),
-      teachers: attendanceSummary('teachers', schoolId, now.date),
+      teachers: scheduledTeacherAttendanceSummary(
+        schoolId,
+        now.date,
+        activeSemester?.id,
+        now.weekday,
+      ),
     };
     const currentSchedules = daySchedules.filter((schedule) => schedule.phase === 'current');
     const teachersNeededNow = currentSchedules.filter(
