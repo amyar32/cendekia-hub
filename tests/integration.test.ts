@@ -874,6 +874,26 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(completeStudent.previous_school_graduation_year, '2026');
   assert.equal(completeStudent.current_class_name, '7A');
   assert.equal(completeStudent.history[0].status_label, 'Aktif');
+  // Data kosong dari SQLite kembali sebagai null. Payload hasil buka lalu simpan harus tetap valid.
+  assert.equal(completeStudent.guardians[0].birth_date, null);
+  res = await api('/api/modules/students', 'PATCH', {
+    ...completeStudent,
+    family_card_issued_date: completeStudent.family_card_issued_date || '',
+    latitude: completeStudent.latitude ?? '',
+    longitude: completeStudent.longitude ?? '',
+    home_distance_km: completeStudent.home_distance_km ?? '',
+    has_special_needs: Boolean(completeStudent.has_special_needs),
+    domicile_matches_family_card: Boolean(completeStudent.domicile_matches_family_card),
+    is_active: Boolean(completeStudent.is_active),
+    guardians: completeStudent.guardians.map(
+      (guardian: { address_matches_student: number; is_primary: number }) => ({
+        ...guardian,
+        address_matches_student: Boolean(guardian.address_matches_student),
+        is_primary: Boolean(guardian.is_primary),
+      }),
+    ),
+  });
+  assert.equal(res.status, 200);
   const activeStudentFilters = new URLSearchParams({
     category: 'active',
     active_class_id: classroom.id,

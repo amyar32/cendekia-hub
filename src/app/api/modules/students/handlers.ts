@@ -13,7 +13,10 @@ import { failure } from '@/lib/http';
 import { uploadIdFromUrl } from '@/lib/uploads';
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal tidak valid.');
-const optionalDate = z.union([z.literal(''), date]);
+const optionalDate = z.preprocess(
+  (value) => (value === null || value === undefined ? '' : value),
+  z.union([z.literal(''), date]),
+);
 const optionalYear = z.union([
   z.literal(''),
   z.string().regex(/^\d{4}$/, 'Tahun lulus harus terdiri dari 4 digit.'),
