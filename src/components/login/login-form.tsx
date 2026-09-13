@@ -68,7 +68,7 @@ export function LoginForm() {
           )}
         </Text>
         <div>
-          <Text variant="eyebrow">RUANG KERJA, LEBIH TERATUR</Text>
+          <Text variant="eyebrow">SISTEM OPERASIONAL SEKOLAH</Text>
           <Title
             order={1}
             fz="clamp(32px, 3.5vw, 54px)"
@@ -76,20 +76,20 @@ export function LoginForm() {
             my={20}
             c="var(--app-color-surface)"
           >
-            Satu tempat.
+            Sekolah tertata.
             <br />
-            Banyak kemungkinan.
+            Aktivitas terpantau.
           </Title>
           <Text className={styles.intro}>
-            Fondasi yang tepat untuk mengelola data,
+            Kelola data akademik, jadwal, kehadiran,
             <br />
-            tim, dan setiap langkah pertumbuhan Anda.
+            dan SPMB dalam satu sistem terintegrasi.
           </Text>
           <Stack gap={20} mt={40} c="var(--app-color-brand-soft)">
             {[
-              [IconDatabase, 'Data yang terorganisir'],
-              [IconShieldCheck, 'Akses yang terkontrol'],
-              [IconHistory, 'Aktivitas yang terlacak'],
+              [IconDatabase, 'Data sekolah terintegrasi'],
+              [IconShieldCheck, 'Akses aman sesuai peran'],
+              [IconHistory, 'Aktivitas sekolah terpantau'],
             ].map(([Icon, label]) => {
               const I = Icon as typeof IconDatabase;
               return (
@@ -113,14 +113,16 @@ export function LoginForm() {
             <IconShieldCheck size={25} />
           </ThemeIcon>
           <Stack gap={8} mt="xl">
-            <Title order={2}>Selamat datang kembali</Title>
-            <Text variant="description">Masuk untuk melanjutkan ke workspace Anda.</Text>
+            <Title order={2}>Masuk ke sistem sekolah</Title>
+            <Text variant="description">
+              Gunakan akun yang diberikan oleh administrator sekolah.
+            </Text>
           </Stack>
           <form onSubmit={submit}>
             <TextInput
               label="Email"
               name="email"
-              placeholder="nama@perusahaan.com"
+              placeholder="nama@sekolah.sch.id"
               type="email"
               autoComplete="username"
               required
