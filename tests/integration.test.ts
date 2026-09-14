@@ -1592,6 +1592,17 @@ test('academic year context, bulk promotion, and historical reports', async () =
   assert.equal(attendanceReport.selected.academic_year_id, sourceYear.id);
   assert.equal(typeof attendanceReport.summary.attendance_rate, 'number');
   assert.ok(Array.isArray(attendanceReport.classes));
+  assert.ok(Array.isArray(attendanceReport.options.subject_id));
+  if (attendanceReport.options.subject_id[0]) {
+    res = await api(
+      `/api/reports/attendance?academic_year_id=${sourceYear.id}&subject_id=${attendanceReport.options.subject_id[0].value}`,
+    );
+    assert.equal(res.status, 200);
+    assert.equal(
+      (await res.json()).selected.subject_id,
+      attendanceReport.options.subject_id[0].value,
+    );
+  }
 
   res = await api(`/api/reports/data-quality?academic_year_id=${sourceYear.id}`);
   assert.equal(res.status, 200);

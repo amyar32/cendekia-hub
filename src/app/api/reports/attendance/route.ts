@@ -6,6 +6,7 @@ import {
   currentSchoolId,
   requireAcademicYear,
   requireClass,
+  requireSubject,
   semesterOptions,
 } from '@/app/api/modules/_shared/academic-context';
 import { HttpError, requireUser } from '@/lib/auth';
@@ -46,6 +47,8 @@ export async function GET(request: Request) {
       if (classroom.academic_year_id !== yearId)
         throw new HttpError(400, 'Rombel tidak berada pada tahun ajaran yang dipilih.');
     }
+    const subjectId = optionalUuid.parse(url.searchParams.get('subject_id') || '');
+    if (subjectId) requireSubject(schoolId, subjectId);
 
     const dateFrom = dateSchema.parse(
       url.searchParams.get('date_from') || semester?.start_date || year.start_date,
@@ -69,10 +72,15 @@ export async function GET(request: Request) {
       clauses.push('ats.class_id=?');
       args.push(classId);
     }
+    if (subjectId) {
+      clauses.push('ta.subject_id=?');
+      args.push(subjectId);
+    }
     const where = clauses.join(' AND ');
     const joins = `FROM student_attendance_sessions ats
       JOIN class_schedules cs ON cs.id=ats.class_schedule_id
       JOIN semesters sem ON sem.id=cs.semester_id
+      JOIN teaching_assignments ta ON ta.id=ats.teaching_assignment_id
       JOIN student_attendance_records ar ON ar.session_id=ats.id`;
 
     const lesson = db()
@@ -89,7 +97,8 @@ export async function GET(request: Request) {
         `SELECT COUNT(*) AS total,SUM(ats.status='open') AS open,SUM(ats.status='closed') AS closed
          FROM student_attendance_sessions ats
          JOIN class_schedules cs ON cs.id=ats.class_schedule_id
-         JOIN semesters sem ON sem.id=cs.semester_id WHERE ${where}`,
+         JOIN semesters sem ON sem.id=cs.semester_id
+         JOIN teaching_assignments ta ON ta.id=ats.teaching_assignment_id WHERE ${where}`,
       )
       .get(...args) as Record<string, number | null>;
 
@@ -152,6 +161,15 @@ export async function GET(request: Request) {
     const school = db()
       .prepare('SELECT name,code,npsn,address FROM schools WHERE id=?')
       .get(schoolId);
+    const subjects = db()
+      .prepare(
+        `SELECT DISTINCT subject.id AS value,subject.code || ' — ' || subject.name AS label
+         FROM teaching_assignments ta JOIN subjects subject ON subject.id=ta.subject_id
+         WHERE ta.academic_year_id=?
+           AND (?='' OR ta.semester_id=? OR ta.semester_id IS NULL)
+         ORDER BY subject.name`,
+      )
+      .all(yearId, semester?.id || '', semester?.id || '');
 
     const normalizedLesson = Object.fromEntries(
       Object.entries(lesson).map(([key, value]) => [key, value || 0]),
@@ -167,6 +185,7 @@ export async function GET(request: Request) {
           academic_year_id: yearId,
           semester_id: semester?.id || '',
           class_id: classId,
+          subject_id: subjectId,
           date_from: dateFrom,
           date_to: dateTo,
         },
@@ -174,6 +193,7 @@ export async function GET(request: Request) {
           academic_year_id: academicYearOptions(schoolId),
           semester_id: semesterOptions(schoolId, yearId),
           class_id: classOptions(schoolId, yearId),
+          subject_id: subjects,
         },
         summary: {
           lesson: normalizedLesson,

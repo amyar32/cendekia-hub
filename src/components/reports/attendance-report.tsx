@@ -45,6 +45,7 @@ type AttendanceData = {
     academic_year_id: string;
     semester_id: string;
     class_id: string;
+    subject_id: string;
     date_from: string;
     date_to: string;
   };
@@ -52,6 +53,7 @@ type AttendanceData = {
     academic_year_id: Option[];
     semester_id: Option[];
     class_id: Option[];
+    subject_id: Option[];
   };
   summary: {
     lesson: Counts;
@@ -87,6 +89,7 @@ export function AttendanceReport() {
     academic_year_id: '',
     semester_id: '',
     class_id: '',
+    subject_id: '',
     date_from: '',
     date_to: '',
   });
@@ -120,6 +123,7 @@ export function AttendanceReport() {
           academic_year_id: '',
           semester_id: '',
           class_id: '',
+          subject_id: '',
           date_from: '',
           date_to: '',
         }),
@@ -136,6 +140,7 @@ export function AttendanceReport() {
           year: find(data.options.academic_year_id, filters.academic_year_id),
           semester: find(data.options.semester_id, filters.semester_id),
           classroom: find(data.options.class_id, filters.class_id) || 'Semua rombel',
+          subject: find(data.options.subject_id, filters.subject_id) || 'Semua mata pelajaran',
         }
       : null;
   }, [data, filters]);
@@ -150,7 +155,7 @@ export function AttendanceReport() {
       sheet.addRow([data.metadata.school.name]);
       sheet.addRow(['Laporan Kehadiran Terpadu']);
       sheet.addRow([
-        `${selectedLabels?.year || ''} · ${selectedLabels?.semester || ''} · ${selectedLabels?.classroom || ''}`,
+        `${selectedLabels?.year || ''} · ${selectedLabels?.semester || ''} · ${selectedLabels?.classroom || ''} · ${selectedLabels?.subject || ''}`,
       ]);
       sheet.addRow([`Periode ${localDate(filters.date_from)}–${localDate(filters.date_to)}`]);
       sheet.addRow([]);
@@ -244,9 +249,9 @@ export function AttendanceReport() {
       <Paper withBorder className={`${styles.filterPanel} ${styles.screenOnly}`}>
         <ReportPanelHeader
           title="Filter laporan"
-          description="Sesuaikan periode dan rombel yang ingin dianalisis."
+          description="Sesuaikan periode, rombel, dan mata pelajaran yang ingin dianalisis."
         />
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
           <Select
             label="Tahun ajaran"
             placeholder="Pilih tahun ajaran"
@@ -258,6 +263,7 @@ export function AttendanceReport() {
                 academic_year_id: value || '',
                 semester_id: '',
                 class_id: '',
+                subject_id: '',
                 date_from: '',
                 date_to: '',
               })
@@ -270,7 +276,13 @@ export function AttendanceReport() {
             data={data?.options.semester_id || []}
             value={filters.semester_id}
             onChange={(value) =>
-              setFilters({ ...filters, semester_id: value || '', date_from: '', date_to: '' })
+              setFilters({
+                ...filters,
+                semester_id: value || '',
+                subject_id: '',
+                date_from: '',
+                date_to: '',
+              })
             }
           />
           <Select
@@ -281,6 +293,15 @@ export function AttendanceReport() {
             data={data?.options.class_id || []}
             value={filters.class_id}
             onChange={(value) => setFilters({ ...filters, class_id: value || '' })}
+          />
+          <Select
+            label="Mata pelajaran"
+            placeholder="Semua mata pelajaran"
+            clearable
+            searchable
+            data={data?.options.subject_id || []}
+            value={filters.subject_id}
+            onChange={(value) => setFilters({ ...filters, subject_id: value || '' })}
           />
           <DateInput
             label="Dari tanggal"
