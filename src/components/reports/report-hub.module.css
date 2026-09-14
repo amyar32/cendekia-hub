@@ -1,0 +1,43 @@
+.intro {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  margin-bottom: 22px;
+  background: linear-gradient(135deg, var(--mantine-color-body), var(--app-color-subtle));
+}
+
+.card {
+  min-height: 250px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--mantine-shadow-md);
+  border-color: var(--mantine-primary-color-5);
+}
+
+.cardTop,
+.open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.open {
+  justify-content: flex-start;
+  gap: 7px;
+  color: var(--mantine-primary-color-filled);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
+}

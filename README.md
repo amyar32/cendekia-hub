@@ -47,6 +47,9 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
 - **Dashboard:** statistik dan aktivitas aktual, sesuai akses pengguna.
+- **Pusat laporan:** laporan kehadiran terpadu dari absensi pelajaran serta check-in gerbang,
+  pemeriksaan kelengkapan data lintas murid/guru/rombel, dan riwayat mutasi murid; dilengkapi filter,
+  drill-down tindakan, tampilan cetak, serta export Excel.
 - **Onboarding sekolah:** wizard konfigurasi profil dan jenjang SD/SMP/SMA, tingkat, template mata
   pelajaran dan ekstrakurikuler, tahun ajaran, semester, rombel, hari belajar, slot waktu Mantine,
   import Excel tervalidasi, penugasan guru, wali kelas, dan pembina, serta checklist kesiapan
@@ -68,7 +71,7 @@ src/
       master-data/            Murid, guru, tingkat, dan mata pelajaran
       academic/               Tahun ajaran, semester, rombel, dan penugasan
       exam-schedules/         Jadwal ujian, ruang, pengawas, konflik, dan publikasi
-      reports/                Laporan akademik
+      reports/                Pusat laporan, kehadiran, kualitas data, serta riwayat murid
       administration/         Pengguna, role, dan audit trail
       settings/               Pengaturan sekolah dan akun
     api/auth/                 Login, logout, perubahan password

@@ -1584,6 +1584,26 @@ test('academic year context, bulk promotion, and historical reports', async () =
     restoredReport.rows.find((row: { nis: string }) => row.nis === 'S-002').status_label,
     'Aktif',
   );
+
+  assert.equal((await api('/api/reports/attendance', 'GET', undefined, '')).status, 401);
+  res = await api(`/api/reports/attendance?academic_year_id=${sourceYear.id}`);
+  assert.equal(res.status, 200);
+  const attendanceReport = await res.json();
+  assert.equal(attendanceReport.selected.academic_year_id, sourceYear.id);
+  assert.equal(typeof attendanceReport.summary.attendance_rate, 'number');
+  assert.ok(Array.isArray(attendanceReport.classes));
+
+  res = await api(`/api/reports/data-quality?academic_year_id=${sourceYear.id}`);
+  assert.equal(res.status, 200);
+  const dataQualityReport = await res.json();
+  assert.equal(dataQualityReport.selected.academic_year_id, sourceYear.id);
+  assert.ok(dataQualityReport.summary.issues > 0);
+  assert.ok(
+    dataQualityReport.issues.some(
+      (issue: { category: string; entity_name: string }) =>
+        issue.category === 'student_guardian' && issue.entity_name === 'Bima Cendekia',
+    ),
+  );
 });
 
 test('academic year template copies semesters, classes, teaching assignments, homeroom, and schedules', async () => {

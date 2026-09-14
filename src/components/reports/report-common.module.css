@@ -1,0 +1,136 @@
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mantine-primary-color-filled);
+  text-decoration: none;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.filterPanel {
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.filterActions,
+.pageActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.summaryGrid {
+  margin-bottom: 20px;
+}
+
+.summaryCard {
+  min-height: 94px;
+  padding: 18px;
+  background: linear-gradient(135deg, var(--app-color-surface), var(--app-color-subtle));
+}
+
+.summaryValue {
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.2;
+  margin-top: 8px;
+}
+
+.panel {
+  padding: 20px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.trendList {
+  display: grid;
+  gap: 12px;
+}
+
+.trendRow {
+  display: grid;
+  grid-template-columns: 105px 1fr 54px;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--mantine-font-size-xs);
+}
+
+.trendTrack {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--app-color-subtle);
+}
+
+.trendBar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--mantine-primary-color-filled);
+}
+
+.empty {
+  padding: 44px 20px;
+  color: var(--app-color-muted-strong);
+  text-align: center;
+}
+
+.categoryCard {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  background: var(--app-color-surface);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.categoryCard:hover,
+.categoryCardActive {
+  border-color: var(--mantine-primary-color-5);
+  background: var(--app-color-subtle);
+}
+
+@media print {
+  .screenOnly,
+  .backLink,
+  .filterPanel {
+    display: none !important;
+  }
+
+  .panel,
+  .summaryCard {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 48em) {
+  .panelHeader {
+    flex-direction: column;
+  }
+
+  .trendRow {
+    grid-template-columns: 82px 1fr 45px;
+  }
+
+  .pageActions {
+    width: 100%;
+  }
+
+  .pageActions > * {
+    flex: 1;
+  }
+}

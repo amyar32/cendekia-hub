@@ -1,34 +1,33 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Button,
-  Divider,
   Group,
   Loader,
   Paper,
   Select,
   SimpleGrid,
-  Stack,
   Table,
   Text,
   TextInput,
-  Title,
+  useMantineTheme,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  IconDatabaseOff,
+  IconArrowLeft,
   IconFileSpreadsheet,
   IconFileTypePdf,
   IconRefresh,
   IconSearch,
-  IconUsers,
   IconX,
 } from '@tabler/icons-react';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
-import styles from './academic-report.module.css';
 import { APP_NAME } from '@/config/branding';
+import { ReportPanelHeader, ReportSummaryCard } from './report-elements';
+import styles from './report-common.module.css';
 
 type Option = { value: string; label: string };
 type ReportRow = {
@@ -88,6 +87,25 @@ const exportStatusColors: Record<string, string> = {
   withdrawn: 'FFFFC6B4',
 };
 
+type Rgb = [number, number, number];
+
+function hexToRgb(value: string): Rgb {
+  const normalized = value.replace('#', '');
+  const hex =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((character) => character + character)
+          .join('')
+      : normalized;
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return [0, 0, 0];
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16),
+  ];
+}
+
 function formatReportDate(value?: string) {
   if (!value) return '—';
   const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
@@ -116,6 +134,7 @@ function exportTimestamp() {
 }
 
 export function AcademicReport() {
+  const mantineTheme = useMantineTheme();
   const [data, setData] = useState<ReportData | null>(null);
   const [year, setYear] = useState('');
   const [classId, setClassId] = useState('');
@@ -163,7 +182,7 @@ export function AcademicReport() {
     () => data?.options.class_id.find((option) => option.value === classId)?.label,
     [classId, data],
   );
-  const reportTitle = `Laporan Akademik${selectedYear ? ` — ${selectedYear}` : ''}${selectedClass ? ` — ${selectedClass}` : ''}`;
+  const reportTitle = `Riwayat & Mutasi Murid${selectedYear ? ` — ${selectedYear}` : ''}${selectedClass ? ` — ${selectedClass}` : ''}`;
   const reportPeriod = selectedYear || 'Semua tahun ajaran';
   const reportClass = selectedClass || 'Semua rombel';
   const reportStatus =
@@ -299,20 +318,38 @@ export function AcademicReport() {
       ]);
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const autoTable = autoTableModule.default;
+      const themeColors = mantineTheme.other.appColors as {
+        surface: string;
+        text: string;
+        muted: string;
+        border: string;
+        brand: string;
+        brandStrong: string;
+        subtle: string;
+      };
+      const pdfColors = {
+        surface: hexToRgb(themeColors.surface),
+        text: hexToRgb(themeColors.text),
+        muted: hexToRgb(themeColors.muted),
+        border: hexToRgb(themeColors.border),
+        brand: hexToRgb(themeColors.brand),
+        brandStrong: hexToRgb(themeColors.brandStrong),
+        subtle: hexToRgb(themeColors.subtle),
+      };
       const drawPageHeader = () => {
-        pdf.setFillColor(201, 78, 41);
+        pdf.setFillColor(...pdfColors.brandStrong);
         pdf.rect(0, 0, 297, 27, 'F');
-        pdf.setTextColor(255, 255, 255);
+        pdf.setTextColor(...pdfColors.surface);
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(15);
         pdf.text(schoolName.toUpperCase(), 14, 12);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8.5);
-        pdf.text(pdfSchoolHeaderInfo || 'Laporan Akademik Murid', 14, 19);
+        pdf.text(pdfSchoolHeaderInfo || 'Riwayat & Mutasi Murid', 14, 19);
         pdf.text(`Total ${data.summary.total || 0} murid`, 283, 15, { align: 'right' });
-        pdf.setTextColor(71, 85, 105);
+        pdf.setTextColor(...pdfColors.text);
         pdf.setFontSize(8);
-        pdf.text(`LAPORAN AKADEMIK MURID  •  ${reportPeriod}`, 14, 35);
+        pdf.text(`RIWAYAT & MUTASI MURID  •  ${reportPeriod}`, 14, 35);
         pdf.text(`Rombel: ${reportClass}   •   Status: ${reportStatus}`, 14, 39);
         pdf.text(`Dibuat ${generatedAt}`, 283, 39, { align: 'right' });
       };
@@ -326,17 +363,17 @@ export function AcademicReport() {
         styles: {
           fontSize: 7.5,
           cellPadding: 2.4,
-          textColor: [88, 89, 91],
-          lineColor: [235, 231, 228],
+          textColor: pdfColors.text,
+          lineColor: pdfColors.border,
           lineWidth: 0.15,
         },
         headStyles: {
-          fillColor: [225, 95, 55],
-          textColor: 255,
+          fillColor: pdfColors.brand,
+          textColor: pdfColors.surface,
           fontStyle: 'bold',
           halign: 'center',
         },
-        alternateRowStyles: { fillColor: [250, 248, 247] },
+        alternateRowStyles: { fillColor: pdfColors.subtle },
         columnStyles: {
           0: { cellWidth: 19 },
           1: { cellWidth: 25 },
@@ -345,11 +382,11 @@ export function AcademicReport() {
         didDrawPage: ({ pageNumber }) => {
           if (pageNumber > 1) drawPageHeader();
           pdf.setFontSize(7);
-          pdf.setTextColor(110);
+          pdf.setTextColor(...pdfColors.muted);
           pdf.text(`${schoolName}  •  Halaman ${pageNumber}`, 283, 204, { align: 'right' });
         },
       });
-      pdf.save(`laporan-akademik-${data.selected.academic_year_id}.pdf`);
+      pdf.save(`riwayat-mutasi-murid-${data.selected.academic_year_id}.pdf`);
       notifications.show({
         color: 'green',
         title: 'PDF siap',
@@ -367,121 +404,16 @@ export function AcademicReport() {
   };
 
   return (
-    <Stack gap="lg">
+    <>
+      <Link href="/reports" className={styles.backLink}>
+        <IconArrowLeft size={16} /> Pusat Laporan
+      </Link>
       <PageHeading
-        eyebrow="LAPORAN"
-        title="Laporan Akademik Murid"
-        description="Data penempatan dibaca dari riwayat pada tahun ajaran yang dipilih."
-      />
-
-      <Paper component="section" className={styles.panel} withBorder>
-        <div className={styles.toolbar}>
-          <Stack gap={5}>
-            <Title order={3}>Filter laporan</Title>
-            <Text variant="caption">Sesuaikan hasil berdasarkan periode, rombel, dan status.</Text>
-          </Stack>
-          <Group gap="xs">
-            {hasFilters && (
-              <Button
-                variant="subtle"
-                color="gray"
-                leftSection={<IconX size={16} />}
-                onClick={() => {
-                  setClassId('');
-                  setStatus('');
-                  setQuery('');
-                }}
-              >
-                Reset filter
-              </Button>
-            )}
-            <Button
-              variant="default"
-              leftSection={<IconRefresh size={16} />}
-              onClick={load}
-              loading={loading}
-            >
-              Muat ulang
-            </Button>
-          </Group>
-        </div>
-
-        <Stack p="lg" gap="lg">
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-            <Select
-              label="Tahun ajaran"
-              required
-              searchable
-              placeholder="Pilih tahun ajaran"
-              data={data?.options.academic_year_id || []}
-              value={year}
-              onChange={(value) => {
-                setYear(value || '');
-                setClassId('');
-              }}
-              leftSection={<IconSearch size={16} />}
-            />
-            <Select
-              label="Rombel"
-              clearable
-              searchable
-              placeholder="Semua rombel"
-              data={data?.options.class_id || []}
-              value={classId}
-              onChange={(value) => setClassId(value || '')}
-            />
-            <Select
-              label="Status akademik"
-              clearable
-              placeholder="Semua status"
-              data={data?.options.status || []}
-              value={status}
-              onChange={(value) => setStatus(value || '')}
-            />
-            <TextInput
-              label="Cari murid"
-              placeholder="Nama, NIS, atau NISN"
-              value={query}
-              onChange={(event) => setQuery(event.currentTarget.value)}
-            />
-          </SimpleGrid>
-        </Stack>
-      </Paper>
-
-      <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} className={styles.summaryGrid}>
-        {[
-          ['Total murid', 'total', 'dark'],
-          ['Aktif', 'active', 'green'],
-          ['Naik kelas', 'promoted', 'blue'],
-          ['Tinggal kelas', 'retained', 'orange'],
-          ['Lulus', 'graduated', 'grape'],
-          ['Pindah / keluar', 'withdrawn', 'red'],
-        ].map(([label, key, color]) => (
-          <Paper key={key} className={styles.summaryCard} withBorder>
-            <Text size="xs" c="dimmed" fw={600}>
-              {label}
-            </Text>
-            <Text size="xl" fw={800} c={color}>
-              {data?.summary[key] || 0}
-            </Text>
-          </Paper>
-        ))}
-      </SimpleGrid>
-
-      <Paper component="section" className={styles.tablePanel} withBorder>
-        <div className={styles.tableHeader}>
-          <Group gap="sm">
-            <span className={styles.tableIcon}>
-              <IconUsers size={18} />
-            </span>
-            <div>
-              <Title order={3}>Daftar murid</Title>
-              <Text size="sm" c="dimmed">
-                {reportTitle}
-              </Text>
-            </div>
-          </Group>
-          <Group gap="xs">
+        eyebrow="RIWAYAT AKADEMIK"
+        title="Riwayat & Mutasi Murid"
+        description="Telusuri penempatan, kenaikan kelas, kelulusan, serta perpindahan murid per tahun ajaran."
+        action={
+          <Group className={`${styles.pageActions} ${styles.screenOnly}`}>
             <Button
               variant="default"
               leftSection={<IconFileSpreadsheet size={16} />}
@@ -500,32 +432,116 @@ export function AcademicReport() {
               PDF
             </Button>
           </Group>
-        </div>
-        <Divider />
-        {loading && !data ? (
-          <Stack className={styles.emptyState} align="center" gap="md">
-            <Loader size="sm" />
-            <Text variant="description">Memuat laporan...</Text>
-          </Stack>
-        ) : !data || data.rows.length === 0 ? (
-          <Stack className={styles.emptyState} align="center" gap="md">
-            <div
-              style={{
-                borderRadius: 16,
-                padding: 17,
-                background: 'var(--app-color-brand-soft)',
-                display: 'inline-flex',
-                color: 'var(--app-color-brand)',
+        }
+      />
+
+      <Paper
+        component="section"
+        className={`${styles.filterPanel} ${styles.screenOnly}`}
+        withBorder
+      >
+        <ReportPanelHeader
+          title="Filter laporan"
+          description="Sesuaikan hasil berdasarkan periode, rombel, dan status."
+        />
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+          <Select
+            label="Tahun ajaran"
+            required
+            searchable
+            placeholder="Pilih tahun ajaran"
+            data={data?.options.academic_year_id || []}
+            value={year}
+            onChange={(value) => {
+              setYear(value || '');
+              setClassId('');
+            }}
+            leftSection={<IconSearch size={16} />}
+          />
+          <Select
+            label="Rombel"
+            clearable
+            searchable
+            placeholder="Semua rombel"
+            data={data?.options.class_id || []}
+            value={classId}
+            onChange={(value) => setClassId(value || '')}
+          />
+          <Select
+            label="Status akademik"
+            clearable
+            placeholder="Semua status"
+            data={data?.options.status || []}
+            value={status}
+            onChange={(value) => setStatus(value || '')}
+          />
+          <TextInput
+            label="Cari murid"
+            placeholder="Nama, NIS, atau NISN"
+            leftSection={<IconSearch size={16} />}
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+        </SimpleGrid>
+        <Group className={styles.filterActions} mt="md">
+          {hasFilters && (
+            <Button
+              variant="subtle"
+              color="gray"
+              leftSection={<IconX size={16} />}
+              onClick={() => {
+                setClassId('');
+                setStatus('');
+                setQuery('');
               }}
             >
-              <IconDatabaseOff size={32} />
-            </div>
-            <Title order={3}>Data tidak ditemukan</Title>
-            <Text variant="description">Tidak ada data untuk filter yang dipilih.</Text>
-          </Stack>
+              Reset filter
+            </Button>
+          )}
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={load}
+            loading={loading}
+          >
+            Terapkan filter
+          </Button>
+        </Group>
+      </Paper>
+
+      <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} className={styles.summaryGrid}>
+        {[
+          ['Total murid', 'total', 'dark'],
+          ['Aktif', 'active', 'green'],
+          ['Naik kelas', 'promoted', 'blue'],
+          ['Tinggal kelas', 'retained', 'orange'],
+          ['Lulus', 'graduated', 'grape'],
+          ['Pindah / keluar', 'withdrawn', 'red'],
+        ].map(([label, key, color]) => (
+          <ReportSummaryCard
+            key={key}
+            label={label}
+            color={color}
+            value={(data?.summary[key] || 0).toLocaleString('id-ID')}
+          />
+        ))}
+      </SimpleGrid>
+
+      <Paper component="section" className={styles.panel} withBorder>
+        <ReportPanelHeader
+          title="Daftar murid"
+          description={reportTitle}
+          aside={<Badge variant="light">{data?.rows.length || 0} murid</Badge>}
+        />
+        {loading && !data ? (
+          <div className={styles.empty}>
+            <Loader size="sm" />
+          </div>
+        ) : !data || data.rows.length === 0 ? (
+          <div className={styles.empty}>Tidak ada data untuk filter yang dipilih.</div>
         ) : (
           <Table.ScrollContainer minWidth={780}>
-            <Table striped highlightOnHover verticalSpacing="md">
+            <Table striped highlightOnHover verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>NIS</Table.Th>
@@ -544,9 +560,7 @@ export function AcademicReport() {
                     <Table.Td>{row.nis}</Table.Td>
                     <Table.Td>{row.nisn || '—'}</Table.Td>
                     <Table.Td>
-                      <Text fw={600} size="xs">
-                        {row.name}
-                      </Text>
+                      <Text fw={650}>{row.name}</Text>
                     </Table.Td>
                     <Table.Td>{row.grade_name}</Table.Td>
                     <Table.Td>{row.class_name}</Table.Td>
@@ -564,6 +578,6 @@ export function AcademicReport() {
           </Table.ScrollContainer>
         )}
       </Paper>
-    </Stack>
+    </>
   );
 }

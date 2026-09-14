@@ -251,9 +251,9 @@ export const modules: CmsModule[] = [
   },
   {
     key: 'academic-reports',
-    label: 'Laporan Akademik',
-    description: 'Lihat penempatan dan riwayat murid berdasarkan tahun ajaran.',
-    path: '/reports/academic',
+    label: 'Pusat Laporan',
+    description: 'Pantau kehadiran, kelengkapan data, serta riwayat dan mutasi murid.',
+    path: '/reports',
     permission: 'academic-reports.read',
     group: 'Laporan',
   },
