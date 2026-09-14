@@ -929,6 +929,191 @@ export function db() {
       connection.pragma('user_version = 48');
     })();
   }
+  if (schemaVersion < 49) {
+    connection.transaction(() => {
+      connection.exec(`
+        CREATE TABLE IF NOT EXISTS exam_periods (
+          id TEXT PRIMARY KEY,
+          school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
+          academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT,
+          semester_id TEXT NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT,
+          name TEXT NOT NULL,
+          exam_type TEXT NOT NULL DEFAULT 'midterm' CHECK (exam_type IN ('midterm','final','practice','oral','computer','tryout','other')),
+          start_date TEXT NOT NULL,
+          end_date TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','completed','archived')),
+          regular_schedule_policy TEXT NOT NULL DEFAULT 'suspend_participating_classes' CHECK (regular_schedule_policy IN ('unaffected','suspend_participating_classes','suspend_all_classes')),
+          max_exams_per_class_per_day INTEGER NOT NULL DEFAULT 2 CHECK (max_exams_per_class_per_day > 0),
+          max_supervisions_per_teacher_per_day INTEGER NOT NULL DEFAULT 2 CHECK (max_supervisions_per_teacher_per_day > 0),
+          supervisors_per_room INTEGER NOT NULL DEFAULT 2 CHECK (supervisors_per_room > 0),
+          minimum_break_minutes INTEGER NOT NULL DEFAULT 15 CHECK (minimum_break_minutes >= 0),
+          allow_self_supervision INTEGER NOT NULL DEFAULT 0 CHECK (allow_self_supervision IN (0,1)),
+          enforce_room_capacity INTEGER NOT NULL DEFAULT 1 CHECK (enforce_room_capacity IN (0,1)),
+          allow_warning_override INTEGER NOT NULL DEFAULT 1 CHECK (allow_warning_override IN (0,1)),
+          version INTEGER NOT NULL DEFAULT 0 CHECK (version >= 0),
+          published_at TEXT,
+          published_by TEXT REFERENCES users(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          CHECK (start_date <= end_date),
+          UNIQUE (school_id, academic_year_id, name)
+        );
+        CREATE TABLE IF NOT EXISTS exam_sessions (
+          id TEXT PRIMARY KEY,
+          exam_period_id TEXT NOT NULL REFERENCES exam_periods(id) ON DELETE CASCADE,
+          exam_date TEXT NOT NULL,
+          name TEXT NOT NULL,
+          start_time TEXT NOT NULL,
+          end_time TEXT NOT NULL,
+          session_order INTEGER NOT NULL CHECK (session_order > 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          CHECK (start_time < end_time),
+          UNIQUE (exam_period_id, exam_date, session_order),
+          UNIQUE (exam_period_id, exam_date, name)
+        );
+        CREATE TABLE IF NOT EXISTS rooms (
+          id TEXT PRIMARY KEY,
+          school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
+          code TEXT NOT NULL,
+          name TEXT NOT NULL,
+          capacity INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0),
+          room_type TEXT NOT NULL DEFAULT 'classroom' CHECK (room_type IN ('classroom','laboratory','computer_lab','hall','other')),
+          location TEXT NOT NULL DEFAULT '',
+          facilities TEXT NOT NULL DEFAULT '[]',
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (school_id, code),
+          UNIQUE (school_id, name)
+        );
+        CREATE TABLE IF NOT EXISTS exam_schedule_entries (
+          id TEXT PRIMARY KEY,
+          exam_period_id TEXT NOT NULL REFERENCES exam_periods(id) ON DELETE CASCADE,
+          exam_session_id TEXT NOT NULL REFERENCES exam_sessions(id) ON DELETE RESTRICT,
+          subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT,
+          room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
+          assessment_type TEXT NOT NULL DEFAULT 'written' CHECK (assessment_type IN ('written','practice','oral','computer')),
+          duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
+          notes TEXT NOT NULL DEFAULT '',
+          subject_name TEXT NOT NULL,
+          room_name TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (exam_session_id, room_id)
+        );
+        CREATE TABLE IF NOT EXISTS exam_schedule_classes (
+          id TEXT PRIMARY KEY,
+          exam_schedule_entry_id TEXT NOT NULL REFERENCES exam_schedule_entries(id) ON DELETE CASCADE,
+          class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+          class_name TEXT NOT NULL,
+          participant_count INTEGER NOT NULL DEFAULT 0 CHECK (participant_count >= 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (exam_schedule_entry_id, class_id)
+        );
+        CREATE TABLE IF NOT EXISTS exam_supervisors (
+          id TEXT PRIMARY KEY,
+          exam_schedule_entry_id TEXT NOT NULL REFERENCES exam_schedule_entries(id) ON DELETE CASCADE,
+          teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT,
+          role TEXT NOT NULL DEFAULT 'assistant' CHECK (role IN ('lead','assistant')),
+          teacher_name TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (exam_schedule_entry_id, teacher_id)
+        );
+        CREATE TABLE IF NOT EXISTS exam_unavailabilities (
+          id TEXT PRIMARY KEY,
+          exam_period_id TEXT NOT NULL REFERENCES exam_periods(id) ON DELETE CASCADE,
+          resource_type TEXT NOT NULL CHECK (resource_type IN ('teacher','room')),
+          teacher_id TEXT REFERENCES teachers(id) ON DELETE CASCADE,
+          room_id TEXT REFERENCES rooms(id) ON DELETE CASCADE,
+          exam_date TEXT NOT NULL,
+          exam_session_id TEXT REFERENCES exam_sessions(id) ON DELETE CASCADE,
+          reason TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          CHECK ((resource_type='teacher' AND teacher_id IS NOT NULL AND room_id IS NULL) OR (resource_type='room' AND room_id IS NOT NULL AND teacher_id IS NULL))
+        );
+        CREATE TABLE IF NOT EXISTS exam_constraints (
+          id TEXT PRIMARY KEY,
+          exam_period_id TEXT NOT NULL REFERENCES exam_periods(id) ON DELETE CASCADE,
+          constraint_key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          severity TEXT NOT NULL DEFAULT 'warning' CHECK (severity IN ('warning','error')),
+          is_enabled INTEGER NOT NULL DEFAULT 1 CHECK (is_enabled IN (0,1)),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (exam_period_id, constraint_key)
+        );
+        CREATE TABLE IF NOT EXISTS exam_conflict_overrides (
+          id TEXT PRIMARY KEY,
+          exam_schedule_entry_id TEXT NOT NULL REFERENCES exam_schedule_entries(id) ON DELETE CASCADE,
+          conflict_code TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (exam_schedule_entry_id, conflict_code)
+        );
+        CREATE TABLE IF NOT EXISTS exam_schedule_versions (
+          id TEXT PRIMARY KEY,
+          exam_period_id TEXT NOT NULL REFERENCES exam_periods(id) ON DELETE RESTRICT,
+          version INTEGER NOT NULL CHECK (version > 0),
+          snapshot TEXT NOT NULL,
+          notes TEXT NOT NULL DEFAULT '',
+          published_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          published_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (exam_period_id, version)
+        );
+        CREATE INDEX IF NOT EXISTS exam_periods_school_dates ON exam_periods(school_id,start_date DESC);
+        CREATE INDEX IF NOT EXISTS exam_sessions_period_date ON exam_sessions(exam_period_id,exam_date,start_time);
+        CREATE INDEX IF NOT EXISTS exam_entries_period_session ON exam_schedule_entries(exam_period_id,exam_session_id);
+        CREATE INDEX IF NOT EXISTS exam_classes_class ON exam_schedule_classes(class_id,exam_schedule_entry_id);
+        CREATE INDEX IF NOT EXISTS exam_supervisors_teacher ON exam_supervisors(teacher_id,exam_schedule_entry_id);
+        CREATE INDEX IF NOT EXISTS exam_unavailability_period_date ON exam_unavailabilities(exam_period_id,exam_date);
+      `);
+      const storedRoles = connection
+        .prepare('SELECT id,name,permissions FROM roles')
+        .all() as Array<{
+        id: string;
+        name: string;
+        permissions: string;
+      }>;
+      const updateRole = connection.prepare('UPDATE roles SET permissions=? WHERE id=?');
+      for (const role of storedRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        if (role.name === 'Administrator' || role.name === 'Editor') {
+          grants.add('exam-schedules.read');
+          grants.add('exam-schedules.write');
+          grants.add('exam-schedules.publish');
+          grants.add('exam-schedules.report');
+        } else if (role.name === 'Guru') {
+          grants.add('exam-schedules.read');
+        } else if (role.name === 'Viewer') {
+          grants.add('exam-schedules.read');
+          grants.add('exam-schedules.report');
+        }
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.pragma('user_version = 49');
+    })();
+  }
+  if (schemaVersion < 50) {
+    connection.transaction(() => {
+      connection.exec(`
+        ALTER TABLE exam_schedule_entries ADD COLUMN participant_mode TEXT NOT NULL DEFAULT 'class' CHECK (participant_mode IN ('class','student'));
+        CREATE TABLE exam_schedule_students (
+          id TEXT PRIMARY KEY,
+          exam_schedule_entry_id TEXT NOT NULL REFERENCES exam_schedule_entries(id) ON DELETE CASCADE,
+          student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+          student_name TEXT NOT NULL,
+          class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+          class_name TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (exam_schedule_entry_id, student_id)
+        );
+        CREATE INDEX exam_students_student ON exam_schedule_students(student_id,exam_schedule_entry_id);
+      `);
+      connection.pragma('user_version = 50');
+    })();
+  }
   globalDb.cmsDb = connection;
   return connection;
 }

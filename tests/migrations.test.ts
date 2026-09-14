@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 
-test('database lama dimigrasikan sampai skema dan role display terbaru', () => {
+test('database lama dimigrasikan sampai skema jadwal ujian dan role terbaru', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cms-migration-test-'));
   const databasePath = join(directory, 'legacy.sqlite');
   try {
@@ -54,7 +54,16 @@ test('database lama dimigrasikan sampai skema dan role display terbaru', () => {
     assert.ok(columns.some((column) => column.name === 'province_code'));
     assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 48);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 50);
+    const examTables = migrated
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'exam_%'")
+      .all() as { name: string }[];
+    assert.ok(examTables.some((table) => table.name === 'exam_periods'));
+    assert.ok(examTables.some((table) => table.name === 'exam_schedule_versions'));
+    assert.ok(examTables.some((table) => table.name === 'exam_schedule_students'));
+    assert.ok(
+      migrated.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='rooms'").get(),
+    );
     const displayRole = migrated
       .prepare("SELECT permissions FROM roles WHERE id='live-display'")
       .get() as { permissions: string } | undefined;

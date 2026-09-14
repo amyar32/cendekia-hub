@@ -48,6 +48,10 @@ db().transaction(() => {
         'promotions.write',
         'schedules.read',
         'schedules.write',
+        'exam-schedules.read',
+        'exam-schedules.write',
+        'exam-schedules.publish',
+        'exam-schedules.report',
         'student-attendance.read',
         'student-attendance.write',
         'student-attendance.approve',
@@ -69,6 +73,7 @@ db().transaction(() => {
       'Mengisi absensi untuk jadwal mengajar sendiri.',
       JSON.stringify([
         'dashboard.read',
+        'exam-schedules.read',
         'student-attendance.read',
         'student-attendance.write',
         'extracurricular-attendance.read',
@@ -97,6 +102,8 @@ db().transaction(() => {
         'admissions.read',
         'promotions.read',
         'schedules.read',
+        'exam-schedules.read',
+        'exam-schedules.report',
         'academic-reports.read',
       ]),
     );

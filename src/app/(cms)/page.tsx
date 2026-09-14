@@ -3,7 +3,6 @@ import { Dashboard } from '@/components/dashboard/dashboard';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { can } from '@/config/modules';
-import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +11,10 @@ export default async function Page() {
 
   if (!can(user.permissions, 'dashboard.read')) return <AccessDenied dashboard />;
 
-  const schoolId = currentSchoolId();
+  const school = db()
+    .prepare('SELECT id FROM schools ORDER BY is_active DESC,created_at LIMIT 1')
+    .get() as { id: string } | undefined;
+  const schoolId = school?.id || '';
   const academicContext = db()
     .prepare(
       `SELECT ay.id AS academic_year_id,ay.name AS academic_year,

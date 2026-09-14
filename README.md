@@ -39,6 +39,7 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **RBAC:** role Administrator, Editor, Viewer; custom role dengan permission baca/tulis per modul. Permission diperiksa ulang dari database pada setiap request. Navigasi juga mengikuti permission.
 - **Audit trail:** login berhasil/gagal, logout, perubahan password, dan setiap mutasi modul. Mutasi data dan audit berada dalam satu transaksi SQLite. Password dan token tidak dicatat. Endpoint hanya baca; trigger database menolak UPDATE/DELETE audit.
 - **Akademik:** tahun ajaran, semester, tingkat, rombel, mata pelajaran, guru, penugasan mengajar, dan wali kelas.
+- **Jadwal ujian:** periode UTS/UAS dan jenis ujian lain, sesi bertanggal, master ruang dan kapasitas, rombel peserta, pengawas, ketidaktersediaan, constraint dan deteksi konflik, penyusunan semiotomatis, publikasi berversi, penghentian KBM terkontrol, serta export Excel/PDF.
 - **Ekstrakurikuler:** master program, penugasan pembina, peserta, kuota, lokasi, serta jadwal berbasis slot waktu sekolah yang dapat disalin sebagai draft ke tahun ajaran berikutnya.
 - **Murid:** identitas, wali, dokumen, riwayat rombel, proses kenaikan kelas massal yang dapat dibatalkan, serta laporan historis.
 - **Sistem Penerimaan Murid Baru (SPMB):** periode dan kuota penerimaan, formulir publik, captcha dan rate limit, nomor pendaftaran, pelacakan status, upload serta verifikasi dokumen, penilaian seleksi, keputusan, daftar ulang, dan konversi transaksional ke murid aktif.
@@ -66,6 +67,7 @@ src/
       admissions/             Pengelolaan Sistem Penerimaan Murid Baru
       master-data/            Murid, guru, tingkat, dan mata pelajaran
       academic/               Tahun ajaran, semester, rombel, dan penugasan
+      exam-schedules/         Jadwal ujian, ruang, pengawas, konflik, dan publikasi
       reports/                Laporan akademik
       administration/         Pengguna, role, dan audit trail
       settings/               Pengaturan sekolah dan akun

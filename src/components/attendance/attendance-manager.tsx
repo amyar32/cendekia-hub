@@ -47,6 +47,7 @@ type Schedule = {
   session_status: 'open' | 'closed' | null;
   student_count: number;
   present_count: number;
+  exam_block?: string | null;
 };
 type AttendanceRecord = {
   id: string;
@@ -410,8 +411,8 @@ export function AttendanceManager({
                             {schedule.session_status === 'open' ? 'Sedang berlangsung' : 'Selesai'}
                           </Badge>
                         ) : (
-                          <Badge color="gray" variant="light">
-                            Belum dibuka
+                          <Badge color={schedule.exam_block ? 'orange' : 'gray'} variant="light">
+                            {schedule.exam_block ? 'KBM ditangguhkan' : 'Belum dibuka'}
                           </Badge>
                         )}
                       </Group>
@@ -422,6 +423,11 @@ export function AttendanceManager({
                       <Text size="xs" c="dimmed" mt={2}>
                         {schedule.teacher_name}
                       </Text>
+                      {schedule.exam_block ? (
+                        <Text size="xs" c="orange" mt={2}>
+                          {schedule.exam_block}
+                        </Text>
+                      ) : null}
                     </Box>
                   </Group>
                   <Group gap="sm" wrap="nowrap">
@@ -457,6 +463,7 @@ export function AttendanceManager({
                         size="sm"
                         onClick={() => navigate(() => setStarting(schedule))}
                         loading={saving}
+                        disabled={!!schedule.exam_block}
                       >
                         Mulai sesi
                       </Button>

@@ -36,6 +36,10 @@ export const permissions = [
   'promotions.write',
   'schedules.read',
   'schedules.write',
+  'exam-schedules.read',
+  'exam-schedules.write',
+  'exam-schedules.publish',
+  'exam-schedules.report',
   'student-attendance.read',
   'student-attendance.write',
   'student-attendance.approve',
@@ -70,6 +74,7 @@ export type ModuleKey =
   | 'admissions'
   | 'promotions'
   | 'schedules'
+  | 'exam-schedules'
   | 'student-attendance'
   | 'checkins'
   | 'extracurricular-attendance'
@@ -146,6 +151,14 @@ export const modules: CmsModule[] = [
     description: 'Susun jadwal mingguan per rombel dan semester tanpa bentrok guru.',
     path: '/schedules',
     permission: 'schedules.read',
+    group: 'Utama',
+  },
+  {
+    key: 'exam-schedules',
+    label: 'Jadwal Ujian',
+    description: 'Kelola periode, sesi, ruang, peserta, pengawas, dan publikasi jadwal ujian.',
+    path: '/exam-schedules',
+    permission: 'exam-schedules.read',
     group: 'Utama',
   },
   {

@@ -77,6 +77,7 @@ const icons = {
   admissions: IconUserPlus,
   promotions: IconArrowUp,
   schedules: IconCalendarTime,
+  'exam-schedules': IconCalendarEvent,
   'student-attendance': IconClipboardCheck,
   checkins: IconLogin,
   'extracurricular-attendance': IconBallFootball,

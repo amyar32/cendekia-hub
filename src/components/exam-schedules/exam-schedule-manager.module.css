@@ -1,0 +1,260 @@
+.toolbar {
+  align-items: flex-end;
+}
+
+.card {
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.card[data-selected='true'] {
+  border-color: var(--mantine-primary-color-filled);
+  box-shadow: 0 0 0 1px var(--mantine-primary-color-filled);
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.calendarScroll {
+  overflow-x: auto;
+  scrollbar-color: var(--app-color-border) transparent;
+  scrollbar-width: thin;
+}
+
+.calendarGrid {
+  display: grid;
+  min-width: max-content;
+}
+
+.calendarHeader,
+.sessionCell,
+.calendarCell {
+  border-left: 1px solid var(--app-color-border);
+  border-top: 1px solid var(--app-color-border);
+}
+
+.calendarHeader {
+  display: flex;
+  min-height: 58px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-top: 0;
+  background: var(--app-color-subtle);
+  color: var(--app-color-muted);
+  text-align: center;
+}
+
+.sessionHeader,
+.sessionCell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  border-left: 0;
+  box-shadow: 8px 0 14px -14px var(--app-color-text);
+}
+
+.sessionHeader {
+  z-index: 3;
+}
+
+.sessionCell {
+  display: flex;
+  min-height: 164px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 18px;
+  background: var(--app-color-subtle);
+}
+
+.calendarCell {
+  display: flex;
+  min-height: 164px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--app-color-surface);
+}
+
+.unavailableCell {
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--app-color-subtle) 65%, transparent);
+  color: var(--app-color-muted);
+}
+
+.cellSessionMeta {
+  display: none;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--app-color-border);
+}
+
+.examCard {
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--app-color-brand) 24%, var(--app-color-border));
+  border-radius: var(--mantine-radius-sm);
+  background: color-mix(in srgb, var(--app-color-brand-soft) 55%, transparent);
+  color: var(--app-color-text);
+}
+
+.emptyCellText {
+  padding: 10px 2px;
+  text-align: center;
+}
+
+.addCellButton {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+.emptyCalendar {
+  padding: 48px 24px;
+  color: var(--app-color-muted);
+  text-align: center;
+}
+
+.sessionIntro {
+  background: color-mix(in srgb, var(--app-color-brand-soft) 35%, var(--app-color-surface));
+}
+
+.sessionDateCard {
+  overflow: hidden;
+}
+
+.sessionDateHeader {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--app-color-border);
+  background: var(--app-color-subtle);
+}
+
+.sessionDateIcon {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-color-brand-soft);
+  color: var(--app-color-brand);
+}
+
+.sessionRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 13px 18px;
+  border-top: 1px solid var(--app-color-border);
+}
+
+.sessionRow:first-child {
+  border-top: 0;
+}
+
+.sessionOrder {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--app-color-brand-soft);
+  color: var(--app-color-brand);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sessionDetails {
+  min-width: 0;
+}
+
+.sessionClockIcon {
+  flex: 0 0 auto;
+  color: var(--app-color-muted);
+}
+
+.sessionActions {
+  justify-content: flex-end;
+}
+
+.patternDateGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.patternDate {
+  padding: 10px;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--app-color-subtle);
+}
+
+.conflict {
+  border-left: 3px solid var(--mantine-color-orange-6);
+}
+
+.conflict[data-severity='error'] {
+  border-left-color: var(--mantine-color-red-6);
+}
+
+@media print {
+  .noPrint {
+    display: none !important;
+  }
+}
+
+@media (max-width: 780px) {
+  .patternDateGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sessionDateHeader {
+    align-items: flex-start;
+  }
+
+  .sessionRow {
+    grid-template-columns: 34px minmax(0, 1fr);
+    padding: 13px 14px;
+  }
+
+  .sessionActions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .calendarScroll {
+    overflow: visible;
+    border: 0;
+  }
+
+  .calendarGrid {
+    display: block;
+    min-width: 0;
+  }
+
+  .calendarHeader,
+  .sessionCell {
+    display: none;
+  }
+
+  .calendarCell {
+    min-height: 0;
+    margin-bottom: 10px;
+    border: 1px solid var(--app-color-border);
+    border-radius: var(--mantine-radius-md);
+  }
+
+  .calendarCell.unavailableCell {
+    display: none;
+  }
+
+  .cellSessionMeta {
+    display: block;
+  }
+}

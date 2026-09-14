@@ -5,6 +5,7 @@ import { activeAcademicYear, currentSchoolId } from '@/app/api/modules/_shared/a
 import { checkOrigin, HttpError, requireUser, type SessionUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { regularScheduleBlock } from '@/lib/exam-schedules';
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal absensi tidak valid.');
 const recordStatus = z.enum(['present', 'late', 'sick', 'excused', 'absent']);
@@ -97,9 +98,9 @@ export async function GET(request: Request) {
         : !semester
           ? `Tanggal ${date} tidak berada dalam periode semester tahun ajaran aktif ${activeYear.name}.`
           : null;
-    const schedules = db()
+    const scheduleRows = db()
       .prepare(
-        `SELECT cs.id AS schedule_id,ta.id AS teaching_assignment_id,ta.teacher_id,c.name AS class_name,
+        `SELECT cs.id AS schedule_id,ta.id AS teaching_assignment_id,ta.teacher_id,ta.class_id,c.name AS class_name,
                 s.name AS subject_name,t.name AS teacher_name,sts.name AS slot_name,sts.start_time,sts.end_time,
                 ats.id AS session_id,ats.status AS session_status,
                 COALESCE((SELECT COUNT(*) FROM student_attendance_records ar WHERE ar.session_id=ats.id), 0) AS student_count,
@@ -117,6 +118,13 @@ export async function GET(request: Request) {
       string,
       unknown
     >[];
+    const schedules = scheduleRows.map((schedule) => {
+      const block = regularScheduleBlock(schoolId, String(schedule.class_id || ''), date);
+      return {
+        ...schedule,
+        exam_block: block ? `KBM ditangguhkan oleh periode ujian ${block.name}.` : null,
+      };
+    });
     return Response.json({
       date,
       schedules,
@@ -159,6 +167,12 @@ export async function POST(request: Request) {
         }
       | undefined;
     if (!schedule) throw new HttpError(400, 'Jadwal tidak berlaku pada tanggal absensi.');
+    const examBlock = regularScheduleBlock(schoolId, schedule.class_id, data.attendance_date);
+    if (examBlock)
+      throw new HttpError(
+        409,
+        `Absensi pelajaran tidak dapat dibuka karena KBM ditangguhkan oleh periode ujian ${examBlock.name}.`,
+      );
     if (!canManage(user, schoolId, schedule.teacher_id))
       throw new HttpError(403, 'Anda hanya dapat membuka absensi untuk jadwal mengajar sendiri.');
     const id = randomUUID();

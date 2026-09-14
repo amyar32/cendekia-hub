@@ -346,6 +346,23 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   });
   assert.equal(res.status, 201);
   const classroom = await res.json();
+  const examStudentId = randomUUID();
+  const examDatabase = new Database(join(dir, 'test.sqlite'));
+  const examSchool = examDatabase
+    .prepare('SELECT school_id FROM classes WHERE id=?')
+    .get(classroom.id) as { school_id: string };
+  examDatabase.transaction(() => {
+    examDatabase
+      .prepare('INSERT INTO students(id,school_id,nis,name,gender) VALUES (?,?,?,?,?)')
+      .run(examStudentId, examSchool.school_id, 'EXAM-001', 'Peserta Ujian', 'female');
+    examDatabase
+      .prepare(
+        `INSERT INTO class_memberships(id,student_id,class_id,academic_year_id,start_date,status)
+         VALUES (?,?,?,?,?,'active')`,
+      )
+      .run(randomUUID(), examStudentId, classroom.id, secondAcademicYear.id, '2026-07-15');
+  })();
+  examDatabase.close();
   res = await api('/api/modules/classes?q=7A');
   const classrooms = await res.json();
   assert.equal(classrooms.total, 1);
@@ -564,6 +581,157 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     teachingAssignments.rows.some(
       (row: { semester_name: string }) => row.semester_name === 'Semua Semester',
     ),
+  );
+  assert.equal((await api('/api/modules/exam-schedules', 'GET', undefined, '')).status, 401);
+  res = await api('/api/modules/exam-schedules', 'POST', {
+    action: 'period',
+    academic_year_id: secondAcademicYear.id,
+    semester_id: semester.id,
+    name: 'UTS Integrasi',
+    exam_type: 'midterm',
+    start_date: '2026-09-14',
+    end_date: '2026-09-18',
+    regular_schedule_policy: 'suspend_participating_classes',
+    max_exams_per_class_per_day: 2,
+    max_supervisions_per_teacher_per_day: 2,
+    supervisors_per_room: 2,
+    minimum_break_minutes: 15,
+    allow_self_supervision: false,
+    enforce_room_capacity: true,
+    allow_warning_override: true,
+  });
+  assert.equal(res.status, 201);
+  const examPeriod = await res.json();
+  res = await api('/api/modules/exam-schedules', 'POST', {
+    action: 'room',
+    code: 'R-UJI',
+    name: 'Ruang Uji Integrasi',
+    capacity: 40,
+    room_type: 'classroom',
+    location: 'Lantai 1',
+    facilities: ['Jam dinding'],
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const examRoom = await res.json();
+  res = await api('/api/modules/exam-schedules', 'POST', {
+    action: 'session',
+    exam_period_id: examPeriod.id,
+    exam_date: '2026-09-15',
+    name: 'Sesi 1',
+    start_time: '07:30',
+    end_time: '09:00',
+    session_order: 1,
+  });
+  assert.equal(res.status, 201);
+  const examSession = await res.json();
+  res = await api('/api/modules/exam-schedules', 'POST', {
+    action: 'session-pattern',
+    exam_period_id: examPeriod.id,
+    dates: ['2026-09-15', '2026-09-16'],
+    sessions: [
+      { name: 'Sesi 1', start_time: '07:30', end_time: '09:00', session_order: 1 },
+      { name: 'Sesi 2', start_time: '09:30', end_time: '11:00', session_order: 2 },
+    ],
+  });
+  assert.equal(res.status, 201, await res.clone().text());
+  res = await api('/api/modules/exam-schedules', 'POST', {
+    action: 'entry',
+    exam_period_id: examPeriod.id,
+    exam_session_id: examSession.id,
+    subject_id: subject.id,
+    room_id: examRoom.id,
+    class_ids: [classroom.id],
+    supervisor_ids: [teacher.id],
+    lead_supervisor_id: teacher.id,
+    assessment_type: 'written',
+    duration_minutes: 90,
+    notes: 'Uji integrasi',
+  });
+  assert.equal(res.status, 201);
+  const examEntry = await res.json();
+  let examData = await (await api(`/api/modules/exam-schedules?period_id=${examPeriod.id}`)).json();
+  assert.equal(examData.entries.length, 1);
+  assert.equal(examData.sessions.length, 4);
+  assert.ok(examData.options.student_id.length > 0);
+  const selectedStudent = examData.options.student_id[0];
+  res = await api('/api/modules/exam-schedules', 'PATCH', {
+    action: 'entry',
+    id: examEntry.id,
+    exam_period_id: examPeriod.id,
+    exam_session_id: examSession.id,
+    subject_id: subject.id,
+    room_id: examRoom.id,
+    participant_mode: 'student',
+    class_ids: [selectedStudent.class_id],
+    student_ids: [selectedStudent.value],
+    supervisor_ids: [teacher.id],
+    lead_supervisor_id: teacher.id,
+    assessment_type: 'written',
+    duration_minutes: 90,
+    notes: 'Peserta individual lintas rombel',
+  });
+  assert.equal(res.status, 200, await res.clone().text());
+  examData = await (await api(`/api/modules/exam-schedules?period_id=${examPeriod.id}`)).json();
+  assert.equal(examData.entries[0].participant_mode, 'student');
+  assert.equal(examData.entries[0].participant_count, 1);
+  assert.equal(examData.entries[0].student_ids, selectedStudent.value);
+  assert.ok(examData.conflicts.some((item: { severity: string }) => item.severity === 'warning'));
+  assert.equal(
+    (
+      await api('/api/modules/exam-schedules', 'PATCH', {
+        action: 'publish',
+        id: examPeriod.id,
+        notes: 'Versi pertama',
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await api('/api/modules/exam-schedules', 'PATCH', {
+        action: 'publish',
+        id: examPeriod.id,
+        notes: 'Versi pertama',
+        override_reason: 'Pengawas tambahan disiapkan saat hari pelaksanaan.',
+      })
+    ).status,
+    200,
+  );
+  examData = await (await api(`/api/modules/exam-schedules?period_id=${examPeriod.id}`)).json();
+  assert.equal(
+    examData.periods.find((item: { id: string }) => item.id === examPeriod.id).status,
+    'published',
+  );
+  assert.equal(examData.versions.length, 1);
+  assert.equal(
+    (
+      await api('/api/modules/exam-schedules', 'PATCH', {
+        action: 'revise',
+        id: examPeriod.id,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await api('/api/modules/exam-schedules', 'DELETE', { resource: 'period', id: examPeriod.id }))
+      .status,
+    409,
+  );
+  const examCleanup = new Database(join(dir, 'test.sqlite'));
+  examCleanup
+    .prepare('DELETE FROM exam_schedule_versions WHERE exam_period_id=?')
+    .run(examPeriod.id);
+  examCleanup.close();
+  assert.equal(
+    (await api('/api/modules/exam-schedules', 'DELETE', { resource: 'period', id: examPeriod.id }))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await api('/api/modules/exam-schedules', 'DELETE', { resource: 'room', id: examRoom.id }))
+      .status,
+    200,
   );
   res = await api('/api/modules/semesters', 'POST', {
     academic_year_id: secondAcademicYear.id,
