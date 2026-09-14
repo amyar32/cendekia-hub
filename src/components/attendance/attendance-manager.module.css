@@ -19,6 +19,58 @@
     transform 150ms ease;
 }
 
+.scheduleCardContent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+}
+
+.scheduleInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.scheduleCopy {
+  min-width: 0;
+}
+
+.scheduleTitle {
+  line-height: 1.35;
+}
+
+.scheduleMeta {
+  margin-top: 5px;
+  row-gap: 3px;
+}
+
+.metaDivider {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--app-color-muted-soft);
+}
+
+.scheduleActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.scheduleState {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.sessionButton {
+  min-width: 108px;
+}
+
 .scheduleCard:hover {
   border-color: var(--app-color-brand);
   box-shadow: 0 8px 20px rgb(56 44 38 / 8%);
@@ -55,15 +107,23 @@
 }
 
 @media (max-width: 780px) {
-  .datePanel > div,
-  .scheduleCard > div {
+  .datePanel > div {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .scheduleCard > div > div:last-child {
+  .scheduleCardContent {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .scheduleActions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .scheduleState {
+    align-items: flex-start;
   }
 
   .actionBar {

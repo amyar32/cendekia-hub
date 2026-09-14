@@ -1,6 +1,6 @@
 'use client';
 
-import { Avatar } from '@mantine/core';
+import { Avatar, Image } from '@mantine/core';
 import {
   IconAlertTriangle,
   IconBell,
@@ -675,13 +675,17 @@ export function LiveDisplay({ operatorName }: { operatorName: string }) {
     <main className={styles.display}>
       <header className={styles.topbar}>
         <div className={styles.brandBlock}>
-          <span className={styles.brandMark}>
-            {snapshot.school.logo_url ? (
-              <Avatar src={snapshot.school.logo_url} size={48} radius={13} />
-            ) : (
+          {snapshot.school.logo_url ? (
+            <Image
+              src={snapshot.school.logo_url}
+              alt={`Logo ${snapshot.school.name}`}
+              className={styles.schoolLogo}
+            />
+          ) : (
+            <span className={styles.brandMark}>
               <IconBroadcast size={28} />
-            )}
-          </span>
+            </span>
+          )}
           <div>
             <h1>
               Live <b>Report</b>

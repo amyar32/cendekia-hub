@@ -392,53 +392,60 @@ export function AttendanceManager({
               <Paper
                 key={schedule.schedule_id}
                 withBorder
-                p="md"
+                px="md"
+                py="sm"
                 className={`${styles.scheduleCard} ${selected?.schedule_id === schedule.schedule_id ? styles.selectedSchedule : ''}`}
               >
-                <Group justify="space-between" wrap="nowrap" align="center">
-                  <Group gap="sm" wrap="nowrap">
+                <div className={styles.scheduleCardContent}>
+                  <div className={styles.scheduleInfo}>
                     <ThemeIcon variant="light" size={42} radius="md" className={styles.lessonIcon}>
                       <SessionIcon size={21} />
                     </ThemeIcon>
-                    <Box>
-                      <Group gap={7} mb={3}>
-                        <Text fw={700}>{scheduleName(schedule)}</Text>
-                        {schedule.session_id ? (
-                          <Badge
-                            color={schedule.session_status === 'open' ? 'blue' : 'gray'}
-                            variant="light"
-                          >
-                            {schedule.session_status === 'open' ? 'Sedang berlangsung' : 'Selesai'}
-                          </Badge>
-                        ) : (
-                          <Badge color={schedule.exam_block ? 'orange' : 'gray'} variant="light">
-                            {schedule.exam_block ? 'KBM ditangguhkan' : 'Belum dibuka'}
-                          </Badge>
-                        )}
+                    <Box className={styles.scheduleCopy}>
+                      <Text fw={700} className={styles.scheduleTitle}>
+                        {scheduleName(schedule)}
+                      </Text>
+                      <Group gap={7} className={styles.scheduleMeta}>
+                        <Text size="xs" c="dimmed">
+                          <IconClock size={14} className={styles.inlineIcon} />{' '}
+                          {schedule.start_time}–{schedule.end_time} · {schedule.slot_name}
+                        </Text>
+                        <span className={styles.metaDivider} aria-hidden="true" />
+                        <Text size="xs" c="dimmed">
+                          {schedule.teacher_name}
+                        </Text>
                       </Group>
-                      <Text size="sm" c="dimmed">
-                        <IconClock size={14} className={styles.inlineIcon} /> {schedule.start_time}–
-                        {schedule.end_time} · {schedule.slot_name}
-                      </Text>
-                      <Text size="xs" c="dimmed" mt={2}>
-                        {schedule.teacher_name}
-                      </Text>
                       {schedule.exam_block ? (
                         <Text size="xs" c="orange" mt={2}>
                           {schedule.exam_block}
                         </Text>
                       ) : null}
                     </Box>
-                  </Group>
-                  <Group gap="sm" wrap="nowrap">
-                    {schedule.session_id && schedule.session_status === 'open' ? (
-                      <Text size="sm" fw={600} c="blue">
-                        {schedule.present_count}/{schedule.student_count} hadir
-                      </Text>
-                    ) : null}
+                  </div>
+                  <div className={styles.scheduleActions}>
+                    <div className={styles.scheduleState}>
+                      {schedule.session_id ? (
+                        <Badge
+                          color={schedule.session_status === 'open' ? 'blue' : 'gray'}
+                          variant="light"
+                        >
+                          {schedule.session_status === 'open' ? 'Sedang berlangsung' : 'Selesai'}
+                        </Badge>
+                      ) : (
+                        <Badge color={schedule.exam_block ? 'orange' : 'gray'} variant="light">
+                          {schedule.exam_block ? 'KBM ditangguhkan' : 'Belum dibuka'}
+                        </Badge>
+                      )}
+                      {schedule.session_id && schedule.session_status === 'open' ? (
+                        <Text size="xs" fw={600} c="blue">
+                          {schedule.present_count}/{schedule.student_count} hadir
+                        </Text>
+                      ) : null}
+                    </div>
                     {schedule.session_id ? (
                       <Button
                         size="sm"
+                        className={styles.sessionButton}
                         variant={
                           selected?.schedule_id === schedule.schedule_id ? 'filled' : 'light'
                         }
@@ -461,15 +468,16 @@ export function AttendanceManager({
                     ) : writable ? (
                       <Button
                         size="sm"
+                        className={styles.sessionButton}
                         onClick={() => navigate(() => setStarting(schedule))}
-                        loading={saving}
+                        loading={saving && starting?.schedule_id === schedule.schedule_id}
                         disabled={!!schedule.exam_block}
                       >
                         Mulai sesi
                       </Button>
                     ) : null}
-                  </Group>
-                </Group>
+                  </div>
+                </div>
               </Paper>
             ))}
           </Stack>

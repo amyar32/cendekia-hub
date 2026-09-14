@@ -76,6 +76,13 @@
   box-shadow: var(--app-shadow-elevated);
   overflow: hidden;
 }
+.schoolLogo {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  object-fit: contain;
+  background: transparent;
+}
 .brandBlock h1 {
   margin: 0;
   font: 700 clamp(20px, 1.5vw, 29px) / 1.05 var(--mantine-font-family-headings);
