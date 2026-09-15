@@ -100,8 +100,11 @@ export async function GET(request: Request) {
           : null;
     const scheduleRows = db()
       .prepare(
-        `SELECT cs.id AS schedule_id,ta.id AS teaching_assignment_id,ta.teacher_id,ta.class_id,c.name AS class_name,
-                s.name AS subject_name,t.name AS teacher_name,sts.name AS slot_name,sts.start_time,sts.end_time,
+        `SELECT cs.id AS schedule_id,ta.id AS teaching_assignment_id,ta.teacher_id,ta.class_id,
+          COALESCE(ats.class_name,c.name) AS class_name,
+          COALESCE(ats.subject_name,s.name) AS subject_name,
+          COALESCE(ats.teacher_name,t.name) AS teacher_name,
+          sts.name AS slot_name,sts.start_time,sts.end_time,
                 ats.id AS session_id,ats.status AS session_status,
                 COALESCE((SELECT COUNT(*) FROM student_attendance_records ar WHERE ar.session_id=ats.id), 0) AS student_count,
                 COALESCE((SELECT COUNT(*) FROM student_attendance_records ar WHERE ar.session_id=ats.id AND ar.status='present'), 0) AS present_count
@@ -111,10 +114,19 @@ export async function GET(request: Request) {
          JOIN semesters sem ON sem.id=cs.semester_id JOIN academic_years ay ON ay.id=sem.academic_year_id
          LEFT JOIN student_attendance_sessions ats ON ats.class_schedule_id=cs.id AND ats.attendance_date=?
          WHERE t.school_id=? AND ay.is_active=1 AND cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?
-           AND (?=1 OR ta.teacher_id=?)
+           AND (?=1 OR ta.teacher_id=? OR ats.teacher_id=?)
          ORDER BY sts.start_time,c.name,s.name`,
       )
-      .all(date, schoolId, day, date, date, unrestricted ? 1 : 0, teacher?.id ?? '') as Record<
+         .all(
+           date,
+           schoolId,
+           day,
+           date,
+           date,
+           unrestricted ? 1 : 0,
+           teacher?.id ?? '',
+           teacher?.id ?? '',
+         ) as Record<
       string,
       unknown
     >[];
