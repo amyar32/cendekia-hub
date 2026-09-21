@@ -57,7 +57,7 @@ export async function POST(request: Request) {
           `SELECT cs.time_slot_id,cs.weekday,ta.teacher_id,ta.subject_id
            FROM class_schedules cs
            JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-           WHERE cs.semester_id=? AND ta.class_id=?`,
+           WHERE cs.semester_id=? AND ta.class_id=? AND cs.archived_at IS NULL`,
         )
         .all(data.source_semester_id, sourceClassroom.id) as SourceRow[];
       let copied = 0;
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
           .prepare(
             `SELECT cs.id FROM class_schedules cs
              JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-             WHERE cs.semester_id=? AND cs.weekday=? AND cs.time_slot_id=?
+             WHERE cs.semester_id=? AND cs.weekday=? AND cs.time_slot_id=? AND cs.archived_at IS NULL
                AND (ta.class_id=? OR ta.teacher_id=?)`,
           )
           .get(

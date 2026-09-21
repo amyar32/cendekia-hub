@@ -82,7 +82,7 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
       `SELECT cs.id FROM class_schedules cs
        JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
        JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
-       WHERE cs.semester_id=? AND cs.weekday=?
+      WHERE cs.semester_id=? AND cs.weekday=? AND cs.archived_at IS NULL
          AND NOT (sts.end_time<=? OR sts.start_time>=?)
          AND ta.class_id=? AND cs.id<>?`,
     )
@@ -95,7 +95,7 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
       `SELECT cs.id FROM class_schedules cs
        JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
        JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
-       WHERE cs.semester_id=? AND cs.weekday=?
+      WHERE cs.semester_id=? AND cs.weekday=? AND cs.archived_at IS NULL
          AND NOT (sts.end_time<=? OR sts.start_time>=?)
          AND ta.teacher_id=? AND cs.id<>?`,
     )
@@ -198,13 +198,14 @@ export async function GET(request: Request) {
           ? db()
               .prepare(
                 `SELECT cs.id,'lesson' AS entry_type,ta.id AS assignment_id,cs.semester_id,cs.time_slot_id,cs.weekday,
-                  t.name AS teacher_name,s.name AS entry_name,s.code AS entry_code,c.name AS class_name
+                  t.name AS teacher_name,s.name AS entry_name,s.code AS entry_code,c.name AS class_name,
+                  EXISTS (SELECT 1 FROM student_attendance_sessions ats WHERE ats.class_schedule_id=cs.id) AS has_attendance
            FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
            JOIN teachers t ON t.id=ta.teacher_id JOIN subjects s ON s.id=ta.subject_id JOIN classes c ON c.id=ta.class_id
-           WHERE cs.semester_id=? AND ta.class_id=?
+           WHERE cs.semester_id=? AND ta.class_id=? AND cs.archived_at IS NULL
            UNION ALL
            SELECT DISTINCT es.id,'extracurricular' AS entry_type,ea.id AS assignment_id,es.semester_id,es.time_slot_id,es.weekday,
-                  t.name AS teacher_name,e.name AS entry_name,e.code AS entry_code,'' AS class_name
+                  t.name AS teacher_name,e.name AS entry_name,e.code AS entry_code,'' AS class_name,0 AS has_attendance
            FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
            JOIN extracurriculars e ON e.id=ea.extracurricular_id JOIN teachers t ON t.id=ea.teacher_id
            JOIN extracurricular_participants ep ON ep.assignment_id=ea.id JOIN class_memberships cm ON cm.student_id=ep.student_id
@@ -215,13 +216,14 @@ export async function GET(request: Request) {
           : db()
               .prepare(
                 `SELECT cs.id,'lesson' AS entry_type,ta.id AS assignment_id,cs.semester_id,cs.time_slot_id,cs.weekday,
-                  t.name AS teacher_name,s.name AS entry_name,s.code AS entry_code,c.name AS class_name
+                  t.name AS teacher_name,s.name AS entry_name,s.code AS entry_code,c.name AS class_name,
+                  EXISTS (SELECT 1 FROM student_attendance_sessions ats WHERE ats.class_schedule_id=cs.id) AS has_attendance
            FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
            JOIN teachers t ON t.id=ta.teacher_id JOIN subjects s ON s.id=ta.subject_id JOIN classes c ON c.id=ta.class_id
-           WHERE cs.semester_id=? AND ta.teacher_id=?
+           WHERE cs.semester_id=? AND ta.teacher_id=? AND cs.archived_at IS NULL
            UNION ALL
            SELECT es.id,'extracurricular' AS entry_type,ea.id AS assignment_id,es.semester_id,es.time_slot_id,es.weekday,
-                  t.name AS teacher_name,e.name AS entry_name,e.code AS entry_code,'' AS class_name
+                  t.name AS teacher_name,e.name AS entry_name,e.code AS entry_code,'' AS class_name,0 AS has_attendance
            FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
            JOIN extracurriculars e ON e.id=ea.extracurricular_id JOIN teachers t ON t.id=ea.teacher_id
            WHERE es.semester_id=? AND ea.teacher_id=?
@@ -233,7 +235,7 @@ export async function GET(request: Request) {
         `SELECT * FROM schedule_time_slots sts WHERE sts.school_id=? AND
          (sts.is_active=1 OR EXISTS (
            SELECT 1 FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-           WHERE cs.time_slot_id=sts.id AND cs.semester_id=? AND (?='class' AND ta.class_id=? OR ?='teacher' AND ta.teacher_id=?)
+           WHERE cs.time_slot_id=sts.id AND cs.semester_id=? AND cs.archived_at IS NULL AND (?='class' AND ta.class_id=? OR ?='teacher' AND ta.teacher_id=?)
          ) OR EXISTS (
            SELECT 1 FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
            WHERE es.time_slot_id=sts.id AND es.semester_id=? AND ?='teacher' AND ea.teacher_id=?
@@ -363,7 +365,19 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
       if (method !== 'POST' && !previous) throw new HttpError(404, 'Jadwal tidak ditemukan.');
       let details: unknown = previous || {};
       if (method === 'DELETE') {
-        db().prepare('DELETE FROM class_schedules WHERE id=?').run(id);
+        const hasAttendance = db()
+          .prepare('SELECT 1 FROM student_attendance_sessions WHERE class_schedule_id=? LIMIT 1')
+          .get(id);
+        if (hasAttendance) {
+          db()
+            .prepare(
+              "UPDATE class_schedules SET archived_at=datetime('now'),updated_at=datetime('now') WHERE id=?",
+            )
+            .run(id);
+          details = { archived: true };
+        } else {
+          db().prepare('DELETE FROM class_schedules WHERE id=?').run(id);
+        }
       } else {
         const data = schema.parse(input);
         validateSchedule(schoolId, id, data);
@@ -393,6 +407,10 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
               data.weekday,
               id,
             );
+      }
+      if (method === 'DELETE' && (details as { archived?: boolean }).archived) {
+        audit(actor.email, 'archive', 'class_schedules', id, details);
+        return;
       }
       audit(
         actor.email,

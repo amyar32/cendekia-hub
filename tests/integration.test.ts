@@ -826,6 +826,11 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(scheduledTeacherCheckins.rows[0].scheduled_classes, '7A');
   res = await api('/api/modules/teacher-checkins?date=2026-07-14&scope=scheduled');
   assert.equal((await res.json()).rows.length, 0);
+  res = await api('/api/modules/student-attendance', 'POST', {
+    schedule_id: sourceSchedule.id,
+    attendance_date: '2026-07-20',
+  });
+  assert.equal(res.status, 201);
   res = await api(
     `/api/modules/schedules?academic_year_id=${secondAcademicYear.id}&semester_id=${semester.id}&class_id=${classroom.id}`,
   );
@@ -906,17 +911,34 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
       .status,
     409,
   );
-  assert.equal(
-    (await api('/api/modules/schedules', 'DELETE', { id: sourceSchedule.id })).status,
-    200,
+  const attendanceBeforeArchive = new Database(join(dir, 'test.sqlite'));
+  assert.ok(
+    attendanceBeforeArchive
+      .prepare('SELECT id FROM student_attendance_sessions WHERE class_schedule_id=?')
+      .get(sourceSchedule.id),
   );
+  attendanceBeforeArchive.close();
+  res = await api('/api/modules/schedules', 'DELETE', { id: sourceSchedule.id });
+  assert.equal(res.status, 200, await res.text());
+  const archivedScheduleDatabase = new Database(join(dir, 'test.sqlite'));
+  assert.ok(
+    archivedScheduleDatabase
+      .prepare('SELECT archived_at FROM class_schedules WHERE id=?')
+      .get(sourceSchedule.id),
+  );
+  assert.ok(
+    archivedScheduleDatabase
+      .prepare('SELECT id FROM student_attendance_sessions WHERE class_schedule_id=?')
+      .get(sourceSchedule.id),
+  );
+  archivedScheduleDatabase.close();
   assert.equal(
     (await api('/api/modules/schedules', 'DELETE', { id: copiedSchedule.entries[0].id })).status,
     200,
   );
   assert.equal(
     (await api('/api/modules/schedule-time-slots', 'DELETE', { id: timeSlot.id })).status,
-    200,
+    409,
   );
   res = await api(
     `/api/modules/teaching-assignments?class_id=${classroom.id}&subject_id=${subject.id}`,
@@ -942,10 +964,10 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
         id: annualTeachingAssignment.id,
       })
     ).status,
-    200,
+    409,
   );
   assert.equal((await api('/api/modules/semesters?q=Ganjil')).status, 200);
-  assert.equal((await api('/api/modules/semesters', 'DELETE', { id: semester.id })).status, 200);
+  assert.equal((await api('/api/modules/semesters', 'DELETE', { id: semester.id })).status, 409);
   assert.equal(
     (await api('/api/modules/academic-years', 'DELETE', { id: secondAcademicYear.id })).status,
     409,

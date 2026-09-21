@@ -54,7 +54,11 @@ test('database lama dimigrasikan sampai skema jadwal ujian dan role terbaru', ()
     assert.ok(columns.some((column) => column.name === 'province_code'));
     assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 50);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 51);
+    const scheduleColumns = migrated.pragma('table_info(class_schedules)') as { name: string }[];
+    const scheduleIndexes = migrated.pragma('index_list(class_schedules)') as { name: string }[];
+    assert.ok(scheduleColumns.some((column) => column.name === 'archived_at'));
+    assert.ok(scheduleIndexes.some((index) => index.name === 'class_schedules_unique_active'));
     const examTables = migrated
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'exam_%'")
       .all() as { name: string }[];

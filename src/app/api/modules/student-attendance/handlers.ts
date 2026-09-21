@@ -113,7 +113,7 @@ export async function GET(request: Request) {
          JOIN teachers t ON t.id=ta.teacher_id JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
          JOIN semesters sem ON sem.id=cs.semester_id JOIN academic_years ay ON ay.id=sem.academic_year_id
          LEFT JOIN student_attendance_sessions ats ON ats.class_schedule_id=cs.id AND ats.attendance_date=?
-         WHERE t.school_id=? AND ay.is_active=1 AND cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?
+         WHERE t.school_id=? AND ay.is_active=1 AND cs.archived_at IS NULL AND cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?
            AND (?=1 OR ta.teacher_id=? OR ats.teacher_id=?)
          ORDER BY sts.start_time,c.name,s.name`,
       )
@@ -164,7 +164,7 @@ export async function POST(request: Request) {
          JOIN classes c ON c.id=ta.class_id JOIN subjects s ON s.id=ta.subject_id
          JOIN teachers t ON t.id=ta.teacher_id JOIN semesters sem ON sem.id=cs.semester_id
          JOIN academic_years ay ON ay.id=sem.academic_year_id
-         WHERE cs.id=? AND t.school_id=? AND ay.is_active=1 AND cs.weekday=?
+         WHERE cs.id=? AND t.school_id=? AND ay.is_active=1 AND cs.archived_at IS NULL AND cs.weekday=?
            AND sem.start_date<=? AND sem.end_date>=?`,
       )
       .get(data.schedule_id, schoolId, day, data.attendance_date, data.attendance_date) as

@@ -129,7 +129,7 @@ export async function GET() {
              JOIN teachers t ON t.id=ta.teacher_id
              JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
              LEFT JOIN teacher_checkins tc ON tc.teacher_id=t.id AND tc.attendance_date=?
-             WHERE cs.semester_id=? AND cs.weekday=?
+             WHERE cs.semester_id=? AND cs.weekday=? AND cs.archived_at IS NULL
              ORDER BY sts.start_time,c.name,s.name`,
           )
           .all(now.date, activeSemester.id, now.weekday) as Array<
@@ -164,7 +164,7 @@ export async function GET() {
             AND EXISTS (
               SELECT 1 FROM class_schedules cs
               JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-              WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=?
+              WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=? AND cs.archived_at IS NULL
             )
         ) ORDER BY checked_in_at DESC LIMIT 12`,
       )
@@ -198,11 +198,11 @@ export async function GET() {
          ) AND EXISTS (
            SELECT 1 FROM class_schedules cs
            JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
-           WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=?
+           WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=? AND cs.archived_at IS NULL
          ) ORDER BY CASE WHEN EXISTS (
            SELECT 1 FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
            JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
-           WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=? AND sts.start_time<=? AND sts.end_time>?
+           WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=? AND cs.archived_at IS NULL AND sts.start_time<=? AND sts.end_time>?
          ) THEN 0 ELSE 1 END,t.name LIMIT 18`,
       )
       .all(

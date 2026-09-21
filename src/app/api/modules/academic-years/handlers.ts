@@ -604,7 +604,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
                  JOIN semesters source_semester ON source_semester.id=cs.semester_id
                  JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
                  LEFT JOIN semesters assignment_semester ON assignment_semester.id=ta.semester_id
-                 WHERE source_semester.academic_year_id=?`,
+                 WHERE source_semester.academic_year_id=? AND cs.archived_at IS NULL`,
               )
               .all(copy.copy_from_academic_year_id) as Array<{
               time_slot_id: string;

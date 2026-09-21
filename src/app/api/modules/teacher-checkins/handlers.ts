@@ -39,7 +39,7 @@ export async function GET(request: Request) {
            JOIN schedule_time_slots sts ON sts.id=cs.time_slot_id
            JOIN classes c ON c.id=ta.class_id
            JOIN subjects s ON s.id=ta.subject_id
-           WHERE cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?
+           WHERE cs.weekday=? AND cs.archived_at IS NULL AND sem.start_date<=? AND sem.end_date>=?
            GROUP BY ta.teacher_id
          )
          SELECT t.id,t.employee_code,t.employee_code AS nis,t.nip,t.name,t.employment_status,

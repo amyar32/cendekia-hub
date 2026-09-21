@@ -72,6 +72,7 @@ type Entry = {
   entry_code: string;
   teacher_name: string;
   class_name: string;
+  has_attendance: number;
 };
 type ScheduleResponse = {
   entries: Entry[];
@@ -468,6 +469,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
 
   async function removeSchedule() {
     if (!editing) return;
+    const archived = editing.entry_type === 'lesson' && editing.has_attendance;
     setSaving(true);
     try {
       await moduleMutation(
@@ -481,7 +483,11 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
       setCell(null);
       reload();
       setConfirmingRemoval(false);
-      notifications.show({ color: 'green', title: 'Berhasil', message: 'Jadwal telah dihapus.' });
+      notifications.show({
+        color: 'green',
+        title: 'Berhasil',
+        message: archived ? 'Jadwal telah diarsipkan.' : 'Jadwal telah dihapus.',
+      });
     } catch (error) {
       notifications.show({
         color: 'red',
@@ -1142,7 +1148,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                   onClick={() => setConfirmingRemoval(true)}
                   loading={saving}
                 >
-                  Hapus
+                  {editing.entry_type === 'lesson' && editing.has_attendance ? 'Arsipkan' : 'Hapus'}
                 </Button>
               ) : (
                 <Box />
@@ -1289,16 +1295,26 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
       <ConfirmationDialog
         opened={confirmingRemoval}
         onClose={() => setConfirmingRemoval(false)}
-        title="Hapus jadwal?"
-        confirmLabel="Hapus jadwal"
+        title={
+          editing?.entry_type === 'lesson' && editing.has_attendance
+            ? 'Arsipkan jadwal?'
+            : 'Hapus jadwal?'
+        }
+        confirmLabel={
+          editing?.entry_type === 'lesson' && editing.has_attendance
+            ? 'Arsipkan jadwal'
+            : 'Hapus jadwal'
+        }
         loading={saving}
         onConfirm={removeSchedule}
       >
         <Text size="sm">
           Jadwal <b>{data?.assignments.find((item) => item.value === assignmentId)?.label}</b> pada
           hari {cell ? weekdayName(cell.weekday) : ''}, slot{' '}
-          {data?.slots.find((slot) => slot.id === cell?.time_slot_id)?.name} akan dihapus. Periksa
-          kembali sebelum melanjutkan.
+          {data?.slots.find((slot) => slot.id === cell?.time_slot_id)?.name}{' '}
+          {editing?.entry_type === 'lesson' && editing.has_attendance
+            ? 'akan diarsipkan agar riwayat presensi tetap aman.'
+            : 'akan dihapus. Periksa kembali sebelum melanjutkan.'}
         </Text>
       </ConfirmationDialog>
       <ConfirmationDialog
