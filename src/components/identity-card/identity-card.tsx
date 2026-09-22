@@ -15,6 +15,8 @@ type SchoolIdentity = {
   photo_url: string;
 };
 
+export type IdentityCardOrientation = 'landscape' | 'portrait';
+
 /** The same proportional artwork is used in the modal and on the printed card. */
 export function IdentityCard({
   card,
@@ -22,16 +24,20 @@ export function IdentityCard({
   qr,
   fields,
   photoCaption,
+  orientation = 'landscape',
 }: {
   card: SchoolIdentity;
   personType: 'student' | 'teacher';
   qr: string;
   fields: { label: string; value: string }[];
   photoCaption?: string;
+  orientation?: IdentityCardOrientation;
 }) {
+  const isPortrait = orientation === 'portrait';
+
   return (
-    <div className={styles.frame}>
-      <article className={styles.card}>
+    <div className={`${styles.frame} ${isPortrait ? styles.portraitFrame : ''}`}>
+      <article className={`${styles.card} ${isPortrait ? styles.portrait : ''}`}>
         <header className={styles.header}>
           {card.logo_url ? (
             <Image
@@ -57,6 +63,11 @@ export function IdentityCard({
         </header>
         <div className={styles.content}>
           <div className={styles.photoBlock}>
+            {isPortrait && (
+              <span className={styles.cardType}>
+                KARTU {personType === 'teacher' ? 'GURU' : 'SISWA'}
+              </span>
+            )}
             {card.photo_url ? (
               <Image
                 className={styles.photo}
@@ -96,10 +107,11 @@ export function IdentityCard({
                 loading="eager"
               />
             )}
-            <span className={styles.scanLabel}>Pindai untuk cek-in</span>
-            <span className={styles.cardType}>
-              KARTU {personType === 'teacher' ? 'GURU' : 'SISWA'}
-            </span>
+            {!isPortrait && (
+              <span className={styles.cardType}>
+                KARTU {personType === 'teacher' ? 'GURU' : 'SISWA'}
+              </span>
+            )}
           </div>
         </div>
         <footer className={styles.footer}>

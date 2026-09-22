@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { IdentityCard } from './identity-card';
-import { Button, Group, Loader, Modal, Stack, Text } from '@mantine/core';
+import { IdentityCard, type IdentityCardOrientation } from './identity-card';
+import { Button, Group, Loader, Modal, SegmentedControl, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconPrinter, IconRefresh } from '@tabler/icons-react';
 import QRCode from 'qrcode';
@@ -81,6 +81,7 @@ export function IdentityCardModal({
   const [qr, setQr] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
+  const [orientation, setOrientation] = useState<IdentityCardOrientation>('portrait');
 
   async function load(method: 'GET' | 'POST' = 'GET') {
     if (!personId) return;
@@ -139,8 +140,18 @@ export function IdentityCardModal({
           </Group>
         ) : card ? (
           <Stack>
+            <SegmentedControl
+              aria-label="Orientasi kartu"
+              value={orientation}
+              onChange={(value) => setOrientation(value as IdentityCardOrientation)}
+              data={[
+                { value: 'portrait', label: 'Portrait · lanyard' },
+                { value: 'landscape', label: 'Landscape' },
+              ]}
+            />
             <div className={styles.printArea}>
               <IdentityCard
+                orientation={orientation}
                 card={card}
                 personType={personType}
                 qr={qr}
@@ -181,7 +192,7 @@ export function IdentityCardModal({
                 leftSection={<IconPrinter size={17} />}
                 onClick={() =>
                   window.open(
-                    `/${isTeacher ? 'teacher-cards' : 'student-cards'}/${card.id}/print`,
+                    `/${isTeacher ? 'teacher-cards' : 'student-cards'}/${card.id}/print?orientation=${orientation}`,
                     '_blank',
                     'noopener,noreferrer',
                   )

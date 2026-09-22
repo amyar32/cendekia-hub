@@ -5,15 +5,19 @@ import QRCode from 'qrcode';
 import { z } from 'zod';
 import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 import { CardPrintTrigger } from '@/components/identity-card/card-print-trigger';
+import { CardPrintPageStyle } from '@/components/identity-card/card-print-page-style';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import styles from '@/components/identity-card/identity-card-print.module.css';
 
-type Params = { params: Promise<{ id: string }> };
+type Params = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ orientation?: string | string[] }>;
+};
 export const dynamic = 'force-dynamic';
 
-export default async function TeacherCardPrintPage({ params }: Params) {
+export default async function TeacherCardPrintPage({ params, searchParams }: Params) {
   const user = await currentUser();
   if (!user) redirect('/login');
   if (!can(user.permissions, 'teachers.read')) redirect('/checkins');
@@ -70,21 +74,31 @@ export default async function TeacherCardPrintPage({ params }: Params) {
           timeZone: 'UTC',
         }).format(new Date(`${value}T00:00:00Z`))
       : '—';
+  const orientation = (await searchParams).orientation === 'portrait' ? 'portrait' : 'landscape';
+  const sizeLabel = orientation === 'portrait' ? '55 × 90 mm' : '90 × 55 mm';
+
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${orientation === 'portrait' ? styles.pagePortrait : ''}`}>
+      <CardPrintPageStyle orientation={orientation} />
       <div className={styles.toolbar}>
         <div>
           <strong>Pratinjau cetak kartu</strong>
-          <span>Ukuran 90 × 55 mm · gunakan skala 100%, margin none, dan background graphics</span>
+          <span>
+            {orientation === 'portrait' ? 'Portrait' : 'Landscape'} · ukuran {sizeLabel} · gunakan
+            skala 100%, margin none, dan background graphics
+          </span>
         </div>
         <Link href="/master-data/teachers">Kembali</Link>
         <CardPrintTrigger />
       </div>
-      <section className={styles.sheet}>
+      <section
+        className={`${styles.sheet} ${orientation === 'portrait' ? styles.sheetPortrait : ''}`}
+      >
         <IdentityCard
           card={card}
           personType="teacher"
           qr={qr}
+          orientation={orientation}
           fields={[
             { label: 'Kode Guru', value: card.employee_code },
             { label: 'NIP/NUPTK', value: card.nip },

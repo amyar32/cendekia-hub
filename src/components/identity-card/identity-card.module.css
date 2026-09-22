@@ -2,6 +2,10 @@
   width: 100%;
   container-type: inline-size;
 }
+.portraitFrame {
+  width: min(100%, 420px);
+  margin-inline: auto;
+}
 .card {
   --card-ink: color-mix(in srgb, var(--app-color-text) 88%, var(--app-color-brand-strong));
   --card-muted: var(--app-color-muted-strong);
@@ -173,11 +177,6 @@
   background: var(--app-color-surface);
   border-radius: 1cqw;
 }
-.scanLabel {
-  color: var(--card-muted);
-  font-size: 2cqw;
-  line-height: 1.2;
-}
 .cardType {
   display: block;
   margin-top: auto;
@@ -224,9 +223,139 @@
   border-bottom: 0.15cqw solid var(--app-color-muted-soft);
   margin-bottom: 0.4cqw;
 }
+
+.portrait {
+  height: calc(100cqw * 90 / 55);
+  aspect-ratio: 55 / 90;
+  grid-template-columns: 46cqw minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr auto;
+  column-gap: 2.5cqw;
+  row-gap: 2cqw;
+  padding: 0 4cqw 3cqw;
+  border-radius: 4cqw;
+}
+.portrait .header {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  grid-template-columns: 14cqw minmax(0, 1fr);
+  gap: 2.5cqw;
+  margin: 0 -4cqw 1cqw;
+  padding: 3cqw 4cqw;
+  border-radius: 3.8cqw 3.8cqw 0 0;
+}
+.portrait .logo,
+.portrait .logoFallback {
+  width: 14cqw;
+  height: 14cqw;
+}
+.portrait .school h1 {
+  margin-bottom: 0.6cqw;
+  font-size: 4.8cqw;
+}
+.portrait .school p {
+  font-size: 2.6cqw;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+}
+.portrait .photoBlock {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5cqw;
+}
+.portrait .photo,
+.portrait .photoFallback {
+  width: 25cqw;
+  height: 31cqw;
+  border-radius: 2cqw;
+}
+.portrait .photoCaption {
+  max-width: 100%;
+  margin-top: 0;
+  font-size: 2.7cqw;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.portrait .identity {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  min-height: auto;
+  overflow: visible;
+}
+.portrait .identity h2 {
+  margin: 0 0 2cqw;
+  text-align: center;
+  font-size: 5cqw;
+}
+.portrait .identity dl {
+  gap: 1.1cqw;
+}
+.portrait .identity dl > div {
+  grid-template-columns: 21cqw minmax(0, 1fr);
+  gap: 2cqw;
+  font-size: 3.4cqw;
+  line-height: 1.25;
+}
+.portrait .identity dt {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.portrait .identity dd {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+.portrait .qr {
+  grid-column: 1;
+  grid-row: 4;
+  gap: 1cqw;
+  padding: 0;
+  border-left: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.portrait .qr img {
+  width: 44cqw;
+  height: 44cqw;
+  background: #fff;
+  border-radius: 0;
+}
+.portrait .cardType {
+  margin: 0;
+  padding: 1cqw 4cqw;
+  font-size: 3cqw;
+  letter-spacing: 0.12em;
+}
+.portrait .footer {
+  grid-column: 2;
+  grid-row: 4;
+  align-items: center;
+}
+.portrait .principal {
+  width: 100%;
+  font-size: 2.7cqw;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  transform: none;
+}
+.portrait .signature {
+  width: 30cqw;
+  height: 12cqw;
+}
+.portrait .principal strong {
+  font-size: 3cqw;
+}
+
 @media print {
   .frame {
     width: 90mm;
+  }
+  .portraitFrame {
+    width: 55mm;
   }
   .card {
     break-inside: avoid;
