@@ -105,7 +105,7 @@ export default async function StudentCardPrintPage({ params }: Params) {
             { label: 'NIS', value: card.nis },
             { label: 'NISN', value: card.nisn },
             { label: 'TTL', value: birth },
-            { label: 'G.Darah', value: card.blood_type },
+            { label: 'Gol. Darah', value: card.blood_type },
             { label: 'Alamat', value: card.address },
           ]}
         />

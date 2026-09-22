@@ -89,7 +89,7 @@ export default async function TeacherCardPrintPage({ params }: Params) {
             { label: 'Kode Guru', value: card.employee_code },
             { label: 'NIP/NUPTK', value: card.nip },
             { label: 'Lahir', value: formatDate(card.birth_date) },
-            { label: 'G.Darah', value: card.blood_type },
+            { label: 'Gol. Darah', value: card.blood_type },
             { label: 'Alamat', value: card.address },
           ]}
         />

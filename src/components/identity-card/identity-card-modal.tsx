@@ -155,7 +155,7 @@ export function IdentityCardModal({
                     value: isTeacher ? card.nip || '' : card.nisn,
                   },
                   { label: isTeacher ? 'Lahir' : 'TTL', value: formatBirth(card) },
-                  { label: 'G.Darah', value: card.blood_type },
+                  { label: 'Gol. Darah', value: card.blood_type },
                   {
                     label: 'Alamat',
                     value: card.address,
