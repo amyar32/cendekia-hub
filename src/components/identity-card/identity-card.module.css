@@ -131,7 +131,7 @@
 }
 .identity dl > div {
   display: grid;
-  grid-template-columns: 10cqw minmax(0, 1fr);
+  grid-template-columns: 12cqw minmax(0, 1fr);
   gap: 0.8cqw;
   font-size: 2.15cqw;
   line-height: 1.15;
