@@ -41,6 +41,7 @@ type Config = {
   school: { name: string; logo_url: string; timezone: string };
   date: string;
   late_after: string;
+  teacher_late_enabled: boolean;
   summary: Summary;
   recent: Recent[];
 };
@@ -474,7 +475,8 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
               </Button>
             </form>
             <Text className={styles.cutoff}>
-              Otomatis terlambat setelah pukul {config?.late_after || '07:15'}
+              Murid otomatis terlambat setelah pukul {config?.late_after || '07:15'} · Guru:{' '}
+              {config?.teacher_late_enabled === false ? 'tanpa status terlambat' : 'aturan sama'}
             </Text>
           </aside>
         </section>

@@ -76,6 +76,7 @@ export function CheckinManager({
   const [dateNotice, setDateNotice] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [teacherLateEnabled, setTeacherLateEnabled] = useState(true);
   const [pendingCheckin, setPendingCheckin] = useState<{
     person: Row;
     status: CheckinStatus;
@@ -95,6 +96,7 @@ export function CheckinManager({
         setClasses(result.options?.class_id || []);
         if (!isTeacher) setClassId(result.selected?.class_id || null);
         setRows(result.rows);
+        if (isTeacher) setTeacherLateEnabled(result.teacher_late_enabled !== false);
         setDateNotice(result.date_notice || '');
         setError('');
       } catch (cause) {
@@ -124,6 +126,7 @@ export function CheckinManager({
         setClasses(result.options?.class_id || []);
         if (!isTeacher) setClassId(result.selected?.class_id || null);
         setRows(result.rows);
+        if (isTeacher) setTeacherLateEnabled(result.teacher_late_enabled !== false);
         setDateNotice(result.date_notice || '');
         setError('');
       })
@@ -206,6 +209,7 @@ export function CheckinManager({
     }
   };
   const requestCheckin = (person: Row, status: CheckinStatus) => {
+    if (isTeacher && status === 'late' && !teacherLateEnabled) return;
     if (!saving) setPendingCheckin({ person, status });
   };
 
@@ -317,7 +321,11 @@ export function CheckinManager({
           <div>
             <Title order={3}>Daftar kedatangan</Title>
             <Text size="sm" c="dimmed">
-              Catat status Hadir, Terlambat, atau Tidak hadir untuk setiap{' '}
+              Catat status{' '}
+              {isTeacher && !teacherLateEnabled
+                ? 'Hadir atau Tidak hadir'
+                : 'Hadir, Terlambat, atau Tidak hadir'}{' '}
+              untuk setiap{' '}
               {isTeacher && teacherScope === 'scheduled'
                 ? 'guru yang terjadwal'
                 : isTeacher
@@ -537,17 +545,19 @@ export function CheckinManager({
                             >
                               Hadir
                             </Button>
-                            <Button
-                              size="xs"
-                              color="yellow"
-                              variant={person.status === 'late' ? 'filled' : 'light'}
-                              leftSection={<IconClock size={14} />}
-                              loading={saving === person.id}
-                              disabled={saving !== null && saving !== person.id}
-                              onClick={() => requestCheckin(person, 'late')}
-                            >
-                              Terlambat
-                            </Button>
+                            {(!isTeacher || teacherLateEnabled) && (
+                              <Button
+                                size="xs"
+                                color="yellow"
+                                variant={person.status === 'late' ? 'filled' : 'light'}
+                                leftSection={<IconClock size={14} />}
+                                loading={saving === person.id}
+                                disabled={saving !== null && saving !== person.id}
+                                onClick={() => requestCheckin(person, 'late')}
+                              >
+                                Terlambat
+                              </Button>
+                            )}
                             <Button
                               size="xs"
                               color="red"

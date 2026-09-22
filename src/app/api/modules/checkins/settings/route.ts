@@ -9,6 +9,7 @@ const schema = z
   .object({
     checkin_late_after: time,
     checkin_absent_after: z.union([z.literal(''), time]).default(''),
+    teacher_checkin_late_enabled: z.boolean().default(true),
   })
   .refine(
     (value) => !value.checkin_absent_after || value.checkin_absent_after > value.checkin_late_after,
@@ -23,9 +24,18 @@ export async function GET() {
     await requireUser('checkins.read');
     const schoolId = currentSchoolId();
     const settings = db()
-      .prepare('SELECT checkin_late_after,checkin_absent_after FROM schools WHERE id=?')
-      .get(schoolId) as { checkin_late_after: string; checkin_absent_after: string };
-    return Response.json(settings);
+      .prepare(
+        'SELECT checkin_late_after,checkin_absent_after,teacher_checkin_late_enabled FROM schools WHERE id=?',
+      )
+      .get(schoolId) as {
+      checkin_late_after: string;
+      checkin_absent_after: string;
+      teacher_checkin_late_enabled: number;
+    };
+    return Response.json({
+      ...settings,
+      teacher_checkin_late_enabled: Boolean(settings.teacher_checkin_late_enabled),
+    });
   } catch (error) {
     return failure(error);
   }
@@ -39,10 +49,15 @@ export async function PATCH(request: Request) {
     const data = schema.parse(await request.json());
     db()
       .prepare(
-        `UPDATE schools SET checkin_late_after=?,checkin_absent_after=?,
+        `UPDATE schools SET checkin_late_after=?,checkin_absent_after=?,teacher_checkin_late_enabled=?,
          updated_at=datetime('now') WHERE id=?`,
       )
-      .run(data.checkin_late_after, data.checkin_absent_after, schoolId);
+      .run(
+        data.checkin_late_after,
+        data.checkin_absent_after,
+        Number(data.teacher_checkin_late_enabled),
+        schoolId,
+      );
     audit(actor.email, 'update', 'checkin_settings', schoolId, data);
     return Response.json({ ok: true, ...data });
   } catch (error) {

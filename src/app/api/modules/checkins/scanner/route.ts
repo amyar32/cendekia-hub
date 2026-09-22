@@ -66,12 +66,15 @@ export async function GET() {
     const schoolId = currentSchoolId();
     assignAutomaticAbsences(schoolId, actor);
     const school = db()
-      .prepare('SELECT name,logo_url,timezone,checkin_late_after FROM schools WHERE id=?')
+      .prepare(
+        'SELECT name,logo_url,timezone,checkin_late_after,teacher_checkin_late_enabled FROM schools WHERE id=?',
+      )
       .get(schoolId) as {
       name: string;
       logo_url: string;
       timezone: string;
       checkin_late_after: string;
+      teacher_checkin_late_enabled: number;
     };
     const now = localDateTime(school.timezone);
     return Response.json(
@@ -79,6 +82,7 @@ export async function GET() {
         school,
         date: now.date,
         late_after: school.checkin_late_after,
+        teacher_late_enabled: Boolean(school.teacher_checkin_late_enabled),
         ...dashboard(schoolId, now.date),
       },
       { headers: { 'Cache-Control': 'no-store' } },
@@ -96,8 +100,14 @@ export async function POST(request: Request) {
     const schoolId = currentSchoolId();
     assignAutomaticAbsences(schoolId, actor);
     const school = db()
-      .prepare('SELECT timezone,checkin_late_after FROM schools WHERE id=?')
-      .get(schoolId) as { timezone: string; checkin_late_after: string };
+      .prepare(
+        'SELECT timezone,checkin_late_after,teacher_checkin_late_enabled FROM schools WHERE id=?',
+      )
+      .get(schoolId) as {
+      timezone: string;
+      checkin_late_after: string;
+      teacher_checkin_late_enabled: number;
+    };
     const now = localDateTime(school.timezone);
     const studentPrefix = 'cendekia:checkin:';
     const teacherPrefix = 'cendekia:teacher-checkin:';
@@ -165,7 +175,9 @@ export async function POST(request: Request) {
         ...dashboard(schoolId, now.date),
       });
 
-    const status = now.time > school.checkin_late_after ? 'late' : 'present';
+    const lateStatusEnabled =
+      personType === 'student' || Boolean(school.teacher_checkin_late_enabled);
+    const status = lateStatusEnabled && now.time > school.checkin_late_after ? 'late' : 'present';
     const id = existing?.id || randomUUID();
     const created = db().transaction(() => {
       if (existing?.status === 'absent') {

@@ -2,7 +2,17 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Button, Group, LoadingOverlay, Paper, Stack, Tabs, Text, Title } from '@mantine/core';
+import {
+  Button,
+  Group,
+  LoadingOverlay,
+  Paper,
+  Stack,
+  Switch,
+  Tabs,
+  Text,
+  Title,
+} from '@mantine/core';
 import { TimePicker } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import { IconClock, IconQrcode, IconSchool, IconUsers } from '@tabler/icons-react';
@@ -12,6 +22,7 @@ import { CheckinManager } from './checkin-manager';
 export function CheckinHub({ writable }: { writable: boolean }) {
   const [lateAfter, setLateAfter] = useState('07:15');
   const [absentAfter, setAbsentAfter] = useState('');
+  const [teacherLateEnabled, setTeacherLateEnabled] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -22,6 +33,7 @@ export function CheckinHub({ writable }: { writable: boolean }) {
         if (!response.ok) throw new Error(result.error || 'Koneksi gagal.');
         setLateAfter(result.checkin_late_after);
         setAbsentAfter(result.checkin_absent_after || '');
+        setTeacherLateEnabled(result.teacher_checkin_late_enabled !== false);
       })
       .catch((error: unknown) =>
         notifications.show({
@@ -42,16 +54,18 @@ export function CheckinHub({ writable }: { writable: boolean }) {
         body: JSON.stringify({
           checkin_late_after: lateAfter,
           checkin_absent_after: absentAfter,
+          teacher_checkin_late_enabled: teacherLateEnabled,
         }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Koneksi gagal.');
       setLateAfter(result.checkin_late_after);
       setAbsentAfter(result.checkin_absent_after || '');
+      setTeacherLateEnabled(result.teacher_checkin_late_enabled !== false);
       notifications.show({
         color: 'green',
         title: 'Pengaturan tersimpan',
-        message: 'Batas keterlambatan check-in telah diperbarui.',
+        message: 'Aturan keterlambatan check-in telah diperbarui.',
       });
     } catch (error) {
       notifications.show({
@@ -107,8 +121,8 @@ export function CheckinHub({ writable }: { writable: boolean }) {
               <Stack gap={3}>
                 <Title order={3}>Aturan keterlambatan</Title>
                 <Text size="sm" c="dimmed">
-                  Check-in setelah batas ini otomatis berstatus terlambat, baik untuk murid maupun
-                  guru.
+                  Check-in murid setelah batas ini otomatis berstatus terlambat. Aturan yang sama
+                  dapat diaktifkan atau dinonaktifkan untuk guru.
                 </Text>
               </Stack>
               <TimePicker
@@ -122,6 +136,17 @@ export function CheckinHub({ writable }: { writable: boolean }) {
                 minutesInputLabel="Menit batas"
                 disabled={!writable || loadingSettings}
                 w={{ base: '100%', sm: 300 }}
+              />
+              <Switch
+                label="Aktifkan status terlambat untuk guru"
+                description={
+                  teacherLateEnabled
+                    ? 'Check-in guru setelah batas waktu akan berstatus terlambat.'
+                    : 'Semua check-in guru melalui scanner akan berstatus hadir.'
+                }
+                checked={teacherLateEnabled}
+                onChange={(event) => setTeacherLateEnabled(event.currentTarget.checked)}
+                disabled={!writable || loadingSettings}
               />
               <TimePicker
                 label="Otomatis tidak hadir setelah"

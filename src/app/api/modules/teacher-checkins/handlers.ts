@@ -59,8 +59,16 @@ export async function GET(request: Request) {
            scheduled.first_start_time,t.name`,
       )
       .all(weekday, date, date, date, schoolId, scope);
+    const settings = db()
+      .prepare('SELECT teacher_checkin_late_enabled FROM schools WHERE id=?')
+      .get(schoolId) as { teacher_checkin_late_enabled: number };
     return Response.json(
-      { date, rows, selected: { scope } },
+      {
+        date,
+        rows,
+        selected: { scope },
+        teacher_late_enabled: Boolean(settings.teacher_checkin_late_enabled),
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {
@@ -74,6 +82,11 @@ export async function POST(request: Request) {
     const actor = await requireUser('checkins.write');
     const data = inputSchema.parse(await request.json());
     const schoolId = currentSchoolId();
+    const settings = db()
+      .prepare('SELECT teacher_checkin_late_enabled FROM schools WHERE id=?')
+      .get(schoolId) as { teacher_checkin_late_enabled: number };
+    if (data.status === 'late' && !settings.teacher_checkin_late_enabled)
+      throw new HttpError(400, 'Status terlambat untuk guru sedang dinonaktifkan.');
     const teacher = db()
       .prepare('SELECT id,name FROM teachers WHERE id=? AND school_id=? AND is_active=1')
       .get(data.teacher_id, schoolId) as { id: string; name: string } | undefined;

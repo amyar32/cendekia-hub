@@ -54,7 +54,9 @@ test('database lama dimigrasikan sampai skema jadwal ujian dan role terbaru', ()
     assert.ok(columns.some((column) => column.name === 'province_code'));
     assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 51);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 52);
+    const schoolColumns = migrated.pragma('table_info(schools)') as { name: string }[];
+    assert.ok(schoolColumns.some((column) => column.name === 'teacher_checkin_late_enabled'));
     const scheduleColumns = migrated.pragma('table_info(class_schedules)') as { name: string }[];
     const scheduleIndexes = migrated.pragma('index_list(class_schedules)') as { name: string }[];
     assert.ok(scheduleColumns.some((column) => column.name === 'archived_at'));

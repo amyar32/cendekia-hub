@@ -511,6 +511,15 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
     code: firstTeacherCard.qr_value,
   });
   assert.equal(res.status, 404);
+  res = await api('/api/modules/checkins/settings');
+  const teacherLateSettings = await res.json();
+  assert.equal(teacherLateSettings.teacher_checkin_late_enabled, true);
+  res = await api('/api/modules/checkins/settings', 'PATCH', {
+    ...teacherLateSettings,
+    teacher_checkin_late_enabled: false,
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).teacher_checkin_late_enabled, false);
   res = await api('/api/modules/checkins/scanner', 'POST', {
     code: replacementTeacherCard.qr_value,
   });
@@ -519,6 +528,16 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   assert.equal(scannedTeacher.outcome, 'success');
   assert.equal(scannedTeacher.person_type, 'teacher');
   assert.equal(scannedTeacher.student.name, 'Budi Santoso');
+  assert.equal(scannedTeacher.status, 'present');
+  res = await api('/api/modules/teacher-checkins', 'POST', {
+    teacher_id: teacher.id,
+    attendance_date: scannedTeacher.date,
+    status: 'late',
+    note: '',
+  });
+  assert.equal(res.status, 400);
+  res = await api('/api/modules/checkins/settings', 'PATCH', teacherLateSettings);
+  assert.equal(res.status, 200);
   res = await api('/api/modules/checkins/scanner', 'POST', {
     code: replacementTeacherCard.qr_value,
   });
