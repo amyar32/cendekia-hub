@@ -23,6 +23,7 @@ export async function POST(request: Request) {
         .prepare('UPDATE users SET password=?,must_change_password=0 WHERE id=?')
         .run(hashPassword(input.password), user.id);
       db().prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);
+      db().prepare('DELETE FROM mobile_sessions WHERE user_id=?').run(user.id);
       audit(user.email, 'password.changed', 'auth', user.id);
     })();
     await createSession(user.id);

@@ -198,6 +198,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
               .run(hashPassword(data.password), id);
           }
           db().prepare('DELETE FROM sessions WHERE user_id=?').run(id);
+          db().prepare('DELETE FROM mobile_sessions WHERE user_id=?').run(id);
         }
 
         db()

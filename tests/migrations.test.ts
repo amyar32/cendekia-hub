@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 
-test('database lama dimigrasikan sampai skema jadwal ujian dan role terbaru', () => {
+test('database lama dimigrasikan sampai skema mobile API dan role terbaru', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cms-migration-test-'));
   const databasePath = join(directory, 'legacy.sqlite');
   try {
@@ -54,7 +54,7 @@ test('database lama dimigrasikan sampai skema jadwal ujian dan role terbaru', ()
     assert.ok(columns.some((column) => column.name === 'province_code'));
     assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 52);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 53);
     const schoolColumns = migrated.pragma('table_info(schools)') as { name: string }[];
     assert.ok(schoolColumns.some((column) => column.name === 'teacher_checkin_late_enabled'));
     const scheduleColumns = migrated.pragma('table_info(class_schedules)') as { name: string }[];
@@ -67,6 +67,11 @@ test('database lama dimigrasikan sampai skema jadwal ujian dan role terbaru', ()
     assert.ok(examTables.some((table) => table.name === 'exam_periods'));
     assert.ok(examTables.some((table) => table.name === 'exam_schedule_versions'));
     assert.ok(examTables.some((table) => table.name === 'exam_schedule_students'));
+    assert.ok(
+      migrated
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='mobile_sessions'")
+        .get(),
+    );
     assert.ok(
       migrated.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='rooms'").get(),
     );

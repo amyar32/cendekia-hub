@@ -208,5 +208,6 @@ Trigger audit mencegah perubahan melalui koneksi aplikasi biasa, tetapi bukan pe
 
 ## Referensi
 
+- [REST API aplikasi guru](docs/mobile-api.md)
 - [Integrasi Mantine dengan Next.js](https://mantine.dev/guides/next/)
 - [Next.js App Router](https://nextjs.org/docs/app/getting-started/installation)

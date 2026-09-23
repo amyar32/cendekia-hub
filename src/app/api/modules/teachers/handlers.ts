@@ -105,6 +105,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           if (linkedUser?.role_id === 'teacher') {
             db().prepare('UPDATE users SET active=0 WHERE id=?').run(previous.user_id);
             db().prepare('DELETE FROM sessions WHERE user_id=?').run(previous.user_id);
+            db().prepare('DELETE FROM mobile_sessions WHERE user_id=?').run(previous.user_id);
           }
         }
         db().prepare('DELETE FROM teachers WHERE id=? AND school_id=?').run(id, schoolId);
@@ -196,6 +197,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
             if (oldUser?.role_id === 'teacher') {
               db().prepare('UPDATE users SET active=0 WHERE id=?').run(previousUserId);
               db().prepare('DELETE FROM sessions WHERE user_id=?').run(previousUserId);
+              db().prepare('DELETE FROM mobile_sessions WHERE user_id=?').run(previousUserId);
             }
           }
           if (linkedUserId) {
@@ -214,6 +216,7 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
                 .prepare('UPDATE users SET name=?,email=?,active=? WHERE id=?')
                 .run(data.name, data.email, Number(data.is_active), linkedUserId);
               db().prepare('DELETE FROM sessions WHERE user_id=?').run(linkedUserId);
+              db().prepare('DELETE FROM mobile_sessions WHERE user_id=?').run(linkedUserId);
             }
           }
         }
