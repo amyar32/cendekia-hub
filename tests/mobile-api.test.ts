@@ -205,7 +205,10 @@ test('mobile API accepts an allowed browser origin and its preflight', async () 
   assert.equal(preflight.status, 204);
   assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
   assert.equal(preflight.headers.get('access-control-allow-methods'), 'GET, POST, PUT, OPTIONS');
-  assert.equal(preflight.headers.get('access-control-allow-headers'), 'Authorization, Content-Type');
+  assert.equal(
+    preflight.headers.get('access-control-allow-headers'),
+    'Authorization, Content-Type',
+  );
 
   const response = await fetch(base + '/api/v1/me', { headers: { Origin: origin } });
   assert.equal(response.headers.get('access-control-allow-origin'), origin);
@@ -251,6 +254,47 @@ test('mobile teacher authentication and attendance flow', async () => {
     combinedSchedule.map((entry: { type: string }) => entry.type),
     ['lesson', 'extracurricular'],
   );
+
+  assert.equal((await api('/api/v1/attendances')).status, 401);
+  response = await api('/api/v1/attendances', 'GET', undefined, login.access_token);
+  assert.equal(response.status, 200);
+  const subjectData = (await response.json()).data;
+  assert.equal(subjectData.academic_year.id, ids.year);
+  assert.equal(subjectData.subjects.length, 1);
+  assert.equal(subjectData.subjects[0].assignment_id, ids.assignment);
+  assert.equal(subjectData.subjects[0].subject_id, ids.subject);
+  assert.equal(subjectData.subjects[0].class_id, ids.classroom);
+  assert.equal(subjectData.subjects[0].student_count, 1);
+  assert.equal(subjectData.subjects[0].schedules[0].schedule_id, ids.schedule);
+
+  const assignmentDatabase = new Database(databasePath);
+  try {
+    assignmentDatabase
+      .prepare("UPDATE class_schedules SET archived_at=datetime('now') WHERE id=?")
+      .run(ids.schedule);
+    response = await api('/api/v1/attendances', 'GET', undefined, login.access_token);
+    const withoutSchedule = (await response.json()).data.subjects;
+    assert.equal(withoutSchedule.length, 1);
+    assert.deepEqual(withoutSchedule[0].schedules, []);
+    assignmentDatabase.prepare('UPDATE subjects SET is_active=0 WHERE id=?').run(ids.subject);
+    response = await api('/api/v1/attendances', 'GET', undefined, login.access_token);
+    assert.deepEqual((await response.json()).data.subjects, []);
+    assignmentDatabase.prepare('UPDATE subjects SET is_active=1 WHERE id=?').run(ids.subject);
+    assignmentDatabase
+      .prepare('UPDATE teaching_assignments SET semester_id=NULL WHERE id=?')
+      .run(ids.assignment);
+    response = await api('/api/v1/attendances', 'GET', undefined, login.access_token);
+    assert.equal((await response.json()).data.subjects[0].semester_name, 'Semua Semester');
+  } finally {
+    assignmentDatabase.prepare('UPDATE subjects SET is_active=1 WHERE id=?').run(ids.subject);
+    assignmentDatabase
+      .prepare('UPDATE teaching_assignments SET semester_id=? WHERE id=?')
+      .run(ids.semester, ids.assignment);
+    assignmentDatabase
+      .prepare('UPDATE class_schedules SET archived_at=NULL WHERE id=?')
+      .run(ids.schedule);
+    assignmentDatabase.close();
+  }
 
   response = await api('/api/v1/classes', 'GET', undefined, login.access_token);
   assert.equal(response.status, 200);

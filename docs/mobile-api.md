@@ -90,6 +90,25 @@ berlaku setelah digunakan.
 
 Tanggal kosong mengikuti zona waktu sekolah.
 
+## Penugasan mata pelajaran
+
+`GET /api/v1/attendances` menggunakan Bearer token guru dan permission `student-attendance.read`.
+Respons `data` berisi `academic_year` dan `subjects`, mengikuti pola `/api/v1/extracurriculars`.
+Setiap item adalah satu penugasan, sehingga mata pelajaran yang sama pada rombel berbeda
+memiliki `assignment_id` berbeda.
+
+Field setiap item: `assignment_id`, `subject_id`, `code`, `name`, `category`, `description`,
+`class_id`, `class_name`, `grade_name`, `semester_id`, `semester_name`, `student_count`, dan `schedules`.
+Jadwal berisi `schedule_id`, `semester_id`, `semester_name`, `weekday` (1=Senin, 7=Minggu),
+`time_slot_id`, `slot_name`, `start_time`, dan `end_time`.
+
+Hanya penugasan guru yang login pada tahun ajaran aktif, dengan mata pelajaran dan rombel aktif,
+yang dikembalikan. Semua semester pada tahun tersebut disertakan; `semester_id: null` berarti
+“Semua Semester”. Jumlah murid menghitung murid aktif dengan keanggotaan rombel berstatus `active`.
+Jadwal yang diarsipkan tidak disertakan. Penugasan tanpa jadwal memiliki `schedules: []`;
+jika tidak ada penugasan, `subjects: []`. Daftar murid tersedia melalui
+`GET /api/v1/classes/:classId/students`. Contoh respons tersedia di Swagger `/docs`.
+
 ## Absensi pelajaran
 
 | Method | Endpoint                                         | Keterangan                                               |
