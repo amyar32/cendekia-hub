@@ -28,6 +28,19 @@ type Recent = Student & {
   person_type: 'student' | 'teacher';
 };
 type Summary = { total: number; present: number; late: number; absent: number };
+
+function formatCheckinTime(value: string | null | undefined, timeZone: string) {
+  if (!value?.trim()) return '—';
+  const timestamp = value.trim().replace(' ', 'T');
+  const hasTimeZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(timestamp);
+  const date = new Date(hasTimeZone ? timestamp : `${timestamp}Z`);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone,
+  }).format(date);
+}
 type ScanResult = {
   outcome: 'success' | 'duplicate';
   student: Student;
@@ -372,11 +385,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
                       </Text>
                       <div className={styles.resultTime}>
                         {result.outcome === 'success' ? <IconCheck /> : <IconClock />}
-                        {new Intl.DateTimeFormat('id-ID', {
-                          timeZone,
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }).format(new Date(`${result.checked_in_at}Z`))}
+                        {formatCheckinTime(result.checked_in_at, timeZone)}
                       </div>
                     </>
                   ) : null}
@@ -433,11 +442,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
                       </span>
                     </div>
                     <div className={styles.recentTime}>
-                      {new Intl.DateTimeFormat('id-ID', {
-                        timeZone,
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      }).format(new Date(`${item.checked_in_at}Z`))}
+                      {formatCheckinTime(item.checked_in_at, timeZone)}
                       <span
                         className={
                           item.status === 'late'

@@ -54,6 +54,19 @@ type Row = {
 type Option = { value: string; label: string };
 const today = () => new Date().toLocaleDateString('en-CA');
 
+function formatCheckinTime(value: string | null) {
+  if (!value?.trim()) return '—';
+  const timestamp = value.trim().replace(' ', 'T');
+  const hasTimeZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(timestamp);
+  const date = new Date(hasTimeZone ? timestamp : `${timestamp}Z`);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta',
+  }).format(date);
+}
+
 export function CheckinManager({
   writable,
   personType = 'student',
@@ -516,13 +529,7 @@ export function CheckinManager({
                     </Table.Td>
                     <Table.Td>
                       <Text size="xs">
-                        {person.checked_in_at && person.status !== 'absent'
-                          ? new Intl.DateTimeFormat('id-ID', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              timeZone: 'Asia/Jakarta',
-                            }).format(new Date(`${person.checked_in_at}Z`))
-                          : '—'}
+                        {person.status !== 'absent' ? formatCheckinTime(person.checked_in_at) : '—'}
                       </Text>
                     </Table.Td>
                     <Table.Td>
