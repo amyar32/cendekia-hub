@@ -158,6 +158,38 @@ Perintah menggunakan `DATABASE_PATH`, `UPLOAD_STORAGE_PATH`, `SEED_ADMIN_EMAIL`,
 `SEED_ADMIN_PASSWORD` dari `.env`. Seed simulasi ditujukan untuk demo/pengujian dan menolak konflik
 pada database yang sudah berisi data.
 
+Seed mencakup 2 tahun ajaran, 4 semester, seluruh tingkat, 6 kelas aktif (30 siswa per kelas),
+15 guru, 9 mata pelajaran, 54 penugasan/jadwal pelajaran tanpa bentrok, wali kelas,
+180 siswa (179 aktif dan 1 mengundurkan diri), biodata, wali, tiga dokumen per siswa,
+riwayat kenaikan kelas, dan token kartu QR. Empat ekstrakurikuler memiliki pembina,
+jadwal, peserta, dan absensi. Data operasional September 2026 mencakup absensi pelajaran
+selama empat minggu serta presensi harian siswa/guru dengan variasi status dan sumber.
+
+Modul penerimaan berisi 40 pendaftar yang mencakup seluruh 10 status, dokumen, wali,
+nilai seleksi, riwayat status, dan contoh konversi ke siswa. Modul ujian berisi enam ruang,
+tiga periode (selesai, terbit, draf), dua sesi per periode, peserta kelas/individual,
+pengawas, ketidaktersediaan guru, serta arsip publikasi. Konflik ujian dan foreign key
+langsung diperiksa sebelum transaksi disimpan. Sesi login dan pengecualian konflik tidak
+dibuat karena bukan data demo yang diperlukan.
+
+Akun demo: admin memakai `SEED_ADMIN_EMAIL` (default `admin@example.com`), sedangkan akun
+operator, kepala sekolah, dan guru memakai `operator@<jenjang>-cendekia.sch.id`,
+`kepsek@<jenjang>-cendekia.sch.id`, dan `rizky.pratama@<jenjang>-cendekia.sch.id`.
+Semua akun memakai `SEED_ADMIN_PASSWORD` (minimal 12 karakter); tidak ada password demo
+hardcoded. Seluruh identitas bersifat fiktif; gambar dan dokumen adalah PNG placeholder.
+Tanggal skenario tetap pada tahun ajaran 2026/2027 agar hasil pengujian konsisten.
+
+Untuk menyimpan demo terpisah dari database utama:
+
+```bash
+DATABASE_PATH=./data/demo.sqlite UPLOAD_STORAGE_PATH=./data/demo-uploads npm run db:seed:simulation -- --level sma
+```
+
+Jalankan aplikasi dengan kedua variabel path yang sama untuk membuka demo. Jangan jalankan
+`db:seed` terlebih dahulu pada database demo. Pengulangan seed ditolak tanpa mengubah data;
+gunakan path database baru untuk membuat skenario lain. Bila transaksi gagal, file upload
+yang dibuat selama proses tersebut ikut dibersihkan.
+
 ## Backup dan restore
 
 Database dan upload merupakan satu kesatuan backup. Buat backup konsisten ketika aplikasi masih

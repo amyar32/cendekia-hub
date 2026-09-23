@@ -1,12 +1,14 @@
+import { seedOperations } from './seed-operations';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { db } from '../src/lib/db';
 import { hashPassword } from '../src/lib/password';
 import { permissions } from '../src/config/modules';
 
 /** Populates an empty database with a realistic end-to-end school scenario. */
-const levelArgument = process.argv[process.argv.indexOf('--level') + 1] || 'sma';
+const levelIndex = process.argv.indexOf('--level');
+const levelArgument = levelIndex === -1 ? 'sma' : process.argv[levelIndex + 1];
 if (!['sd', 'smp', 'sma'].includes(levelArgument))
   throw new Error('Jenjang simulasi harus sd, smp, atau sma.');
 const schoolLevel = levelArgument as 'sd' | 'smp' | 'sma';
@@ -30,12 +32,21 @@ const schoolConfig = {
     gradeNames: ['X', 'XI', 'XII'],
   },
 }[schoolLevel];
-const database = db();
+
 const adminEmail = (process.env.SEED_ADMIN_EMAIL || 'admin@example.com').toLowerCase();
 const adminPassword = process.env.SEED_ADMIN_PASSWORD;
 if (!adminPassword || adminPassword.length < 12)
   throw new Error('Set SEED_ADMIN_PASSWORD minimal 12 karakter sebelum menjalankan seed simulasi.');
 
+const database = db();
+if (
+  database.prepare('SELECT id FROM schools LIMIT 1').get() ||
+  database.prepare('SELECT id FROM users LIMIT 1').get()
+)
+  throw new Error(
+    'Seed simulasi membutuhkan database kosong. Gunakan DATABASE_PATH lain; data lama tidak dihapus.',
+  );
+const createdFiles: string[] = [];
 const id = () => randomUUID();
 const imagePng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -71,6 +82,7 @@ function upload(scope: string, name: string, createdBy: string) {
   const path = resolve(root, key);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, imagePng);
+  createdFiles.push(path);
   insert('uploads', {
     id: uploadId,
     storage_key: key,
@@ -83,531 +95,590 @@ function upload(scope: string, name: string, createdBy: string) {
   return `/api/uploads/${uploadId}`;
 }
 
-database.transaction(() => {
-  insert('roles', {
-    id: 'admin',
-    name: 'Administrator',
-    description: 'Akses penuh ke seluruh workspace',
-    permissions: JSON.stringify(permissions),
-    system: 1,
-  });
-  insert('roles', {
-    id: 'editor',
-    name: 'Operator Akademik',
-    description: 'Mengelola data akademik dan operasional',
-    permissions: JSON.stringify(
-      permissions.filter((item) => !item.startsWith('users.') && !item.startsWith('roles.')),
-    ),
-    system: 0,
-  });
-  // Migrasi database membuat role `teacher` secara otomatis pada database baru.
-  database
-    .prepare('UPDATE roles SET description=?,permissions=? WHERE id=?')
-    .run(
-      'Mengisi absensi untuk jadwal mengajar sendiri.',
-      JSON.stringify(['dashboard.read', 'student-attendance.read', 'student-attendance.write']),
-      'teacher',
+try {
+  database.transaction(() => {
+    insert('roles', {
+      id: 'admin',
+      name: 'Administrator',
+      description: 'Akses penuh ke seluruh workspace',
+      permissions: JSON.stringify(permissions),
+      system: 1,
+    });
+    insert('roles', {
+      id: 'editor',
+      name: 'Operator Akademik',
+      description: 'Mengelola data akademik dan operasional',
+      permissions: JSON.stringify(
+        permissions.filter((item) => !item.startsWith('users.') && !item.startsWith('roles.')),
+      ),
+      system: 0,
+    });
+    // Migrasi database membuat role `teacher` secara otomatis pada database baru.
+    database
+      .prepare('UPDATE roles SET description=?,permissions=? WHERE id=?')
+      .run(
+        'Mengisi absensi untuk jadwal mengajar sendiri.',
+        JSON.stringify([
+          'dashboard.read',
+          'exam-schedules.read',
+          'student-attendance.read',
+          'student-attendance.write',
+          'extracurricular-attendance.read',
+          'extracurricular-attendance.write',
+        ]),
+        'teacher',
+      );
+    insert('roles', {
+      id: 'viewer',
+      name: 'Pimpinan',
+      description: 'Melihat ringkasan dan laporan akademik',
+      permissions: JSON.stringify([
+        'dashboard.read',
+        'academic-years.read',
+        'grades.read',
+        'classes.read',
+        'subjects.read',
+        'teachers.read',
+        'students.read',
+        'academic-reports.read',
+        'student-attendance.read',
+        'student-attendance.report',
+      ]),
+      system: 0,
+    });
+    insert('users', {
+      id: ids.admin,
+      name: 'Administrator Simulasi',
+      email: adminEmail,
+      password: hashPassword(adminPassword),
+      role_id: 'admin',
+    });
+    insert('users', {
+      id: ids.editor,
+      name: 'Siti Rahmawati',
+      email: `operator@${schoolConfig.domain}`,
+      password: hashPassword(adminPassword),
+      role_id: 'editor',
+    });
+    insert('users', {
+      id: ids.viewer,
+      name: 'Budi Santoso',
+      email: `kepsek@${schoolConfig.domain}`,
+      password: hashPassword(adminPassword),
+      role_id: 'viewer',
+    });
+    insert('users', {
+      id: ids.teacherUser,
+      name: 'Rizky Pratama, S.Kom.',
+      email: `rizky.pratama@${schoolConfig.domain}`,
+      password: hashPassword(adminPassword),
+      role_id: 'teacher',
+    });
+    const schoolLogo = upload(
+      'school.logo',
+      `logo-${schoolConfig.code.toLowerCase()}.png`,
+      ids.admin,
     );
-  insert('roles', {
-    id: 'viewer',
-    name: 'Pimpinan',
-    description: 'Melihat ringkasan dan laporan akademik',
-    permissions: JSON.stringify([
-      'dashboard.read',
-      'academic-years.read',
-      'grades.read',
-      'classes.read',
-      'subjects.read',
-      'teachers.read',
-      'students.read',
-      'academic-reports.read',
-      'student-attendance.read',
-      'student-attendance.report',
-    ]),
-    system: 0,
-  });
-  insert('users', {
-    id: ids.admin,
-    name: 'Administrator Simulasi',
-    email: adminEmail,
-    password: hashPassword(adminPassword),
-    role_id: 'admin',
-  });
-  insert('users', {
-    id: ids.editor,
-    name: 'Siti Rahmawati',
-    email: `operator@${schoolConfig.domain}`,
-    password: hashPassword('Simulasi2026!'),
-    role_id: 'editor',
-  });
-  insert('users', {
-    id: ids.viewer,
-    name: 'Budi Santoso',
-    email: `kepsek@${schoolConfig.domain}`,
-    password: hashPassword('Simulasi2026!'),
-    role_id: 'viewer',
-  });
-  insert('users', {
-    id: ids.teacherUser,
-    name: 'Rizky Pratama, S.Kom.',
-    email: `rizky.pratama@${schoolConfig.domain}`,
-    password: hashPassword('Simulasi2026!'),
-    role_id: 'teacher',
-  });
-  const schoolLogo = upload(
-    'school.logo',
-    `logo-${schoolConfig.code.toLowerCase()}.png`,
-    ids.admin,
-  );
-  insert('schools', {
-    id: ids.school,
-    name: schoolConfig.name,
-    code: schoolConfig.code,
-    npsn: '69876543',
-    address: 'Jl. Pendidikan No. 17, Bandung, Jawa Barat',
-    email: `info@${schoolConfig.domain}`,
-    phone: '022-7654321',
-    logo_url: schoolLogo,
-    timezone: 'Asia/Jakarta',
-    education_level: schoolLevel,
-    onboarding_completed_at: new Date().toISOString(),
-    is_active: 1,
-  });
-  insert('academic_years', {
-    id: ids.yearPrevious,
-    school_id: ids.school,
-    name: '2025/2026',
-    start_date: '2025-07-14',
-    end_date: '2026-06-20',
-    is_active: 0,
-  });
-  insert('academic_years', {
-    id: ids.yearCurrent,
-    school_id: ids.school,
-    name: '2026/2027',
-    start_date: '2026-07-13',
-    end_date: '2027-06-18',
-    is_active: 1,
-  });
-  for (const semester of [
-    [ids.semPrevious1, ids.yearPrevious, 'Semester Ganjil', 1, '2025-07-14', '2025-12-19', 0],
-    [ids.semPrevious2, ids.yearPrevious, 'Semester Genap', 2, '2026-01-05', '2026-06-20', 0],
-    [ids.semCurrent1, ids.yearCurrent, 'Semester Ganjil', 1, '2026-07-13', '2026-12-18', 1],
-    [ids.semCurrent2, ids.yearCurrent, 'Semester Genap', 2, '2027-01-04', '2027-06-18', 0],
-  ] as const)
-    insert('semesters', {
-      id: semester[0],
-      academic_year_id: semester[1],
-      name: semester[2],
-      period: semester[3],
-      start_date: semester[4],
-      end_date: semester[5],
-      is_active: semester[6],
-    });
-
-  const grades = schoolConfig.gradeNames.map((name, index) => ({
-    id: id(),
-    name,
-    level: index + 1,
-  }));
-  for (const grade of grades)
-    insert('grades', {
-      id: grade.id,
-      school_id: ids.school,
-      name: `Kelas ${grade.name}`,
-      level_order: grade.level,
-      description: `Tingkat ${grade.name} ${schoolLevel.toUpperCase()}`,
+    insert('schools', {
+      id: ids.school,
+      name: schoolConfig.name,
+      code: schoolConfig.code,
+      npsn: '69876543',
+      address: 'Jl. Pendidikan No. 17, Bandung, Jawa Barat',
+      email: `info@${schoolConfig.domain}`,
+      phone: '022-7654321',
+      logo_url: schoolLogo,
+      timezone: 'Asia/Jakarta',
+      principal_name: 'Budi Santoso, S.Pd.',
+      principal_nip: '197801012008011001',
+      checkin_absent_after: '09:00',
+      education_level: schoolLevel,
+      onboarding_completed_at: new Date().toISOString(),
       is_active: 1,
     });
-  const classSuffixes = schoolLevel === 'sd' ? ['A'] : ['A', 'B'];
-  const classes = grades.flatMap((grade) =>
-    classSuffixes.map((section) => ({
-      id: id(),
-      name: `${grade.name} ${section}`,
-      grade,
-      section,
-    })),
-  );
-  for (const classroom of classes)
-    insert('classes', {
-      id: classroom.id,
+    insert('academic_years', {
+      id: ids.yearPrevious,
       school_id: ids.school,
-      academic_year_id: ids.yearCurrent,
-      grade_id: classroom.grade.id,
-      name: classroom.name,
-      is_active: 1,
-    });
-  const previousClasses = grades.slice(0, -1).flatMap((grade) =>
-    classSuffixes.map((section) => ({
-      id: id(),
-      name: `${grade.name} ${section}`,
-      grade,
-      section,
-    })),
-  );
-  for (const classroom of previousClasses)
-    insert('classes', {
-      id: classroom.id,
-      school_id: ids.school,
-      academic_year_id: ids.yearPrevious,
-      grade_id: classroom.grade.id,
-      name: classroom.name,
+      name: '2025/2026',
+      start_date: '2025-07-14',
+      end_date: '2026-06-20',
       is_active: 0,
     });
-  const subjects =
-    schoolLevel === 'sd'
-      ? [
-          ['MP001', 'Matematika', 'Umum'],
-          ['MP002', 'Bahasa Indonesia', 'Umum'],
-          ['MP003', 'IPAS', 'Umum'],
-          ['MP004', 'Pendidikan Agama', 'Umum'],
-          ['MP005', 'Pendidikan Pancasila', 'Umum'],
-          ['MP006', 'PJOK', 'Umum'],
-          ['MP007', 'Seni dan Budaya', 'Umum'],
-          ['MP008', 'Bahasa Inggris', 'Muatan Lokal'],
-          ['MP009', 'Bahasa Daerah', 'Muatan Lokal'],
-        ]
-      : [
-          ['MP001', 'Matematika', 'Umum'],
-          ['MP002', 'Bahasa Indonesia', 'Umum'],
-          ['MP003', 'Bahasa Inggris', 'Umum'],
-          ['MP004', 'Pendidikan Agama', 'Umum'],
-          ['MP005', 'IPA', 'Umum'],
-          ['MP006', 'IPS', 'Umum'],
-          ['MP007', 'Informatika', 'Umum'],
-          ['MP008', 'PJOK', 'Umum'],
-          ['MP009', 'Pendidikan Pancasila', 'Umum'],
-        ];
-  const subjectRows = subjects.map(([code, name, category]) => ({
-    id: id(),
-    code,
-    name,
-    category,
-  }));
-  for (const subject of subjectRows)
-    insert('subjects', {
+    insert('academic_years', {
+      id: ids.yearCurrent,
       school_id: ids.school,
-      ...subject,
-      description: `Mata pelajaran ${subject.name}`,
+      name: '2026/2027',
+      start_date: '2026-07-13',
+      end_date: '2027-06-18',
       is_active: 1,
     });
-  const teacherNames = [
-    'Ahmad Fauzi',
-    'Dewi Lestari',
-    'Rizky Pratama',
-    'Nadia Putri',
-    'Fajar Hidayat',
-    'Intan Permata',
-    'Budi Santoso',
-    'Siti Rahmawati',
-    'Arif Nugroho',
-    'Maya Anggraini',
-    'Dedi Kurniawan',
-    'Ratna Sari',
-    'Yoga Prabowo',
-    'Nur Aisyah',
-    'Agus Setiawan',
-  ];
-  const teachers = teacherNames.map((name, index) => ({
-    id: id(),
-    employee_code: `G${String(index + 1).padStart(3, '0')}`,
-    nip: `198${index % 10}0101201${index % 10}01100${index % 9}`,
-    name: `${name}, S.Pd.`,
-    gender: index % 2 ? 'female' : 'male',
-    employment_status: index % 5 === 0 ? 'honorary' : index % 4 === 0 ? 'contract' : 'permanent',
-  }));
-  for (const [index, teacher] of teachers.entries())
-    insert('teachers', {
-      ...teacher,
-      school_id: ids.school,
-      user_id: index === 2 ? ids.teacherUser : null,
-      photo_url: upload('teacher.photo', `foto-${teacher.employee_code}.png`, ids.admin),
-      birth_date: `${1978 + (index % 18)}-05-12`,
-      phone: `08123456${String(index).padStart(4, '0')}`,
-      email:
-        index === 2
-          ? `rizky.pratama@${schoolConfig.domain}`
-          : `guru${index + 1}@${schoolConfig.domain}`,
-      address: 'Bandung, Jawa Barat',
-      join_date: `${2008 + index}-07-01`,
-      is_active: 1,
-    });
-  database.exec("UPDATE teachers SET qr_token=lower(hex(randomblob(24))) WHERE qr_token=''");
-  const slots = [
-    ['Jam ke-1', '07:00', '07:45', 1, 0],
-    ['Jam ke-2', '07:45', '08:30', 2, 0],
-    ['Istirahat', '08:30', '08:45', 3, 1],
-    ['Jam ke-3', '08:45', '09:30', 4, 0],
-    ['Jam ke-4', '09:30', '10:15', 5, 0],
-    ['Jam ke-5', '10:15', '11:00', 6, 0],
-  ] as const;
-  const slotRows = slots.map(([name, start_time, end_time, slot_order, is_break]) => ({
-    id: id(),
-    name,
-    start_time,
-    end_time,
-    slot_order,
-    is_break,
-  }));
-  for (const slot of slotRows)
-    insert('schedule_time_slots', { ...slot, school_id: ids.school, is_active: 1 });
-  const assignments: {
-    id: string;
-    teacher: (typeof teachers)[number];
-    subject: (typeof subjectRows)[number];
-    classroom: (typeof classes)[number];
-  }[] = [];
-  for (const [index, classroom] of classes.entries())
-    for (const offset of [0, 4, 5]) {
-      const assignment = {
+    for (const semester of [
+      [ids.semPrevious1, ids.yearPrevious, 'Semester Ganjil', 1, '2025-07-14', '2025-12-19', 0],
+      [ids.semPrevious2, ids.yearPrevious, 'Semester Genap', 2, '2026-01-05', '2026-06-20', 0],
+      [ids.semCurrent1, ids.yearCurrent, 'Semester Ganjil', 1, '2026-07-13', '2026-12-18', 1],
+      [ids.semCurrent2, ids.yearCurrent, 'Semester Genap', 2, '2027-01-04', '2027-06-18', 0],
+    ] as const)
+      insert('semesters', {
+        id: semester[0],
+        academic_year_id: semester[1],
+        name: semester[2],
+        period: semester[3],
+        start_date: semester[4],
+        end_date: semester[5],
+        is_active: semester[6],
+      });
+
+    const grades = schoolConfig.gradeNames.map((name, index) => ({
+      id: id(),
+      name,
+      level: index + 1,
+    }));
+    for (const grade of grades)
+      insert('grades', {
+        id: grade.id,
+        school_id: ids.school,
+        name: `Kelas ${grade.name}`,
+        level_order: grade.level,
+        description: `Tingkat ${grade.name} ${schoolLevel.toUpperCase()}`,
+        is_active: 1,
+      });
+    const classSuffixes = schoolLevel === 'sd' ? ['A'] : ['A', 'B'];
+    const classes = grades.flatMap((grade) =>
+      classSuffixes.map((section) => ({
         id: id(),
-        teacher: teachers[(index + offset) % teachers.length],
-        subject: subjectRows[(index + offset) % subjectRows.length],
-        classroom,
-      };
-      assignments.push(assignment);
-      insert('teaching_assignments', {
-        id: assignment.id,
-        teacher_id: assignment.teacher.id,
-        subject_id: assignment.subject.id,
+        name: `${grade.name} ${section}`,
+        grade,
+        section,
+      })),
+    );
+    for (const classroom of classes)
+      insert('classes', {
+        id: classroom.id,
+        school_id: ids.school,
+        academic_year_id: ids.yearCurrent,
+        grade_id: classroom.grade.id,
+        name: classroom.name,
+        is_active: 1,
+      });
+    const previousClasses = grades.slice(0, -1).flatMap((grade) =>
+      classSuffixes.map((section) => ({
+        id: id(),
+        name: `${grade.name} ${section}`,
+        grade,
+        section,
+      })),
+    );
+    for (const classroom of previousClasses)
+      insert('classes', {
+        id: classroom.id,
+        school_id: ids.school,
+        academic_year_id: ids.yearPrevious,
+        grade_id: classroom.grade.id,
+        name: classroom.name,
+        is_active: 0,
+      });
+    const subjects =
+      schoolLevel === 'sd'
+        ? [
+            ['MP001', 'Matematika', 'Umum'],
+            ['MP002', 'Bahasa Indonesia', 'Umum'],
+            ['MP003', 'IPAS', 'Umum'],
+            ['MP004', 'Pendidikan Agama', 'Umum'],
+            ['MP005', 'Pendidikan Pancasila', 'Umum'],
+            ['MP006', 'PJOK', 'Umum'],
+            ['MP007', 'Seni dan Budaya', 'Umum'],
+            ['MP008', 'Bahasa Inggris', 'Muatan Lokal'],
+            ['MP009', 'Bahasa Daerah', 'Muatan Lokal'],
+          ]
+        : [
+            ['MP001', 'Matematika', 'Umum'],
+            ['MP002', 'Bahasa Indonesia', 'Umum'],
+            ['MP003', 'Bahasa Inggris', 'Umum'],
+            ['MP004', 'Pendidikan Agama', 'Umum'],
+            ['MP005', 'IPA', 'Umum'],
+            ['MP006', 'IPS', 'Umum'],
+            ['MP007', 'Informatika', 'Umum'],
+            ['MP008', 'PJOK', 'Umum'],
+            ['MP009', 'Pendidikan Pancasila', 'Umum'],
+          ];
+    const subjectRows = subjects.map(([code, name, category]) => ({
+      id: id(),
+      code,
+      name,
+      category,
+    }));
+    for (const subject of subjectRows)
+      insert('subjects', {
+        school_id: ids.school,
+        ...subject,
+        description: `Mata pelajaran ${subject.name}`,
+        is_active: 1,
+      });
+    const teacherNames = [
+      'Ahmad Fauzi',
+      'Dewi Lestari',
+      'Rizky Pratama',
+      'Nadia Putri',
+      'Fajar Hidayat',
+      'Intan Permata',
+      'Budi Santoso',
+      'Siti Rahmawati',
+      'Arif Nugroho',
+      'Maya Anggraini',
+      'Dedi Kurniawan',
+      'Ratna Sari',
+      'Yoga Prabowo',
+      'Nur Aisyah',
+      'Agus Setiawan',
+    ];
+    const teachers = teacherNames.map((name, index) => ({
+      id: id(),
+      employee_code: `G${String(index + 1).padStart(3, '0')}`,
+      nip: `198${index % 10}0101201${index % 10}01100${index % 9}`,
+      name: `${name}, S.Pd.`,
+      gender: index % 2 ? 'female' : 'male',
+      employment_status: index % 5 === 0 ? 'honorary' : index % 4 === 0 ? 'contract' : 'permanent',
+    }));
+    for (const [index, teacher] of teachers.entries())
+      insert('teachers', {
+        ...teacher,
+        school_id: ids.school,
+        user_id: index === 2 ? ids.teacherUser : null,
+        photo_url: upload('teacher.photo', `foto-${teacher.employee_code}.png`, ids.admin),
+        birth_date: `${1978 + (index % 18)}-05-12`,
+        phone: `08123456${String(index).padStart(4, '0')}`,
+        email:
+          index === 2
+            ? `rizky.pratama@${schoolConfig.domain}`
+            : `guru${index + 1}@${schoolConfig.domain}`,
+        address: 'Bandung, Jawa Barat',
+        join_date: `${2008 + index}-07-01`,
+        is_active: 1,
+      });
+    database.exec("UPDATE teachers SET qr_token=lower(hex(randomblob(24))) WHERE qr_token=''");
+    const slots = [
+      ['Jam ke-1', '07:00', '07:45', 1, 0],
+      ['Jam ke-2', '07:45', '08:30', 2, 0],
+      ['Istirahat', '08:30', '08:45', 3, 1],
+      ['Jam ke-3', '08:45', '09:30', 4, 0],
+      ['Jam ke-4', '09:30', '10:15', 5, 0],
+      ['Jam ke-5', '10:15', '11:00', 6, 0],
+      ['Ekstrakurikuler', '14:00', '15:30', 7, 0],
+    ] as const;
+    const slotRows = slots.map(([name, start_time, end_time, slot_order, is_break]) => ({
+      id: id(),
+      name,
+      start_time,
+      end_time,
+      slot_order,
+      is_break,
+    }));
+    for (const slot of slotRows)
+      insert('schedule_time_slots', { ...slot, school_id: ids.school, is_active: 1 });
+    const assignments: {
+      id: string;
+      teacher: (typeof teachers)[number];
+      subject: (typeof subjectRows)[number];
+      classroom: (typeof classes)[number];
+    }[] = [];
+    for (const classroom of classes)
+      for (const offset of subjectRows.keys()) {
+        const assignment = {
+          id: id(),
+          teacher: teachers[offset],
+          subject: subjectRows[offset],
+          classroom,
+        };
+        assignments.push(assignment);
+        insert('teaching_assignments', {
+          id: assignment.id,
+          teacher_id: assignment.teacher.id,
+          subject_id: assignment.subject.id,
+          class_id: classroom.id,
+          academic_year_id: ids.yearCurrent,
+          semester_id: ids.semCurrent1,
+        });
+      }
+    for (const [index, classroom] of classes.entries())
+      insert('homeroom_assignments', {
+        id: id(),
+        teacher_id: teachers[index].id,
         class_id: classroom.id,
         academic_year_id: ids.yearCurrent,
+      });
+    const teachingSlots = slotRows.filter((slot) => !slot.is_break && slot.slot_order < 7);
+    for (const assignment of assignments) {
+      const classIndex = classes.indexOf(assignment.classroom);
+      const subjectIndex = subjectRows.indexOf(assignment.subject);
+      const position = (classIndex + subjectIndex) % 25;
+      insert('class_schedules', {
+        id: id(),
+        teaching_assignment_id: assignment.id,
         semester_id: ids.semCurrent1,
+        time_slot_id: teachingSlots[position % 5].id,
+        weekday: Math.floor(position / 5) + 1,
       });
     }
-  for (const [index, classroom] of classes.entries())
-    insert('homeroom_assignments', {
-      id: id(),
-      teacher_id: teachers[index].id,
-      class_id: classroom.id,
-      academic_year_id: ids.yearCurrent,
-    });
-  for (const [index, assignment] of assignments.entries())
-    insert('class_schedules', {
-      id: id(),
-      teaching_assignment_id: assignment.id,
-      semester_id: ids.semCurrent1,
-      time_slot_id:
-        slotRows[index % 2 === 0 ? index % slotRows.length : (index + 3) % slotRows.length].id,
-      weekday: (index % 5) + 1,
-    });
 
-  const studentFirstNames = [
-    'Alya',
-    'Bagas',
-    'Citra',
-    'Dimas',
-    'Eka',
-    'Farhan',
-    'Gina',
-    'Hendra',
-    'Indah',
-    'Joko',
-  ];
-  const studentLastNames = ['Safitri', 'Pramudya', 'Maharani', 'Saputra', 'Wulandari'];
-  const students = Array.from({ length: 50 }, (_, index) => ({
-    id: id(),
-    name: `${studentFirstNames[index % studentFirstNames.length]} ${studentLastNames[Math.floor(index / studentFirstNames.length)]}`,
-    index,
-  }));
-  const promotionBatchId = id();
-  const promotionActions: Record<string, string>[] = [];
-  insert('promotion_batches', {
-    id: promotionBatchId,
-    school_id: ids.school,
-    source_academic_year_id: ids.yearPrevious,
-    target_academic_year_id: ids.yearCurrent,
-    actions: '[]',
-    activates_target: 1,
-    status: 'completed',
-    created_by: adminEmail,
-  });
-  for (const student of students) {
-    const classroom = classes[student.index % classes.length];
-    insert('students', {
-      id: student.id,
-      school_id: ids.school,
-      photo_url: upload('student.photo', `foto-${student.index + 1}.png`, ids.admin),
-      nis: `2026${String(student.index + 1).padStart(4, '0')}`,
-      nisn: `0098${String(100000 + student.index)}`,
-      name: student.name,
-      gender: student.index % 2 ? 'male' : 'female',
-      birth_date: `${schoolLevel === 'sd' ? 2015 : schoolLevel === 'smp' ? 2012 : 2009}-${String((student.index % 9) + 1).padStart(2, '0')}-15`,
-      birth_place: 'Bandung',
-      address: `Jl. Melati No. ${student.index + 1}, Bandung`,
-      phone: `08129876${String(student.index).padStart(3, '0')}`,
-      email: `siswa${student.index + 1}@contoh.sch.id`,
-      enrollment_date: '2026-07-13',
-      is_active: student.index === students.length - 1 ? 0 : 1,
-    });
-    insert('guardians', {
+    const studentFirstNames = [
+      'Alya',
+      'Bagas',
+      'Citra',
+      'Dimas',
+      'Eka',
+      'Farhan',
+      'Gina',
+      'Hendra',
+      'Indah',
+      'Joko',
+    ];
+    const studentLastNames = ['Safitri', 'Pramudya', 'Maharani', 'Saputra', 'Wulandari'];
+    const students = Array.from({ length: classes.length * 30 }, (_, index) => ({
       id: id(),
-      student_id: student.id,
-      name: `Bapak/Ibu ${student.name.split(' ')[0]}`,
-      relation: 'Orang tua',
-      phone: `08137765${String(student.index).padStart(3, '0')}`,
-      email: `wali${student.index + 1}@contoh.sch.id`,
-      address: `Jl. Melati No. ${student.index + 1}, Bandung`,
-      is_primary: 1,
+      name: `${studentFirstNames[index % studentFirstNames.length]} ${studentLastNames[Math.floor(index / studentFirstNames.length) % studentLastNames.length]}`,
+      index,
+    }));
+    const promotionBatchId = id();
+    const promotionActions: Record<string, string>[] = [];
+    insert('promotion_batches', {
+      id: promotionBatchId,
+      school_id: ids.school,
+      source_academic_year_id: ids.yearPrevious,
+      target_academic_year_id: ids.yearCurrent,
+      actions: '[]',
+      activates_target: 1,
+      status: 'completed',
+      created_by: adminEmail,
     });
-    if (student.index % 4 === 0)
-      insert('student_documents', {
+    for (const student of students) {
+      const classroom = classes[student.index % classes.length];
+      insert('students', {
+        id: student.id,
+        school_id: ids.school,
+        photo_url: upload('student.photo', `foto-${student.index + 1}.png`, ids.admin),
+        nik: `000000${String(student.index + 1).padStart(10, '0')}`,
+        family_card_number: `000001${String(student.index + 1).padStart(10, '0')}`,
+        religion: ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha'][student.index % 5],
+        child_order: 1,
+        sibling_count: 2,
+        birth_certificate_number: `DEMO-AKTA-${student.index + 1}`,
+        blood_type: ['A', 'B', 'AB', 'O'][student.index % 4],
+        province_name: 'Jawa Barat',
+        regency_name: 'Kota Bandung',
+        district_name: 'Coblong',
+        village_name: 'Dago',
+        rt: '001',
+        rw: '003',
+        postal_code: '40135',
+        domicile_matches_family_card: 1,
+        family_card_issued_date: '2020-01-15',
+        latitude: -6.87,
+        longitude: 107.61,
+        home_distance_km: 1 + (student.index % 8),
+        previous_school_name:
+          schoolLevel === 'sd'
+            ? 'TK Cendekia'
+            : schoolLevel === 'smp'
+              ? 'SD Cendekia'
+              : 'SMP Cendekia',
+        previous_school_graduation_year: String(2027 - classroom.grade.level),
+        nis: `2026${String(student.index + 1).padStart(4, '0')}`,
+        nisn: `0098${String(100000 + student.index)}`,
+        name: student.name,
+        gender: student.index % 2 ? 'male' : 'female',
+        birth_date: `${2026 - (schoolLevel === 'sd' ? 6 : schoolLevel === 'smp' ? 12 : 15) - classroom.grade.level}-${String((student.index % 9) + 1).padStart(2, '0')}-15`,
+        birth_place: 'Bandung',
+        address: `Jl. Melati No. ${student.index + 1}, Bandung`,
+        phone: `08129876${String(student.index).padStart(3, '0')}`,
+        email: `siswa${student.index + 1}@contoh.sch.id`,
+        enrollment_date: classroom.grade.level > 1 ? '2025-07-14' : '2026-07-13',
+        is_active: student.index === students.length - 1 ? 0 : 1,
+      });
+      insert('guardians', {
         id: id(),
         student_id: student.id,
-        type: 'Kartu Keluarga',
-        file_url: upload('student.document', `kk-${student.index + 1}.png`, ids.admin),
-        description: 'Dokumen simulasi',
+        name: `Bapak/Ibu ${student.name.split(' ')[0]}`,
+        relation: 'Orang tua',
+        phone: `08137765${String(student.index).padStart(3, '0')}`,
+        email: `wali${student.index + 1}@contoh.sch.id`,
+        address: `Jl. Melati No. ${student.index + 1}, Bandung`,
+        is_primary: 1,
       });
-    const wasPromoted = classroom.grade.level > 1 && student.index !== students.length - 1;
-    if (wasPromoted) {
-      const sourceMembershipId = id();
-      const previousClass = previousClasses.find(
-        (item) =>
-          item.grade.level === classroom.grade.level - 1 && item.section === classroom.section,
-      )!;
+      for (const documentType of ['Kartu Keluarga', 'Akta Kelahiran', 'Ijazah'])
+        insert('student_documents', {
+          id: id(),
+          student_id: student.id,
+          type: documentType,
+          file_url: upload('student.document', `kk-${student.index + 1}.png`, ids.admin),
+          description: 'Dokumen simulasi',
+        });
+      const wasPromoted = classroom.grade.level > 1 && student.index !== students.length - 1;
+      if (wasPromoted) {
+        const sourceMembershipId = id();
+        const previousClass = previousClasses.find(
+          (item) =>
+            item.grade.level === classroom.grade.level - 1 && item.section === classroom.section,
+        )!;
+        insert('class_memberships', {
+          id: sourceMembershipId,
+          student_id: student.id,
+          class_id: previousClass.id,
+          academic_year_id: ids.yearPrevious,
+          start_date: '2025-07-14',
+          end_date: '2026-06-20',
+          status: 'completed',
+          completion_reason: 'promoted',
+          promotion_batch_id: null,
+        });
+        promotionActions.push({
+          student_id: student.id,
+          outcome: 'promoted',
+          target_class_id: classroom.id,
+          source_membership_id: sourceMembershipId,
+        });
+      }
       insert('class_memberships', {
-        id: sourceMembershipId,
+        id: id(),
         student_id: student.id,
-        class_id: previousClass.id,
-        academic_year_id: ids.yearPrevious,
-        start_date: '2025-07-14',
-        end_date: '2026-06-20',
-        status: 'completed',
-        completion_reason: 'promoted',
-        promotion_batch_id: null,
-      });
-      promotionActions.push({
-        student_id: student.id,
-        outcome: 'promoted',
-        target_class_id: classroom.id,
-        source_membership_id: sourceMembershipId,
+        class_id: classroom.id,
+        academic_year_id: ids.yearCurrent,
+        start_date: '2026-07-13',
+        end_date: student.index === students.length - 1 ? '2026-08-28' : null,
+        status: student.index === students.length - 1 ? 'withdrawn' : 'active',
+        completion_reason: student.index === students.length - 1 ? 'withdrawn' : '',
+        promotion_batch_id: wasPromoted ? promotionBatchId : null,
       });
     }
-    insert('class_memberships', {
+    database
+      .prepare('UPDATE promotion_batches SET actions=? WHERE id=?')
+      .run(JSON.stringify(promotionActions), promotionBatchId);
+    const extracurriculars = [
+      ['EK001', 'Pramuka', 'Wajib', 1],
+      ['EK002', 'Futsal', 'Olahraga', 0],
+      ['EK003', 'Klub Coding', 'Teknologi', 0],
+      ['EK004', 'Paskibra', 'Kepemimpinan', 0],
+    ] as const;
+    const extraRows = extracurriculars.map(([code, name, category, required]) => ({
       id: id(),
-      student_id: student.id,
-      class_id: classroom.id,
-      academic_year_id: ids.yearCurrent,
-      start_date: '2026-07-13',
-      end_date: null,
-      status: student.index === students.length - 1 ? 'withdrawn' : 'active',
-      completion_reason: student.index === students.length - 1 ? 'withdrawn' : '',
-      promotion_batch_id: wasPromoted ? promotionBatchId : null,
-    });
-  }
-  database
-    .prepare('UPDATE promotion_batches SET actions=? WHERE id=?')
-    .run(JSON.stringify(promotionActions), promotionBatchId);
-  const extracurriculars = [
-    ['EK001', 'Pramuka', 'Wajib', 1],
-    ['EK002', 'Futsal', 'Olahraga', 0],
-    ['EK003', 'Klub Coding', 'Teknologi', 0],
-    ['EK004', 'Paskibra', 'Kepemimpinan', 0],
-  ] as const;
-  const extraRows = extracurriculars.map(([code, name, category, required]) => ({
-    id: id(),
-    code,
-    name,
-    category,
-    required,
-  }));
-  for (const extra of extraRows)
-    insert('extracurriculars', {
-      id: extra.id,
-      school_id: ids.school,
-      code: extra.code,
-      name: extra.name,
-      category: extra.category,
-      description: `Kegiatan ${extra.name}`,
-      is_required: extra.required,
-      is_active: 1,
-    });
-  for (const [index, extra] of extraRows.entries()) {
-    const assignmentId = id();
-    insert('extracurricular_assignments', {
-      id: assignmentId,
-      extracurricular_id: extra.id,
-      teacher_id: teachers[(index + 1) % teachers.length].id,
-      academic_year_id: ids.yearCurrent,
-      semester_id: ids.semCurrent1,
-      location: index === 1 ? 'Lapangan Utama' : 'Aula Sekolah',
-      map_url: '',
-      quota: 30,
-      status: 'active',
-    });
-    insert('extracurricular_schedules', {
-      id: id(),
-      assignment_id: assignmentId,
-      semester_id: ids.semCurrent1,
-      time_slot_id: slotRows[5].id,
-      weekday: index + 1,
-    });
-    for (const student of students
-      .filter((_, studentIndex) => studentIndex % extraRows.length === index)
-      .slice(0, 6))
-      insert('extracurricular_participants', {
+      code,
+      name,
+      category,
+      required,
+    }));
+    for (const extra of extraRows)
+      insert('extracurriculars', {
+        id: extra.id,
+        school_id: ids.school,
+        code: extra.code,
+        name: extra.name,
+        category: extra.category,
+        description: `Kegiatan ${extra.name}`,
+        is_required: extra.required,
+        is_active: 1,
+      });
+    for (const [index, extra] of extraRows.entries()) {
+      const assignmentId = id();
+      insert('extracurricular_assignments', {
+        id: assignmentId,
+        extracurricular_id: extra.id,
+        teacher_id: teachers[(index + 1) % teachers.length].id,
+        academic_year_id: ids.yearCurrent,
+        semester_id: ids.semCurrent1,
+        location: index === 1 ? 'Lapangan Utama' : 'Aula Sekolah',
+        map_url: '',
+        quota: extra.required ? students.length : 60,
+        status: 'active',
+      });
+      insert('extracurricular_schedules', {
         id: id(),
         assignment_id: assignmentId,
-        student_id: student.id,
+        semester_id: ids.semCurrent1,
+        time_slot_id: slotRows[6].id,
+        weekday: index + 1,
       });
-  }
-  const schedules = database
-    .prepare(
-      'SELECT cs.id,ta.id AS teaching_assignment_id,ta.class_id,ta.teacher_id,c.name AS class_name,s.name AS subject_name,t.name AS teacher_name FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id JOIN classes c ON c.id=ta.class_id JOIN subjects s ON s.id=ta.subject_id JOIN teachers t ON t.id=ta.teacher_id LIMIT 3',
-    )
-    .all() as Record<string, string>[];
-  for (const [index, schedule] of schedules.entries()) {
-    const sessionId = id();
-    const date = `2026-09-0${index + 1}`;
-    insert('student_attendance_sessions', {
-      id: sessionId,
-      school_id: ids.school,
-      class_schedule_id: schedule.id,
-      teaching_assignment_id: schedule.teaching_assignment_id,
-      class_id: schedule.class_id,
-      teacher_id: schedule.teacher_id,
-      attendance_date: date,
-      status: index === 2 ? 'open' : 'closed',
-      subject_name: schedule.subject_name,
-      class_name: schedule.class_name,
-      teacher_name: schedule.teacher_name,
-      starts_at: `${date}T07:00:00.000Z`,
-      closed_at: index === 2 ? null : `${date}T07:45:00.000Z`,
-      created_by: ids.admin,
+      for (const student of students.filter(
+        (_, studentIndex) =>
+          studentIndex < students.length - 1 && (extra.required || studentIndex % 3 === index - 1),
+      ))
+        insert('extracurricular_participants', {
+          id: id(),
+          assignment_id: assignmentId,
+          student_id: student.id,
+        });
+    }
+    const schedules = database
+      .prepare(
+        'SELECT cs.id,ta.id AS teaching_assignment_id,ta.class_id,ta.teacher_id,c.name AS class_name,s.name AS subject_name,t.name AS teacher_name,cs.weekday,ts.start_time,ts.end_time FROM class_schedules cs JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id JOIN classes c ON c.id=ta.class_id JOIN subjects s ON s.id=ta.subject_id JOIN teachers t ON t.id=ta.teacher_id JOIN schedule_time_slots ts ON ts.id=cs.time_slot_id',
+      )
+      .all() as Record<string, string>[];
+    for (let week = 0; week < 4; week++)
+      for (const schedule of schedules) {
+        const sessionId = id();
+        const date = new Date(Date.UTC(2026, 8, 7 + week * 7 + Number(schedule.weekday) - 1))
+          .toISOString()
+          .slice(0, 10);
+        insert('student_attendance_sessions', {
+          id: sessionId,
+          school_id: ids.school,
+          class_schedule_id: schedule.id,
+          teaching_assignment_id: schedule.teaching_assignment_id,
+          class_id: schedule.class_id,
+          teacher_id: schedule.teacher_id,
+          attendance_date: date,
+          status: week === 3 ? 'open' : 'closed',
+          subject_name: schedule.subject_name,
+          class_name: schedule.class_name,
+          teacher_name: schedule.teacher_name,
+          starts_at: `${date}T${schedule.start_time}:00+07:00`,
+          closed_at: week === 3 ? null : `${date}T${schedule.end_time}:00+07:00`,
+          created_by: ids.admin,
+        });
+        const enrolled = students.filter(
+          (student) =>
+            student.index < students.length - 1 &&
+            student.index % classes.length ===
+              classes.findIndex((item) => item.id === schedule.class_id),
+        );
+        for (const [recordIndex, student] of enrolled.entries())
+          insert('student_attendance_records', {
+            id: id(),
+            session_id: sessionId,
+            student_id: student.id,
+            student_nis: `2026${String(student.index + 1).padStart(4, '0')}`,
+            student_name: student.name,
+            status: ['present', 'late', 'sick', 'excused', 'absent'][recordIndex % 5],
+            note:
+              recordIndex === 1
+                ? 'Datang terlambat 10 menit'
+                : recordIndex === 2
+                  ? 'Izin sakit'
+                  : '',
+            source: 'teacher',
+            recorded_at: `${date}T${schedule.end_time}:00+07:00`,
+            updated_by: ids.admin,
+          });
+      }
+    seedOperations({ database, ids, adminEmail, insert, upload });
+    database.exec("UPDATE students SET qr_token=lower(hex(randomblob(24))) WHERE qr_token=''");
+    if ((database.pragma('foreign_key_check') as unknown[]).length)
+      throw new Error('Relasi seed tidak valid.');
+    insert('audit', {
+      actor: 'system',
+      action: 'seed',
+      entity: 'simulation',
+      entity_id: ids.school,
+      details: JSON.stringify({
+        message: `Database simulasi ${schoolLevel.toUpperCase()} lengkap dibuat`,
+        level: schoolLevel,
+        students: students.length,
+        teachers: teachers.length,
+      }),
     });
-    const enrolled = students.filter(
-      (student) =>
-        student.index % classes.length ===
-        classes.findIndex((item) => item.id === schedule.class_id),
-    );
-    for (const [recordIndex, student] of enrolled.entries())
-      insert('student_attendance_records', {
-        id: id(),
-        session_id: sessionId,
-        student_id: student.id,
-        student_nis: `2026${String(student.index + 1).padStart(4, '0')}`,
-        student_name: student.name,
-        status: recordIndex === 1 ? 'late' : recordIndex === 2 ? 'sick' : 'present',
-        note:
-          recordIndex === 1 ? 'Datang terlambat 10 menit' : recordIndex === 2 ? 'Izin sakit' : '',
-        source: 'teacher',
-        recorded_at: `${date}T07:40:00.000Z`,
-        updated_by: ids.admin,
-      });
-  }
-  insert('audit', {
-    actor: 'system',
-    action: 'seed',
-    entity: 'simulation',
-    entity_id: ids.school,
-    details: JSON.stringify({
-      message: `Database simulasi ${schoolLevel.toUpperCase()} lengkap dibuat`,
-      level: schoolLevel,
-      students: students.length,
-      teachers: teachers.length,
-    }),
-  });
-})();
+  })();
+} catch (error) {
+  for (const path of createdFiles) rmSync(path, { force: true });
+  throw error;
+}
 
 const counts = [
   'schools',
