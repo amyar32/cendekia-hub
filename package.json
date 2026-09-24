@@ -2,7 +2,7 @@
   "name": "cendekia-hub",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "npm@10.9.8",
+  "packageManager": "pnpm@10.34.4",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -15,8 +15,8 @@
     "backup": "node --env-file-if-exists=.env --import tsx scripts/backup.ts",
     "backup:verify": "node --import tsx scripts/verify-backup.ts",
     "backup:restore": "node --env-file-if-exists=.env --import tsx scripts/restore-backup.ts",
-    "security:check": "npm audit --omit=dev --audit-level=high",
-    "release:check": "npm run format:check && npm run lint && npm run typecheck && npm run security:check && npm run build && npm test",
+    "security:check": "pnpm audit --prod --audit-level=high",
+    "release:check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run security:check && pnpm run build && pnpm test",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -51,5 +51,12 @@
   },
   "engines": {
     "node": ">=24"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "unrs-resolver"
+    ]
   }
 }
