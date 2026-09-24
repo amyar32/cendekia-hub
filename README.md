@@ -4,10 +4,11 @@ Boilerplate CMS modular menggunakan **Next.js 16 App Router, React 19, TypeScrip
 
 ## Menjalankan lokal
 
-Gunakan Node.js **24+** dan npm. `package-lock.json` adalah satu-satunya lockfile yang digunakan.
+Gunakan Node.js **24+** dan pnpm (melalui Corepack). `pnpm-lock.yaml` adalah satu-satunya lockfile yang digunakan.
 
 ```bash
-npm install
+corepack enable
+pnpm install
 cp .env.example .env
 ```
 
@@ -26,8 +27,8 @@ NEXT_PUBLIC_APP_NAME=Cendekia Hub
 `NEXT_PUBLIC_APP_NAME` digunakan untuk judul lengkap, metadata, dan footer aplikasi.
 
 ```bash
-npm run db:seed
-npm run dev
+pnpm run db:seed
+pnpm run dev
 ```
 
 Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding dapat diulang dan tidak mengganti password akun yang sudah ada. Database dibuat otomatis di `data/cms.sqlite`; data tetap tersimpan setelah server restart.
@@ -112,23 +113,23 @@ Folder halaman mengikuti struktur URL dan bagian navigasi. Contohnya data murid 
 ## Validasi
 
 ```bash
-npm run typecheck
-npm run lint
-npm run format:check
-npm run security:check
-npm run build
-npm test
+pnpm run typecheck
+pnpm run lint
+pnpm run format:check
+pnpm run security:check
+pnpm run build
+pnpm test
 ```
 
 Seluruh pemeriksaan rilis dapat dijalankan berurutan dengan:
 
 ```bash
-npm run release:check
+pnpm run release:check
 ```
 
 Workflow GitHub Actions menjalankan pemeriksaan yang sama pada pull request dan push ke `main`.
-Audit keamanan memblokir rilis untuk temuan tingkat tinggi atau kritis. Saat ini npm juga melaporkan
-temuan moderat pada dependensi transitif `exceljs` (`uuid`); `npm audit fix --force` tidak digunakan
+Audit keamanan memblokir rilis untuk temuan tingkat tinggi atau kritis. Saat ini pnpm juga melaporkan
+temuan moderat pada dependensi transitif `exceljs` (`uuid`); `pnpm audit --fix --force` tidak digunakan
 karena akan menurunkan versi ExcelJS secara breaking. Tinjau kembali saat ExcelJS menyediakan jalur
 pembaruan yang kompatibel.
 Tes integrasi membutuhkan build terlebih dahulu. Tes menjalankan server produksi sementara,
@@ -149,9 +150,9 @@ Untuk membuat database simulasi lengkap langsung dari terminal, gunakan salah sa
 pada database kosong:
 
 ```bash
-npm run db:seed:simulation -- --level sd
-npm run db:seed:simulation -- --level smp
-npm run db:seed:simulation -- --level sma
+pnpm run db:seed:simulation -- --level sd
+pnpm run db:seed:simulation -- --level smp
+pnpm run db:seed:simulation -- --level sma
 ```
 
 Perintah menggunakan `DATABASE_PATH`, `UPLOAD_STORAGE_PATH`, `SEED_ADMIN_EMAIL`, dan
@@ -182,7 +183,7 @@ Tanggal skenario tetap pada tahun ajaran 2026/2027 agar hasil pengujian konsiste
 Untuk menyimpan demo terpisah dari database utama:
 
 ```bash
-DATABASE_PATH=./data/demo.sqlite UPLOAD_STORAGE_PATH=./data/demo-uploads npm run db:seed:simulation -- --level sma
+DATABASE_PATH=./data/demo.sqlite UPLOAD_STORAGE_PATH=./data/demo-uploads pnpm run db:seed:simulation -- --level sma
 ```
 
 Jalankan aplikasi dengan kedua variabel path yang sama untuk membuka demo. Jangan jalankan
@@ -196,7 +197,7 @@ Database dan upload merupakan satu kesatuan backup. Buat backup konsisten ketika
 berjalan dengan:
 
 ```bash
-npm run backup
+pnpm run backup
 ```
 
 Hasilnya disimpan di `BACKUP_STORAGE_PATH` dan berisi snapshot SQLite, upload, serta manifest
@@ -204,7 +205,7 @@ checksum SHA-256. Salin direktori hasil backup ke mesin atau object storage lain
 tersimpan di server aplikasi tidak melindungi dari kerusakan disk. Verifikasi arsip secara berkala:
 
 ```bash
-npm run backup:verify -- --from data/backups/cendekia-backup-<timestamp>
+pnpm run backup:verify -- --from data/backups/cendekia-backup-<timestamp>
 ```
 
 Untuk restore, hentikan aplikasi terlebih dahulu. Perintah berikut memverifikasi checksum dan
@@ -212,14 +213,14 @@ integritas SQLite sebelum mengganti data. Jika database aktif sudah ada, salinan
 dibuat lebih dahulu.
 
 ```bash
-npm run backup:restore -- --from data/backups/cendekia-backup-<timestamp> --confirm
+pnpm run backup:restore -- --from data/backups/cendekia-backup-<timestamp> --confirm
 ```
 
 Setelah restore, jalankan aplikasi dan periksa login, logo/dokumen, serta laporan akademik. Lakukan
 latihan restore ke lokasi sementara sebelum memakai prosedur ini pada produksi:
 
 ```bash
-npm run backup:restore -- \
+pnpm run backup:restore -- \
   --from data/backups/cendekia-backup-<timestamp> \
   --database /tmp/cendekia-restore/cms.sqlite \
   --uploads /tmp/cendekia-restore/uploads \
@@ -230,8 +231,8 @@ npm run backup:restore -- \
 ## Menjalankan produksi
 
 ```bash
-npm run build
-npm start
+pnpm run build
+pnpm start
 ```
 
 Gunakan HTTPS karena cookie sesi memakai `Secure` pada produksi. Isi `ADMISSION_FORM_SECRET` dengan secret acak yang sama pada setiap instance agar captcha formulir penerimaan tetap valid setelah restart. Jika menggunakan reverse proxy, pertahankan host/origin publik agar pemeriksaan origin cocok. Database SQLite dan direktori `UPLOAD_STORAGE_PATH` membutuhkan disk persisten dengan izin tulis; keduanya perlu dibackup bersama. Rancangan ini ditujukan untuk satu instance Node.js. Untuk deployment serverless atau beberapa instance, pindahkan database ke PostgreSQL dan implementasi fungsi storage di `src/lib/uploads.ts` ke object storage bersama (misalnya S3-compatible), lalu siapkan migrasi dan strategi backup.
