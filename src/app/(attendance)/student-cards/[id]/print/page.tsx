@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 import { CardPrintTrigger } from '@/components/identity-card/card-print-trigger';
 import { CardPrintPageStyle } from '@/components/identity-card/card-print-page-style';
+import { STUDENT_QR_PREFIX } from '@/config/branding';
 import styles from '@/components/identity-card/identity-card-print.module.css';
 
 type Params = {
@@ -65,7 +66,7 @@ export default async function StudentCardPrintPage({ params, searchParams }: Par
       }
     | undefined;
   if (!card) notFound();
-  const qr = await QRCode.toDataURL(`cendekia:checkin:${card.qr_token}`, {
+  const qr = await QRCode.toDataURL(`${STUDENT_QR_PREFIX}${card.qr_token}`, {
     width: 700,
     margin: 4,
     errorCorrectionLevel: 'M',

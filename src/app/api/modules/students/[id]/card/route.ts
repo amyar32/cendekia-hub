@@ -4,6 +4,7 @@ import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { STUDENT_QR_PREFIX } from '@/config/branding';
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -57,7 +58,7 @@ export async function GET(_: Request, context: Context) {
     const card = getCard(id, currentSchoolId());
     if (!card) throw new HttpError(404, 'Data murid tidak ditemukan.');
     return Response.json(
-      { ...card, qr_value: `cendekia:checkin:${card.qr_token}`, qr_token: undefined },
+      { ...card, qr_value: `${STUDENT_QR_PREFIX}${card.qr_token}`, qr_token: undefined },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {
@@ -82,7 +83,7 @@ export async function POST(request: Request, context: Context) {
     const card = getCard(id, schoolId)!;
     return Response.json({
       ...card,
-      qr_value: `cendekia:checkin:${card.qr_token}`,
+      qr_value: `${STUDENT_QR_PREFIX}${card.qr_token}`,
       qr_token: undefined,
     });
   } catch (error) {

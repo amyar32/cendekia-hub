@@ -17,7 +17,7 @@ import {
   IconVolumeOff,
 } from '@tabler/icons-react';
 import styles from './checkin-scanner.module.css';
-import { APP_NAME } from '@/config/branding';
+import { APP_NAME, COMPLETE_CARD_QR_PATTERN } from '@/config/branding';
 import { ScheduleBell } from '@/components/schedules/schedule-bell';
 
 type Student = { name: string; nis: string; photo_url: string; class_name: string };
@@ -60,11 +60,9 @@ type Config = {
 };
 
 const emptySummary = { total: 0, present: 0, late: 0, absent: 0 };
-const completeCardPattern = /^cendekia:(?:teacher-)?checkin:[0-9a-f]{48}$/i;
-
 function normalizeCardCode(rawCode: string) {
   const code = rawCode.trim();
-  return completeCardPattern.test(code) ? code.toLowerCase() : code;
+  return COMPLETE_CARD_QR_PATTERN.test(code) ? code.toLowerCase() : code;
 }
 
 export function CheckinScanner({ operatorName }: { operatorName: string }) {
@@ -202,7 +200,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
       setReceivedCharacters(hidBufferRef.current.length);
       setHidState('reading');
       if (hidBufferTimerRef.current) clearTimeout(hidBufferTimerRef.current);
-      if (completeCardPattern.test(hidBufferRef.current)) {
+      if (COMPLETE_CARD_QR_PATTERN.test(hidBufferRef.current)) {
         const code = hidBufferRef.current;
         hidBufferRef.current = '';
         setReceivedCharacters(0);

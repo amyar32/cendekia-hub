@@ -5,7 +5,7 @@ import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { assignAutomaticAbsences, localDateTime } from '@/lib/checkins';
-import { APP_BRAND_NAME } from '@/config/branding';
+import { APP_BRAND_NAME, STUDENT_QR_PREFIX, TEACHER_QR_PREFIX } from '@/config/branding';
 
 const scanSchema = z.object({
   code: z.string().trim().min(1).max(200),
@@ -109,8 +109,8 @@ export async function POST(request: Request) {
       teacher_checkin_late_enabled: number;
     };
     const now = localDateTime(school.timezone);
-    const studentPrefix = 'cendekia:checkin:';
-    const teacherPrefix = 'cendekia:teacher-checkin:';
+    const studentPrefix = STUDENT_QR_PREFIX;
+    const teacherPrefix = TEACHER_QR_PREFIX;
     const isStudentQr = code.startsWith(studentPrefix);
     const isTeacherQr = code.startsWith(teacherPrefix);
     if (!manual && !isStudentQr && !isTeacherQr)

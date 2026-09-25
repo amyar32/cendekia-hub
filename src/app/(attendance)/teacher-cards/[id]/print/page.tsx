@@ -9,6 +9,7 @@ import { CardPrintPageStyle } from '@/components/identity-card/card-print-page-s
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { TEACHER_QR_PREFIX } from '@/config/branding';
 import styles from '@/components/identity-card/identity-card-print.module.css';
 
 type Params = {
@@ -60,7 +61,7 @@ export default async function TeacherCardPrintPage({ params, searchParams }: Par
       }
     | undefined;
   if (!card) notFound();
-  const qr = await QRCode.toDataURL(`cendekia:teacher-checkin:${card.qr_token}`, {
+  const qr = await QRCode.toDataURL(`${TEACHER_QR_PREFIX}${card.qr_token}`, {
     width: 700,
     margin: 4,
     errorCorrectionLevel: 'M',

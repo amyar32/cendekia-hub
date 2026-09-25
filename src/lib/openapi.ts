@@ -1,3 +1,5 @@
+import { APP_NAME } from '@/config/branding';
+
 const json = { type: 'object', additionalProperties: true };
 
 const errorResponse = {
@@ -58,7 +60,7 @@ const examples = {
 export const openApiDocument = {
   openapi: '3.1.1',
   info: {
-    title: 'Cendekia Hub Teacher API',
+    title: `${APP_NAME} Teacher API`,
     version: '1.0.1',
     description:
       'REST API untuk aplikasi guru. Semua respons sukses memakai `{ data, meta }`; respons gagal memakai `{ error }`.',

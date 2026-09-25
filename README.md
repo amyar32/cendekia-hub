@@ -1,4 +1,4 @@
-# Cendekia Hub
+# CMS Sekolah yang dapat dikloning
 
 Boilerplate CMS modular menggunakan **Next.js 16 App Router, React 19, TypeScript, Mantine 8, dan SQLite**. Antarmuka berbahasa Indonesia dengan navigasi responsif.
 
@@ -21,10 +21,15 @@ bawaan atau `fresh` untuk palet hijau jade. Restart aplikasi setelah nilainya di
 NEXT_PUBLIC_APP_THEME=fresh
 NEXT_PUBLIC_APP_BRAND_NAME=Cendekia
 NEXT_PUBLIC_APP_NAME=Cendekia Hub
+NEXT_PUBLIC_APP_QR_NAMESPACE=cendekia
 ```
 
-`NEXT_PUBLIC_APP_BRAND_NAME` digunakan untuk nama singkat pada logo, sedangkan
-`NEXT_PUBLIC_APP_NAME` digunakan untuk judul lengkap, metadata, dan footer aplikasi.
+Saat membuat clone baru, ubah tiga nilai tersebut di `.env` sebelum menjalankan seed atau
+mencetak kartu: `NEXT_PUBLIC_APP_BRAND_NAME` untuk nama singkat pada logo,
+`NEXT_PUBLIC_APP_NAME` untuk judul lengkap, metadata, dokumen API, dan footer, serta
+`NEXT_PUBLIC_APP_QR_NAMESPACE` untuk identitas kartu QR. Namespace QR otomatis memakai nama
+singkat bila tidak diisi, tetapi sebaiknya ditetapkan secara eksplisit dan tidak diubah setelah
+kartu QR dicetak. Nama file backup dan template onboarding mengikuti nama singkat aplikasi.
 
 ```bash
 pnpm run db:seed

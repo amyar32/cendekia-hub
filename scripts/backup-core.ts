@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import Database from 'better-sqlite3';
+import { APP_BRAND_SLUG } from '../src/config/branding';
 
 const manifestName = 'manifest.json';
 const databaseName = 'database.sqlite';
@@ -84,7 +85,7 @@ export async function createBackup(options: {
     throw new Error('Direktori backup tidak boleh berada di dalam direktori upload.');
 
   mkdirSync(outputRoot, { recursive: true });
-  const name = `cendekia-backup-${timestamp()}`;
+  const name = `${APP_BRAND_SLUG}-backup-${timestamp()}`;
   const partial = join(outputRoot, `.${name}.partial-${process.pid}`);
   const destination = join(outputRoot, name);
   mkdirSync(partial);
