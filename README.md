@@ -31,6 +31,17 @@ mencetak kartu: `NEXT_PUBLIC_APP_BRAND_NAME` untuk nama singkat pada logo,
 singkat bila tidak diisi, tetapi sebaiknya ditetapkan secara eksplisit dan tidak diubah setelah
 kartu QR dicetak. Nama file backup dan template onboarding mengikuti nama singkat aplikasi.
 
+## Asset branding
+
+Ganti asset tiap clone dengan nama dan path yang tetap:
+
+```text
+public/branding/logo.png  Wordmark horizontal
+public/branding/icon.png  Ikon aplikasi, favicon, dan halaman masuk
+```
+
+Path asset dikelola melalui `APP_BRAND_ASSETS` di `src/config/branding.ts`.
+
 ```bash
 pnpm run db:seed
 pnpm run dev

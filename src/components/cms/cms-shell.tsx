@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
@@ -20,7 +21,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { APP_BRAND_PRIMARY, APP_BRAND_SUFFIX, APP_NAME } from '@/config/branding';
+import { APP_BRAND_ASSETS, APP_NAME } from '@/config/branding';
 import {
   IconLayersIntersect,
   IconLayoutDashboard,
@@ -172,15 +173,14 @@ export function CmsShell({
       >
         <AppShell.Navbar px={{ base: 20, md: 15, xl: 20 }} pt={32} pb={18}>
           <Text component={Link} href="/" className={styles.brand}>
-            <ThemeIcon className={styles.brandIcon} size={34} radius={10}>
-              <IconLayersIntersect />
-            </ThemeIcon>
-            {APP_BRAND_PRIMARY}
-            {APP_BRAND_SUFFIX && (
-              <Text component="span" className={styles.brandLight}>
-                {APP_BRAND_SUFFIX}
-              </Text>
-            )}
+            <Image
+              src={APP_BRAND_ASSETS.logo}
+              alt={APP_NAME}
+              width={2172}
+              height={724}
+              className={styles.brandLogo}
+              priority
+            />
           </Text>
           <Paper className={styles.workspaceCard} withBorder>
             <ThemeIcon className={styles.workspaceAvatar} variant="light" size={38} radius={8}>

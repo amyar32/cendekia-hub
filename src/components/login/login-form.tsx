@@ -1,25 +1,11 @@
 'use client';
 import { useState } from 'react';
-import {
-  Button,
-  Group,
-  PasswordInput,
-  Stack,
-  Text,
-  TextInput,
-  ThemeIcon,
-  Title,
-} from '@mantine/core';
+import Image from 'next/image';
+import { Button, Group, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import {
-  IconArrowRight,
-  IconLayersIntersect,
-  IconShieldCheck,
-  IconDatabase,
-  IconHistory,
-} from '@tabler/icons-react';
+import { IconArrowRight, IconShieldCheck, IconDatabase, IconHistory } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import { APP_BRAND_PRIMARY, APP_BRAND_SUFFIX, APP_NAME } from '@/config/branding';
+import { APP_BRAND_ASSETS, APP_NAME } from '@/config/branding';
 import styles from './login-form.module.css';
 export function LoginForm() {
   const [busy, setBusy] = useState(false);
@@ -57,15 +43,14 @@ export function LoginForm() {
     <main className={styles.layout}>
       <section className={styles.story}>
         <Text component="div" className={styles.brand}>
-          <ThemeIcon className={styles.brandIcon} size={34} radius={10}>
-            <IconLayersIntersect />
-          </ThemeIcon>
-          {APP_BRAND_PRIMARY}
-          {APP_BRAND_SUFFIX && (
-            <Text component="span" className={styles.brandLight}>
-              {APP_BRAND_SUFFIX}
-            </Text>
-          )}
+          <Image
+            src={APP_BRAND_ASSETS.logo}
+            alt={APP_NAME}
+            width={2172}
+            height={724}
+            className={styles.brandLogo}
+            priority
+          />
         </Text>
         <div>
           <Text variant="eyebrow">SISTEM OPERASIONAL SEKOLAH</Text>
@@ -109,9 +94,14 @@ export function LoginForm() {
       </section>
       <section className={styles.formWrap}>
         <div className={styles.form}>
-          <ThemeIcon size={48} radius="xl" variant="light">
-            <IconShieldCheck size={25} />
-          </ThemeIcon>
+          <Image
+            src={APP_BRAND_ASSETS.icon}
+            alt=""
+            width={1254}
+            height={1254}
+            className={styles.formBrandIcon}
+            priority
+          />
           <Stack gap={8} mt="xl">
             <Title order={2}>Masuk ke sistem sekolah</Title>
             <Text variant="description">

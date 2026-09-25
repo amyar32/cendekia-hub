@@ -18,6 +18,12 @@ export const APP_BRAND_NAME = publicValue(process.env.NEXT_PUBLIC_APP_BRAND_NAME
 
 export const APP_NAME = publicValue(process.env.NEXT_PUBLIC_APP_NAME, 'Cendekia Hub');
 
+// Each clone replaces these files while keeping their stable public paths.
+export const APP_BRAND_ASSETS = {
+  logo: '/branding/logo.png',
+  icon: '/branding/icon.png',
+} as const;
+
 const appNamePrefix = `${APP_BRAND_NAME} `;
 export const APP_BRAND_SUFFIX = APP_NAME.startsWith(appNamePrefix)
   ? APP_NAME.slice(appNamePrefix.length)

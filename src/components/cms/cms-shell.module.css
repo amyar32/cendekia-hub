@@ -12,8 +12,10 @@
   gap: 3px;
 }
 
-.brandIcon {
-  margin-right: 8px;
+.brandLogo {
+  display: block;
+  width: 174px;
+  height: auto;
 }
 
 .brandLight {
