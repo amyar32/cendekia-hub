@@ -6,6 +6,8 @@ import {
   type TextProps,
   type TitleProps,
 } from '@mantine/core';
+import { classicTheme } from './themes/classic';
+import { freshTheme } from './themes/fresh';
 
 export const DEFAULT_COLOR_SCHEME: MantineColorScheme = 'light';
 
@@ -14,83 +16,9 @@ export type AppThemeName = 'classic' | 'fresh';
 export const APP_THEME_NAME: AppThemeName =
   process.env.NEXT_PUBLIC_APP_THEME === 'fresh' ? 'fresh' : 'classic';
 
-const classicAppColors = {
-  background: '#faf9f8',
-  surface: '#ffffff',
-  text: '#58595b',
-  muted: '#858587',
-  border: '#ebe7e4',
-  brand: '#e15f37',
-  brandStrong: '#c94e29',
-  brandSoft: '#fcefe9',
-  mutedStrong: '#68696b',
-  mutedSoft: '#9a9a9c',
-  subtle: '#faf8f7',
-  success: '#2f7d5d',
-  successSoft: '#e8f4ee',
-  warning: '#a96516',
-  warningSoft: '#fff1dd',
-  danger: '#b4443c',
-  dangerSoft: '#fbe9e7',
-} as const;
-
-const freshAppColors = {
-  background: '#f6faf7',
-  surface: '#ffffff',
-  text: '#293b32',
-  muted: '#708078',
-  border: '#dce9e0',
-  brand: '#2f9e63',
-  brandStrong: '#237a4b',
-  brandSoft: '#e7f6ed',
-  mutedStrong: '#506159',
-  mutedSoft: '#93a39a',
-  subtle: '#f1f7f3',
-  success: '#25855a',
-  successSoft: '#e4f4ea',
-  warning: '#a56a18',
-  warningSoft: '#fff3df',
-  danger: '#b94b55',
-  dangerSoft: '#fbeaec',
-} as const;
-
-const classicBrand = [
-  '#fff4f0',
-  '#ffe4da',
-  '#ffc6b4',
-  '#fda68c',
-  '#f98767',
-  '#ee714d',
-  '#e15f37',
-  '#c94e29',
-  '#a93d1f',
-  '#8b3018',
-] as const;
-
-const freshBrand = [
-  '#ebfbf1',
-  '#d5f5e1',
-  '#aceac4',
-  '#80dda5',
-  '#5ace89',
-  '#3fbb73',
-  '#2f9e63',
-  '#237a4b',
-  '#1b633c',
-  '#124f30',
-] as const;
-
-const appColors = APP_THEME_NAME === 'fresh' ? freshAppColors : classicAppColors;
-const appShadows =
-  APP_THEME_NAME === 'fresh'
-    ? {
-        card: '0 8px 28px rgba(31, 82, 52, 0.07)',
-        elevated: '0 14px 36px rgba(31, 82, 52, 0.15)',
-      }
-    : {
-        card: '0 8px 28px rgba(56, 44, 38, 0.06)',
-        elevated: '0 14px 36px rgba(56, 44, 38, 0.14)',
-      };
+const selectedTheme = APP_THEME_NAME === 'fresh' ? freshTheme : classicTheme;
+const appColors = selectedTheme.appColors;
+const appShadows = selectedTheme.shadows;
 
 export const theme = createTheme({
   primaryColor: 'brand',
@@ -108,7 +36,7 @@ export const theme = createTheme({
     },
   },
   colors: {
-    brand: APP_THEME_NAME === 'fresh' ? freshBrand : classicBrand,
+    brand: selectedTheme.brand,
   },
   other: {
     appColors,
