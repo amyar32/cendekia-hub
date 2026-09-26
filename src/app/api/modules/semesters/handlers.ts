@@ -10,8 +10,9 @@ import { listParams } from '@/app/api/modules/_shared/list-params';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { isoDateSchema } from '@/lib/validation';
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal tidak valid.');
+const isoDate = isoDateSchema('Tanggal tidak valid.');
 const schema = z
   .object({
     academic_year_id: z.string().uuid('Tahun ajaran tidak valid.'),

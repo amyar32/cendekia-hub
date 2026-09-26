@@ -12,12 +12,13 @@ import {
 import { HttpError, requireUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { isoDateSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const optionalUuid = z.union([z.literal(''), z.string().uuid()]);
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const dateSchema = isoDateSchema();
 
 type Period = { id: string; name: string; start_date: string; end_date: string };
 

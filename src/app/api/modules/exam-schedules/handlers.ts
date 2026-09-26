@@ -18,9 +18,10 @@ import { can } from '@/config/modules';
 import { audit, db } from '@/lib/db';
 import { examConflicts } from '@/lib/exam-schedules';
 import { failure } from '@/lib/http';
+import { isoDateSchema } from '@/lib/validation';
 
 const idSchema = z.string().uuid('ID tidak valid.');
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal tidak valid.');
+const dateSchema = isoDateSchema();
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Waktu tidak valid.');
 const periodSchema = z
   .object({

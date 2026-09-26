@@ -1,9 +1,9 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { HttpError } from './auth';
+import { db } from './db';
 
 const globalAdmissions = globalThis as unknown as {
   admissionCaptchaSecret?: string;
-  admissionRateLimits?: Map<string, { count: number; resetsAt: number }>;
 };
 const secret =
   process.env.ADMISSION_FORM_SECRET ||
@@ -49,18 +49,31 @@ const rateLimitPolicies: Record<AdmissionRateLimitScope, { maximum: number; wind
 };
 
 export function admissionRateLimit(request: Request, scope: AdmissionRateLimitScope) {
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const client = forwarded || request.headers.get('x-real-ip') || 'local';
-  const key = `${scope}:${client}`;
-  const limits = (globalAdmissions.admissionRateLimits ||= new Map());
+  const trustProxy = process.env.ADMISSION_TRUST_PROXY_HEADERS === 'true';
+  const forwarded = trustProxy
+    ? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    : undefined;
+  const realIp = trustProxy ? request.headers.get('x-real-ip')?.trim() : undefined;
+  const client =
+    forwarded ||
+    realIp ||
+    `direct:${request.headers.get('user-agent') || 'unknown'}:${request.headers.get('accept-language') || ''}`;
+  const key = `${scope}:${createHash('sha256').update(client).digest('hex')}`;
   const policy = rateLimitPolicies[scope];
   const now = Date.now();
-  const current = limits.get(key);
-  if (!current || current.resetsAt <= now) {
-    limits.set(key, { count: 1, resetsAt: now + policy.windowMs });
-    return;
-  }
-  if (current.count >= policy.maximum)
-    throw new HttpError(429, 'Terlalu banyak percobaan. Coba lagi nanti.');
-  current.count += 1;
+  db().transaction(() => {
+    db().prepare('DELETE FROM admission_rate_limits WHERE resets_at<=?').run(now);
+    const current = db()
+      .prepare('SELECT count,resets_at FROM admission_rate_limits WHERE key=?')
+      .get(key) as { count: number; resets_at: number } | undefined;
+    if (!current) {
+      db()
+        .prepare('INSERT INTO admission_rate_limits(key,count,resets_at) VALUES(?,1,?)')
+        .run(key, now + policy.windowMs);
+      return;
+    }
+    if (current.count >= policy.maximum)
+      throw new HttpError(429, 'Terlalu banyak percobaan. Coba lagi nanti.');
+    db().prepare('UPDATE admission_rate_limits SET count=count+1 WHERE key=?').run(key);
+  })();
 }

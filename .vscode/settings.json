@@ -1,8 +1,9 @@
 {
-    "chat.tools.terminal.autoApprove": {
-        "/^node -e \"const Database=require\\('better-sqlite3'\\); const db=new Database\\('\\./data/cms\\.sqlite',\\{readonly:true\\}\\); const rows=db\\.prepare\\(\\\\`SELECT s\\.id, s\\.attendance_date, s\\.status, s\\.subject_name, s\\.class_name, s\\.teacher_name, \\(SELECT COUNT\\(\\*\\) FROM student_attendance_records r WHERE r\\.session_id=s\\.id\\) AS record_count FROM student_attendance_sessions s WHERE s\\.class_schedule_id='f49c6848-4cea-4602-bc89-c1b8ed2ae6d8' ORDER BY s\\.attendance_date\\\\`\\)\\.all\\(\\); console\\.log\\(JSON\\.stringify\\(rows,null,2\\)\\); db\\.close\\(\\);\"$/": {
-            "approve": true,
-            "matchCommandLine": true
-        }
+  "chat.tools.terminal.autoApprove": {
+    "/^node -e \"const Database=require\\('better-sqlite3'\\); const db=new Database\\('\\./data/cms\\.sqlite',\\{readonly:true\\}\\); const rows=db\\.prepare\\(\\\\`SELECT s\\.id, s\\.attendance_date, s\\.status, s\\.subject_name, s\\.class_name, s\\.teacher_name, \\(SELECT COUNT\\(\\*\\) FROM student_attendance_records r WHERE r\\.session_id=s\\.id\\) AS record_count FROM student_attendance_sessions s WHERE s\\.class_schedule_id='f49c6848-4cea-4602-bc89-c1b8ed2ae6d8' ORDER BY s\\.attendance_date\\\\`\\)\\.all\\(\\); console\\.log\\(JSON\\.stringify\\(rows,null,2\\)\\); db\\.close\\(\\);\"$/": {
+      "approve": true,
+      "matchCommandLine": true
     }
+  },
+  "js/ts.experimental.useTsgo": false
 }

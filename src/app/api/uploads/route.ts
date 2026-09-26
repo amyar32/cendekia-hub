@@ -5,6 +5,7 @@ import { failure } from '@/lib/http';
 import {
   isUploadScope,
   removeUpload,
+  pruneOrphanedUploads,
   safeOriginalName,
   storeUpload,
   uploadScopes,
@@ -20,9 +21,14 @@ export async function POST(request: Request) {
   let storedKey: string | null = null;
   try {
     checkOrigin(request);
-    const contentLength = Number(request.headers.get('content-length'));
+    const contentLengthHeader = request.headers.get('content-length');
     const largestUpload = Math.max(...Object.values(uploadScopes).map((scope) => scope.maxBytes));
-    if (Number.isFinite(contentLength) && contentLength > largestUpload + 64 * 1024) {
+    if (!contentLengthHeader)
+      throw new HttpError(411, 'Content-Length wajib dikirim untuk upload file.');
+    const contentLength = Number(contentLengthHeader);
+    if (!Number.isSafeInteger(contentLength) || contentLength <= 0)
+      throw new HttpError(400, 'Ukuran request upload tidak valid.');
+    if (contentLength > largestUpload + 64 * 1024) {
       throw new HttpError(413, 'Ukuran request upload terlalu besar.');
     }
     const form = await request.formData();
@@ -84,6 +90,11 @@ export async function POST(request: Request) {
       });
     })();
     storedKey = null;
+    try {
+      pruneOrphanedUploads();
+    } catch (cleanupError) {
+      console.error('Cleanup upload yatim gagal.', cleanupError);
+    }
 
     return Response.json(
       {

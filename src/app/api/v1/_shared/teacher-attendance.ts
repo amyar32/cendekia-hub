@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { z } from 'zod';
 import { audit, db } from '@/lib/db';
 import { regularScheduleBlock } from '@/lib/exam-schedules';
 import { MobileApiError, type MobileTeacherActor } from '@/lib/mobile-api';
+import { isoDateSchema } from '@/lib/validation';
 
-export const attendanceDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal absensi tidak valid.');
+export const attendanceDateSchema = isoDateSchema('Tanggal absensi tidak valid.');
 
 export type TeacherAttendanceSession = {
   id: string;

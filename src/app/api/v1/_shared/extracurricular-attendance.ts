@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { z } from 'zod';
 import { audit, db } from '@/lib/db';
 import { MobileApiError, type MobileTeacherActor } from '@/lib/mobile-api';
+import { isoDateSchema } from '@/lib/validation';
 
-export const extracurricularAttendanceDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal absensi tidak valid.');
+export const extracurricularAttendanceDateSchema = isoDateSchema('Tanggal absensi tidak valid.');
 
 export function extracurricularWeekday(date: string) {
   const day = new Date(`${date}T12:00:00Z`).getUTCDay();

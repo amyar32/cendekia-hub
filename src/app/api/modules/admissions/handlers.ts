@@ -12,9 +12,10 @@ import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { uploadIdFromUrl } from '@/lib/uploads';
+import { isoDateSchema } from '@/lib/validation';
 
 const uuid = z.string().uuid('ID tidak valid.');
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal tidak valid.');
+const date = isoDateSchema('Tanggal tidak valid.');
 const optionalDate = z.union([z.literal(''), date]);
 const status = z.enum([
   'draft',

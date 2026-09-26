@@ -31,7 +31,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       headers: {
         'Content-Type': upload.mime_type,
         'Content-Length': String(bytes.byteLength),
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': scope.public ? 'public, max-age=31536000, immutable' : 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
         'Content-Disposition': `${scope.kind === 'document' ? 'attachment' : 'inline'}; filename="${upload.original_name.replace(/["\\\r\n]/g, '_')}"`,
       },

@@ -1,12 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { can } from '@/config/modules';
-import { activeAcademicYear, currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import {
+  activeAcademicYear,
+  currentSchoolId,
+  schoolLocalDate,
+} from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser, type SessionUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { isoDateSchema } from '@/lib/validation';
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal absensi tidak valid.');
+const dateSchema = isoDateSchema('Tanggal absensi tidak valid.');
 const status = z.enum(['present', 'late', 'sick', 'excused', 'absent']);
 const createSchema = z.object({ schedule_id: z.string().uuid(), attendance_date: dateSchema });
 const patchSchema = z.discriminatedUnion('action', [
@@ -65,9 +70,7 @@ export async function GET(request: Request) {
         .all(sessionId);
       return Response.json({ records }, { headers: { 'Cache-Control': 'no-store' } });
     }
-    const date = dateSchema.parse(
-      url.searchParams.get('date') || new Date().toISOString().slice(0, 10),
-    );
+    const date = dateSchema.parse(url.searchParams.get('date') || schoolLocalDate(schoolId));
     const day = weekday(date);
     const activeYear = activeAcademicYear(schoolId);
     const semester = db()

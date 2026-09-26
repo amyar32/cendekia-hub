@@ -5,14 +5,9 @@ import { listParams } from '@/app/api/modules/_shared/list-params';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { isoDateSchema } from '@/lib/validation';
 
-const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal tidak valid.')
-  .refine((value) => {
-    const date = new Date(`${value}T00:00:00Z`);
-    return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
-  }, 'Tanggal tidak valid.');
+const isoDate = isoDateSchema('Tanggal tidak valid.');
 
 const semesterSchema = z.object({
   id: z.string().uuid('ID semester tidak valid.').optional(),

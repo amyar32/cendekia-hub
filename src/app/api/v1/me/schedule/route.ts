@@ -1,10 +1,10 @@
-import { z } from 'zod';
 import { schoolLocalDate } from '@/app/api/modules/_shared/academic-context';
 import { db } from '@/lib/db';
 import { regularScheduleBlock } from '@/lib/exam-schedules';
 import { mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
+import { isoDateSchema } from '@/lib/validation';
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal tidak valid.');
+const dateSchema = isoDateSchema();
 
 function weekday(date: string) {
   const day = new Date(`${date}T12:00:00Z`).getUTCDay();

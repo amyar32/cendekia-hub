@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { isoDateSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -32,7 +33,7 @@ const studentImportSchema = z.object({
   nama: z.string().trim().min(2).max(100),
   gender: z.enum(['male', 'female']),
   golongan_darah: z.enum(['', 'A', 'B', 'AB', 'O']),
-  tanggal_lahir: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
+  tanggal_lahir: z.union([z.literal(''), isoDateSchema()]),
   tempat_lahir: z.string().trim().max(100),
   nama_rombel: z.string().trim().min(1).max(50),
   nama_wali: z.string().trim().max(100),
@@ -170,8 +171,8 @@ function validateWorkbook(workbook: ExcelJS.Workbook, schoolId: string, academic
       messages.push('Golongan darah harus A, B, AB, atau O.');
     if (!classroomName || !classNames.has(classroomName))
       messages.push('Nama rombel tidak ditemukan.');
-    if (source.data.tanggal_lahir && !/^\d{4}-\d{2}-\d{2}$/.test(source.data.tanggal_lahir))
-      messages.push('Tanggal lahir harus berformat YYYY-MM-DD.');
+    if (source.data.tanggal_lahir && !isoDateSchema().safeParse(source.data.tanggal_lahir).success)
+      messages.push('Tanggal lahir tidak valid atau bukan berformat YYYY-MM-DD.');
     if (studentNumbers.has(nis)) messages.push('NIS duplikat di workbook.');
     studentNumbers.add(nis);
     const exists = db()

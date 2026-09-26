@@ -4,12 +4,10 @@ import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { uploadIdFromUrl } from '@/lib/uploads';
+import { isoDateSchema } from '@/lib/validation';
 
 const educationLevel = z.enum(['sd', 'smp', 'sma']);
-const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal tidak valid.')
-  .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), 'Tanggal tidak valid.');
+const isoDate = isoDateSchema();
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, 'Format waktu harus HH:mm.');
 const optionalEmail = z
   .string()

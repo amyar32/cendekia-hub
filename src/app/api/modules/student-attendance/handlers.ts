@@ -1,13 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { can } from '@/config/modules';
-import { activeAcademicYear, currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import {
+  activeAcademicYear,
+  currentSchoolId,
+  schoolLocalDate,
+} from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser, type SessionUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { regularScheduleBlock } from '@/lib/exam-schedules';
+import { isoDateSchema } from '@/lib/validation';
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal absensi tidak valid.');
+const dateSchema = isoDateSchema('Tanggal absensi tidak valid.');
 const recordStatus = z.enum(['present', 'late', 'sick', 'excused', 'absent']);
 const createSchema = z.object({
   schedule_id: z.string().uuid('Jadwal tidak valid.'),
@@ -61,9 +66,7 @@ export async function GET(request: Request) {
     const user = await requireUser('student-attendance.read');
     const schoolId = currentSchoolId();
     const url = new URL(request.url);
-    const date = dateSchema.parse(
-      url.searchParams.get('date') || new Date().toISOString().slice(0, 10),
-    );
+    const date = dateSchema.parse(url.searchParams.get('date') || schoolLocalDate(schoolId));
     const teacher = teacherForUser(user.id, schoolId);
     const unrestricted =
       can(user.permissions, 'student-attendance.approve') ||
@@ -117,19 +120,16 @@ export async function GET(request: Request) {
            AND (?=1 OR ta.teacher_id=? OR ats.teacher_id=?)
          ORDER BY sts.start_time,c.name,s.name`,
       )
-         .all(
-           date,
-           schoolId,
-           day,
-           date,
-           date,
-           unrestricted ? 1 : 0,
-           teacher?.id ?? '',
-           teacher?.id ?? '',
-         ) as Record<
-      string,
-      unknown
-    >[];
+      .all(
+        date,
+        schoolId,
+        day,
+        date,
+        date,
+        unrestricted ? 1 : 0,
+        teacher?.id ?? '',
+        teacher?.id ?? '',
+      ) as Record<string, unknown>[];
     const schedules = scheduleRows.map((schedule) => {
       const block = regularScheduleBlock(schoolId, String(schedule.class_id || ''), date);
       return {

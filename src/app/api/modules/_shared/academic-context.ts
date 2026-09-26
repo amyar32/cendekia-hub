@@ -1,5 +1,6 @@
 import { HttpError } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { isoDateSchema } from '@/lib/validation';
 
 export function currentSchoolId() {
   const school = db()
@@ -11,7 +12,7 @@ export function currentSchoolId() {
 
 export function schoolLocalDate(schoolId: string) {
   const override = process.env.APP_CURRENT_DATE;
-  if (override && /^\d{4}-\d{2}-\d{2}$/.test(override)) return override;
+  if (override && isoDateSchema().safeParse(override).success) return override;
   const school = db().prepare('SELECT timezone FROM schools WHERE id=?').get(schoolId) as
     { timezone: string } | undefined;
   const parts = new Intl.DateTimeFormat('en-US', {

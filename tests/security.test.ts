@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { hashPassword, verifyPassword } from '../src/lib/password';
 import { can } from '../src/config/modules';
+import { isoDateSchema } from '../src/lib/validation';
 test('password hashing uses unique salts and rejects incorrect passwords', () => {
   const first = hashPassword('correct horse battery staple');
   assert.notEqual(first, hashPassword('correct horse battery staple'));
@@ -20,4 +21,12 @@ test('RBAC denies absent permissions and does not infer write from read', () => 
   assert.equal(can(['exam-schedules.read'], 'exam-schedules.read'), true);
   assert.equal(can(['exam-schedules.read'], 'exam-schedules.write'), false);
   assert.equal(can(['exam-schedules.write'], 'exam-schedules.publish'), false);
+});
+
+test('ISO date validation rejects calendar dates that do not exist', () => {
+  const schema = isoDateSchema();
+  assert.equal(schema.safeParse('2028-02-29').success, true);
+  assert.equal(schema.safeParse('2026-02-29').success, false);
+  assert.equal(schema.safeParse('2026-02-31').success, false);
+  assert.equal(schema.safeParse('2026-13-01').success, false);
 });

@@ -11,8 +11,9 @@ import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { uploadIdFromUrl } from '@/lib/uploads';
+import { isoDateSchema } from '@/lib/validation';
 
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal tidak valid.');
+const date = isoDateSchema();
 const optionalDate = z.preprocess(
   (value) => (value === null || value === undefined ? '' : value),
   z.union([z.literal(''), date]),

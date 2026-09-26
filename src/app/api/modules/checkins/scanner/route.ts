@@ -64,7 +64,7 @@ export async function GET() {
   try {
     const actor = await requireUser('checkins.read');
     const schoolId = currentSchoolId();
-    assignAutomaticAbsences(schoolId, actor);
+    if (actor.permissions.includes('checkins.write')) assignAutomaticAbsences(schoolId, actor);
     const school = db()
       .prepare(
         'SELECT name,logo_url,timezone,checkin_late_after,teacher_checkin_late_enabled FROM schools WHERE id=?',

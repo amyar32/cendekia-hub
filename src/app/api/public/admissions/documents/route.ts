@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import {
   removeUpload,
+  pruneOrphanedUploads,
   safeOriginalName,
   storeUpload,
   uploadUrl,
@@ -13,19 +14,29 @@ import {
 } from '@/lib/uploads';
 
 export const runtime = 'nodejs';
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_MULTIPART_OVERHEAD = 64 * 1024;
 
 export async function POST(request: Request) {
   let storedKey: string | null = null;
   try {
     checkOrigin(request);
     admissionRateLimit(request, 'upload');
+    const contentLengthHeader = request.headers.get('content-length');
+    if (!contentLengthHeader)
+      throw new HttpError(411, 'Content-Length wajib dikirim untuk upload dokumen.');
+    const contentLength = Number(contentLengthHeader);
+    if (!Number.isSafeInteger(contentLength) || contentLength <= 0)
+      throw new HttpError(400, 'Ukuran request upload tidak valid.');
+    if (contentLength > MAX_UPLOAD_BYTES + MAX_MULTIPART_OVERHEAD)
+      throw new HttpError(413, 'Ukuran request upload terlalu besar.');
     const form = await request.formData();
     const file = form.get('file');
     const trackingToken = form.get('tracking_token');
     const type = form.get('type');
     const kind = form.get('kind');
     if (!(file instanceof File) || file.size === 0) throw new HttpError(400, 'Pilih dokumen.');
-    if (file.size > 10 * 1024 * 1024) throw new HttpError(413, 'Ukuran dokumen maksimal 10 MB.');
+    if (file.size > MAX_UPLOAD_BYTES) throw new HttpError(413, 'Ukuran dokumen maksimal 10 MB.');
     if (typeof trackingToken !== 'string' || !/^(?:\d{6}|[a-f0-9]{48})$/.test(trackingToken))
       throw new HttpError(400, 'Token pendaftaran tidak valid.');
     if (typeof type !== 'string' || !type.trim() || type.length > 100)
@@ -89,6 +100,11 @@ export async function POST(request: Request) {
           );
     })();
     storedKey = null;
+    try {
+      pruneOrphanedUploads();
+    } catch (cleanupError) {
+      console.error('Cleanup upload yatim gagal.', cleanupError);
+    }
     return Response.json(
       { ok: true, id: isPhoto ? uploadId : documentId, url: uploadUrl(uploadId) },
       { status: 201 },

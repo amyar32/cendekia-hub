@@ -7,11 +7,9 @@ import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { uploadIdFromUrl } from '@/lib/uploads';
 import { hashPassword } from '@/lib/password';
+import { isoDateSchema } from '@/lib/validation';
 
-const optionalDate = z.union([
-  z.literal(''),
-  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal tidak valid.'),
-]);
+const optionalDate = z.union([z.literal(''), isoDateSchema()]);
 const schema = z.object({
   create_account: z.boolean().default(true),
   user_id: z.union([z.literal(''), z.string().uuid('Akun pengguna tidak valid.')]).default(''),

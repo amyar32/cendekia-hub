@@ -1,9 +1,9 @@
-import { z } from 'zod';
 import { schoolLocalDate } from '@/app/api/modules/_shared/academic-context';
 import { db } from '@/lib/db';
 import { MobileApiError, mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
+import { isoDateSchema } from '@/lib/validation';
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal tidak valid.');
+const dateSchema = isoDateSchema();
 
 function daysBefore(date: string, days: number) {
   const value = new Date(`${date}T12:00:00Z`);

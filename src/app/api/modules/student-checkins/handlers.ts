@@ -5,13 +5,15 @@ import {
   classOptions,
   currentSchoolId,
   requireClass,
+  schoolLocalDate,
 } from '@/app/api/modules/_shared/academic-context';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { assignAutomaticAbsences } from '@/lib/checkins';
+import { isoDateSchema } from '@/lib/validation';
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal cek-in tidak valid.');
+const dateSchema = isoDateSchema('Tanggal cek-in tidak valid.');
 const inputSchema = z.object({
   student_id: z.string().uuid('Siswa tidak valid.'),
   attendance_date: dateSchema,
@@ -23,11 +25,9 @@ export async function GET(request: Request) {
   try {
     const actor = await requireUser('checkins.read');
     const schoolId = currentSchoolId();
-    assignAutomaticAbsences(schoolId, actor);
+    if (actor.permissions.includes('checkins.write')) assignAutomaticAbsences(schoolId, actor);
     const url = new URL(request.url);
-    const date = dateSchema.parse(
-      url.searchParams.get('date') || new Date().toISOString().slice(0, 10),
-    );
+    const date = dateSchema.parse(url.searchParams.get('date') || schoolLocalDate(schoolId));
     const year = activeAcademicYear(schoolId);
     const dateNotice =
       date < year.start_date || date > year.end_date
