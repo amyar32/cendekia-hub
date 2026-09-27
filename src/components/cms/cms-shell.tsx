@@ -22,6 +22,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { APP_BRAND_ASSETS, APP_NAME } from '@/config/branding';
+import { GROUPED_NAVIGATION_ENABLED } from '@/config/navigation';
 import {
   IconLayersIntersect,
   IconLayoutDashboard,
@@ -86,6 +87,34 @@ const icons = {
 };
 const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
   {
+    label: 'Operasional Harian',
+    keys: ['schedules', 'checkins', 'student-attendance', 'extracurricular-attendance'],
+  },
+  {
+    label: 'Akademik',
+    keys: [
+      'academic-years',
+      'semesters',
+      'classes',
+      'homeroom-assignments',
+      'teaching-assignments',
+      'extracurricular-assignments',
+      'exam-schedules',
+      'promotions',
+    ],
+  },
+  {
+    label: 'Data Sekolah',
+    keys: ['students', 'teachers', 'grades', 'subjects', 'extracurriculars'],
+  },
+  { label: 'Penerimaan Murid', keys: ['admissions'] },
+  { label: 'Laporan', keys: ['academic-reports'] },
+  { label: 'Administrasi', keys: ['users', 'roles', 'audit'] },
+  { label: 'Pengaturan', keys: ['school', 'onboarding'] },
+];
+
+const legacyNavigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
+  {
     label: 'Data Sekolah',
     keys: ['students', 'teachers', 'grades', 'subjects', 'extracurriculars'],
   },
@@ -105,6 +134,17 @@ const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
   { label: 'Pengaturan', keys: ['school'] },
 ];
 
+const visibleNavigationGroups = GROUPED_NAVIGATION_ENABLED
+  ? navigationGroups
+  : legacyNavigationGroups;
+
+function groupForPath(path: string | null) {
+  if (path === '/settings/account') return 'Pengaturan';
+  return visibleNavigationGroups.find((group) =>
+    group.keys.some((key) => moduleByKey[key].path === path),
+  )?.label;
+}
+
 export function CmsShell({
   user,
   academicContext,
@@ -117,6 +157,12 @@ export function CmsShell({
   const path = usePathname();
   const router = useRouter();
   const [opened, setOpened] = useState(false);
+  const [groupSelection, setGroupSelection] = useState(() => ({
+    path,
+    label: groupForPath(path) || null,
+  }));
+  const activeGroup = groupForPath(path) || null;
+  const openGroup = groupSelection.path === path ? groupSelection.label : activeGroup;
   const [currentAcademicContext, setCurrentAcademicContext] = useState(academicContext);
 
   useEffect(() => {
@@ -198,9 +244,9 @@ export function CmsShell({
               )}
             </Stack>
           </Paper>
-          <nav className={styles.navMenu} onClick={() => setOpened(false)}>
+          <nav className={styles.navMenu}>
             <Text className={styles.navLabel} variant="eyebrow">
-              UTAMA
+              {GROUPED_NAVIGATION_ENABLED ? 'RINGKASAN' : 'UTAMA'}
             </Text>
             {can(user.permissions, 'dashboard.read') && (
               <NavLink
@@ -209,11 +255,15 @@ export function CmsShell({
                 active={path === '/'}
                 leftSection={<IconLayoutDashboard size={20} />}
                 label="Ringkasan"
+                onClick={() => setOpened(false)}
               />
             )}
             {modules
               .filter(
-                (module) => module.group === 'Utama' && can(user.permissions, module.permission),
+                (module) =>
+                  (GROUPED_NAVIGATION_ENABLED
+                    ? module.key === 'live-display'
+                    : module.group === 'Utama') && can(user.permissions, module.permission),
               )
               .map((module) => {
                 const Icon = icons[module.key];
@@ -225,42 +275,94 @@ export function CmsShell({
                     active={path === module.path}
                     leftSection={<Icon size={20} />}
                     label={module.label}
+                    onClick={() => setOpened(false)}
                   />
                 );
               })}
-            {navigationGroups.map((group) => {
+            {visibleNavigationGroups.map((group) => {
               const visibleModules = group.keys
                 .map((key) => moduleByKey[key])
                 .filter((module) => can(user.permissions, module.permission));
               const showAccount = group.label === 'Pengaturan';
               if (!visibleModules.length && !showAccount) return null;
-              return (
-                <div key={group.label}>
-                  <Text className={styles.navLabel} variant="eyebrow">
-                    {group.label.toUpperCase()}
-                  </Text>
-                  {visibleModules.map((module) => {
-                    const Icon = icons[module.key];
-                    return (
+              if (!GROUPED_NAVIGATION_ENABLED) {
+                return (
+                  <div key={group.label}>
+                    <Text className={styles.navLabel} variant="eyebrow">
+                      {group.label.toUpperCase()}
+                    </Text>
+                    {visibleModules.map((module) => {
+                      const Icon = icons[module.key];
+                      return (
+                        <NavLink
+                          component={Link}
+                          key={module.key}
+                          href={module.path}
+                          active={path === module.path}
+                          leftSection={<Icon size={20} />}
+                          label={module.label}
+                          onClick={() => setOpened(false)}
+                        />
+                      );
+                    })}
+                    {showAccount && (
                       <NavLink
                         component={Link}
-                        key={module.key}
-                        href={module.path}
-                        active={path === module.path}
-                        leftSection={<Icon size={20} />}
-                        label={module.label}
+                        href="/settings/account"
+                        active={path === '/settings/account'}
+                        leftSection={<IconSettings size={20} />}
+                        label="Akun"
+                        onClick={() => setOpened(false)}
                       />
-                    );
-                  })}
-                  {showAccount && (
-                    <NavLink
-                      component={Link}
-                      href="/settings/account"
-                      active={path === '/settings/account'}
-                      leftSection={<IconSettings size={20} />}
-                      label="Akun"
-                    />
-                  )}
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div key={group.label}>
+                  <NavLink
+                    className={styles.groupToggle}
+                    label={group.label}
+                    opened={openGroup === group.label}
+                    rightSection={<IconChevronDown size={16} />}
+                    onClick={() => {
+                      setGroupSelection({
+                        path,
+                        label: openGroup === group.label ? null : group.label,
+                      });
+                    }}
+                  >
+                    {visibleModules.map((module) => {
+                      const Icon = icons[module.key];
+                      return (
+                        <NavLink
+                          component={Link}
+                          key={module.key}
+                          href={module.path}
+                          active={path === module.path}
+                          leftSection={<Icon size={19} />}
+                          label={module.label}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpened(false);
+                          }}
+                        />
+                      );
+                    })}
+                    {showAccount && (
+                      <NavLink
+                        component={Link}
+                        href="/settings/account"
+                        active={path === '/settings/account'}
+                        leftSection={<IconSettings size={19} />}
+                        label="Akun"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setOpened(false);
+                        }}
+                      />
+                    )}
+                  </NavLink>
                 </div>
               );
             })}

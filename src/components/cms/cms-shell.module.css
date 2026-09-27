@@ -42,6 +42,10 @@
   margin: 22px 12px 10px;
 }
 
+.groupToggle {
+  margin-top: 6px;
+}
+
 .navMenu {
   min-height: 0;
   flex: 1;
