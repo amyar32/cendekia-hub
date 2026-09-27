@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { toIndonesianWhatsAppNumber } from '../src/lib/notifications/phone';
-import { studentCheckinMessage } from '../src/lib/notifications/templates';
+import {
+  studentCheckinMessage,
+  studentExtracurricularAttendanceMessage,
+} from '../src/lib/notifications/templates';
 import { sendWhatsAppMessage } from '../src/lib/notifications/whatsapp';
 
 test('Wablas phone formatter accepts Indonesian local and international numbers', () => {
@@ -47,4 +50,19 @@ test('check-in message supports an absent status', () => {
     status: 'absent',
   });
   assert.match(message, /❌ \*Tidak hadir\*/);
+});
+
+test('extracurricular attendance message identifies the activity and status', () => {
+  const message = studentExtracurricularAttendanceMessage({
+    schoolName: 'SMA Cendekia',
+    extracurricularName: 'Pramuka',
+    teacherName: 'Budi Santoso',
+    studentName: 'Ayu',
+    date: '2026-09-27',
+    time: '10:30',
+    status: 'excused',
+  });
+  assert.match(message, /Pramuka/);
+  assert.match(message, /Budi Santoso/);
+  assert.match(message, /📝 \*Izin\*/);
 });

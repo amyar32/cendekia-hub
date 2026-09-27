@@ -6,21 +6,33 @@ export type StudentCheckinTemplateData = {
   status: 'present' | 'late' | 'absent';
 };
 
-export function studentCheckinMessage(input: StudentCheckinTemplateData) {
-  // The input is a school-local calendar date, not a UTC check-in timestamp.
-  const date = new Intl.DateTimeFormat('id-ID', {
+type AttendanceStatus = 'present' | 'late' | 'sick' | 'excused' | 'absent';
+
+function indonesianDate(date: string) {
+  return new Intl.DateTimeFormat('id-ID', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
-  }).format(new Date(`${input.date}T00:00:00Z`));
-  const status =
-    input.status === 'late'
-      ? '⏰ *Hadir terlambat*'
-      : input.status === 'absent'
-        ? '❌ *Tidak hadir*'
-        : '✅ *Hadir*';
+  }).format(new Date(`${date}T00:00:00Z`));
+}
+
+function attendanceStatus(status: AttendanceStatus) {
+  return status === 'late'
+    ? '⏰ *Hadir terlambat*'
+    : status === 'absent'
+      ? '❌ *Tidak hadir*'
+      : status === 'sick'
+        ? '🤒 *Sakit*'
+        : status === 'excused'
+          ? '📝 *Izin*'
+          : '✅ *Hadir*';
+}
+
+export function studentCheckinMessage(input: StudentCheckinTemplateData) {
+  const date = indonesianDate(input.date);
+  const status = attendanceStatus(input.status);
   return [
     `📚 *INFORMASI KEHADIRAN*`,
     `*${input.schoolName}*`,
@@ -35,6 +47,39 @@ export function studentCheckinMessage(input: StudentCheckinTemplateData) {
     '',
     'Jika ada ketidaksesuaian data, silakan hubungi pihak sekolah. 🙏',
     'Terima kasih atas perhatian dan kerja sama Bapak/Ibu.',
+    '',
+    '_Pesan ini dikirim otomatis oleh sistem kehadiran sekolah._',
+  ].join('\n');
+}
+
+export type StudentExtracurricularAttendanceTemplateData = {
+  schoolName: string;
+  extracurricularName: string;
+  teacherName: string;
+  studentName: string;
+  date: string;
+  time: string;
+  status: AttendanceStatus;
+};
+
+export function studentExtracurricularAttendanceMessage(
+  input: StudentExtracurricularAttendanceTemplateData,
+) {
+  return [
+    '🏅 *INFORMASI KEHADIRAN EKSTRAKURIKULER*',
+    `*${input.schoolName}*`,
+    '',
+    'Yth. Bapak/Ibu Orang Tua/Wali, 👋',
+    'Sesi ekstrakurikuler Ananda telah selesai dan kehadirannya telah dicatat:',
+    '',
+    `👤 *Nama:* ${input.studentName}`,
+    `🏃 *Kegiatan:* ${input.extracurricularName}`,
+    `👩‍🏫 *Guru pembina:* ${input.teacherName}`,
+    `📅 *Hari, tanggal:* ${indonesianDate(input.date)}`,
+    `🕐 *Waktu pencatatan:* ${input.time.replace(':', '.')} (waktu sekolah)`,
+    `📌 *Status:* ${attendanceStatus(input.status)}`,
+    '',
+    'Jika ada ketidaksesuaian data, silakan hubungi pihak sekolah. 🙏',
     '',
     '_Pesan ini dikirim otomatis oleh sistem kehadiran sekolah._',
   ].join('\n');

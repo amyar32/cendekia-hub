@@ -9,7 +9,7 @@ export const extracurricularAttendanceDateSchema = isoDateSchema('Tanggal absens
 export function requireTeacherExtracurricularSession(actor: MobileTeacherActor, sessionId: string) {
   const session = db()
     .prepare(
-      `SELECT id,teacher_id,status,attendance_date FROM extracurricular_attendance_sessions
+      `SELECT id,teacher_id,status,attendance_date,extracurricular_name FROM extracurricular_attendance_sessions
        WHERE id=? AND school_id=? AND teacher_id=?`,
     )
     .get(sessionId, actor.school_id, actor.teacher_id) as
@@ -18,6 +18,7 @@ export function requireTeacherExtracurricularSession(actor: MobileTeacherActor, 
         teacher_id: string;
         status: 'open' | 'closed';
         attendance_date: string;
+        extracurricular_name: string;
       }
     | undefined;
   if (!session)
