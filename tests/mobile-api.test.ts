@@ -25,11 +25,13 @@ const ids = {
   subject: randomUUID(),
   teacherUser: randomUUID(),
   teacher: randomUUID(),
+  homeroomAssignment: randomUUID(),
   assignment: randomUUID(),
   slot: randomUUID(),
   schedule: randomUUID(),
   student: randomUUID(),
   membership: randomUUID(),
+  guardian: randomUUID(),
   extracurricular: randomUUID(),
   extracurricularAssignment: randomUUID(),
   extracurricularSlot: randomUUID(),
@@ -108,6 +110,11 @@ before(async () => {
       .run(ids.assignment, ids.teacher, ids.subject, ids.classroom, ids.year, ids.semester);
     database
       .prepare(
+        'INSERT INTO homeroom_assignments(id,teacher_id,class_id,academic_year_id) VALUES (?,?,?,?)',
+      )
+      .run(ids.homeroomAssignment, ids.teacher, ids.classroom, ids.year);
+    database
+      .prepare(
         "INSERT INTO schedule_time_slots(id,school_id,name,start_time,end_time,slot_order) VALUES (?,?,?,'07:00','08:00',1)",
       )
       .run(ids.slot, ids.school, 'Jam 1');
@@ -126,6 +133,11 @@ before(async () => {
         "INSERT INTO class_memberships(id,student_id,class_id,academic_year_id,start_date,status) VALUES (?,?,?,?,'2029-07-01','active')",
       )
       .run(ids.membership, ids.student, ids.classroom, ids.year);
+    database
+      .prepare(
+        "INSERT INTO guardians(id,student_id,name,relation,phone,email,is_primary,nik,address) VALUES (?,?,?,'mother',?, ?,1,'3200000000000000','Alamat rahasia')",
+      )
+      .run(ids.guardian, ids.student, 'Ibu Andi', '08123456789', 'ibu.andi@example.test');
     database
       .prepare('INSERT INTO extracurriculars(id,school_id,code,name,category) VALUES (?,?,?,?,?)')
       .run(ids.extracurricular, ids.school, 'BASKET', 'Bola Basket', 'Olahraga');
@@ -204,7 +216,10 @@ test('mobile API accepts an allowed browser origin and its preflight', async () 
   });
   assert.equal(preflight.status, 204);
   assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
-  assert.equal(preflight.headers.get('access-control-allow-methods'), 'GET, POST, PUT, OPTIONS');
+  assert.equal(
+    preflight.headers.get('access-control-allow-methods'),
+    'GET, POST, PUT, PATCH, OPTIONS',
+  );
   assert.equal(
     preflight.headers.get('access-control-allow-headers'),
     'Authorization, Content-Type',
@@ -298,7 +313,9 @@ test('mobile teacher authentication and attendance flow', async () => {
 
   response = await api('/api/v1/classes', 'GET', undefined, login.access_token);
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).data.classes[0].id, ids.classroom);
+  const accessibleClass = (await response.json()).data.classes[0];
+  assert.equal(accessibleClass.id, ids.classroom);
+  assert.equal(accessibleClass.is_homeroom, 1);
   response = await api(
     `/api/v1/classes/${ids.classroom}/students`,
     'GET',
@@ -309,6 +326,68 @@ test('mobile teacher authentication and attendance flow', async () => {
   const student = (await response.json()).data.students[0];
   assert.equal(student.id, ids.student);
   assert.equal('nik' in student, false);
+
+  response = await api('/api/v1/me/homeroom', 'GET', undefined, login.access_token);
+  assert.equal(response.status, 200);
+  const homeroom = (await response.json()).data;
+  assert.equal(homeroom.is_homeroom_teacher, true);
+  assert.equal(homeroom.homeroom.class_id, ids.classroom);
+
+  response = await api(
+    '/api/v1/homeroom/dashboard?date=2029-07-02',
+    'GET',
+    undefined,
+    login.access_token,
+  );
+  assert.equal(response.status, 200);
+  let homeroomDashboard = (await response.json()).data;
+  assert.equal(homeroomDashboard.summary.total_students, 1);
+  assert.equal(homeroomDashboard.summary.unrecorded_lessons, 1);
+  assert.equal(homeroomDashboard.summary.not_checked_in, 1);
+
+  response = await api(
+    `/api/v1/homeroom/students/${ids.student}`,
+    'GET',
+    undefined,
+    login.access_token,
+  );
+  assert.equal(response.status, 200);
+  const homeroomStudent = (await response.json()).data;
+  assert.equal(homeroomStudent.guardians[0].phone, '08123456789');
+  assert.equal('nik' in homeroomStudent.student, false);
+  assert.equal('address' in homeroomStudent.student, false);
+  assert.equal('nik' in homeroomStudent.guardians[0], false);
+  assert.equal('address' in homeroomStudent.guardians[0], false);
+
+  response = await api(
+    '/api/v1/homeroom/follow-ups',
+    'POST',
+    {
+      student_id: ids.student,
+      category: 'attendance',
+      note: 'Hubungi wali terkait keterlambatan.',
+      due_date: '2029-07-05',
+    },
+    login.access_token,
+  );
+  assert.equal(response.status, 201);
+  const followUpId = (await response.json()).data.id;
+  response = await api(
+    '/api/v1/homeroom/follow-ups?status=open',
+    'GET',
+    undefined,
+    login.access_token,
+  );
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).data.follow_ups[0].id, followUpId);
+  response = await api(
+    `/api/v1/homeroom/follow-ups/${followUpId}`,
+    'PATCH',
+    { status: 'resolved' },
+    login.access_token,
+  );
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).data.status, 'resolved');
 
   const attendanceInput = { schedule_id: ids.schedule, attendance_date: '2029-07-02' };
   response = await api('/api/v1/attendance-sessions', 'POST', attendanceInput, login.access_token);
@@ -348,6 +427,61 @@ test('mobile teacher authentication and attendance flow', async () => {
   );
   assert.equal(response.status, 409);
   assert.equal((await response.json()).error.code, 'SESSION_CLOSED');
+
+  const homeroomDatabase = new Database(databasePath);
+  try {
+    homeroomDatabase
+      .prepare(
+        "INSERT INTO student_checkins(id,school_id,student_id,attendance_date,status,source,recorded_by) VALUES (?,?,?,'2029-07-02','present','card',?)",
+      )
+      .run(randomUUID(), ids.school, ids.student, ids.teacherUser);
+  } finally {
+    homeroomDatabase.close();
+  }
+  response = await api(
+    '/api/v1/homeroom/dashboard?date=2029-07-02',
+    'GET',
+    undefined,
+    login.access_token,
+  );
+  homeroomDashboard = (await response.json()).data;
+  assert.equal(homeroomDashboard.summary.on_time, 1);
+  assert.equal(homeroomDashboard.summary.closed_lessons, 1);
+  response = await api(
+    `/api/v1/homeroom/attendance?from=2029-07-01&to=2029-07-31&student_id=${ids.student}`,
+    'GET',
+    undefined,
+    login.access_token,
+  );
+  assert.equal(response.status, 200);
+  const attendanceSummary = (await response.json()).data.students[0];
+  assert.equal(attendanceSummary.checkin_present, 1);
+  assert.equal(attendanceSummary.lesson_present, 1);
+
+  const assignmentDatabaseForAccess = new Database(databasePath);
+  try {
+    assignmentDatabaseForAccess
+      .prepare('DELETE FROM homeroom_assignments WHERE id=?')
+      .run(ids.homeroomAssignment);
+    response = await api('/api/v1/me/homeroom', 'GET', undefined, login.access_token);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).data.is_homeroom_teacher, false);
+    response = await api(
+      '/api/v1/homeroom/dashboard?date=2029-07-02',
+      'GET',
+      undefined,
+      login.access_token,
+    );
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).error.code, 'HOMEROOM_NOT_ASSIGNED');
+  } finally {
+    assignmentDatabaseForAccess
+      .prepare(
+        'INSERT INTO homeroom_assignments(id,teacher_id,class_id,academic_year_id) VALUES (?,?,?,?)',
+      )
+      .run(ids.homeroomAssignment, ids.teacher, ids.classroom, ids.year);
+    assignmentDatabaseForAccess.close();
+  }
 
   response = await api('/api/v1/extracurriculars', 'GET', undefined, login.access_token);
   assert.equal(response.status, 200);

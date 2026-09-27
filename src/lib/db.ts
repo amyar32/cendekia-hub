@@ -52,6 +52,7 @@ export function db() {
     CREATE TABLE IF NOT EXISTS teacher_checkins (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, checked_in_at TEXT NOT NULL DEFAULT (datetime('now')), status TEXT NOT NULL CHECK (status IN ('present', 'late', 'absent')), source TEXT NOT NULL DEFAULT 'staff' CHECK (source IN ('staff', 'qr', 'native_app', 'card')), note TEXT NOT NULL DEFAULT '', recorded_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teacher_id, attendance_date));
     CREATE TABLE IF NOT EXISTS extracurricular_attendance_sessions (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, extracurricular_schedule_id TEXT NOT NULL REFERENCES extracurricular_schedules(id) ON DELETE RESTRICT, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE RESTRICT, extracurricular_id TEXT NOT NULL REFERENCES extracurriculars(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')), extracurricular_name TEXT NOT NULL, teacher_name TEXT NOT NULL, starts_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (extracurricular_schedule_id, attendance_date));
     CREATE TABLE IF NOT EXISTS extracurricular_attendance_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES extracurricular_attendance_sessions(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, student_nis TEXT NOT NULL, student_name TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT '', status TEXT NOT NULL CHECK (status IN ('present', 'late', 'sick', 'excused', 'absent')), note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'teacher' CHECK (source IN ('teacher', 'admin', 'qr', 'native_app')), updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (session_id, student_id));
+    CREATE TABLE IF NOT EXISTS homeroom_follow_ups (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, homeroom_teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, category TEXT NOT NULL CHECK (category IN ('attendance','academic','behavior','welfare','other')), note TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')), due_date TEXT, resolved_at TEXT, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE INDEX IF NOT EXISTS audit_created ON audit(created_at);
     CREATE INDEX IF NOT EXISTS admission_rate_limits_expiry ON admission_rate_limits(resets_at);
     CREATE INDEX IF NOT EXISTS uploads_created ON uploads(created_at);
@@ -97,6 +98,8 @@ export function db() {
     CREATE INDEX IF NOT EXISTS teacher_checkins_teacher_date ON teacher_checkins(teacher_id, attendance_date DESC);
     CREATE INDEX IF NOT EXISTS extracurricular_attendance_sessions_date ON extracurricular_attendance_sessions(school_id, attendance_date DESC);
     CREATE INDEX IF NOT EXISTS extracurricular_attendance_records_student ON extracurricular_attendance_records(student_id, session_id);
+    CREATE INDEX IF NOT EXISTS homeroom_follow_ups_class_status ON homeroom_follow_ups(class_id, academic_year_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS homeroom_follow_ups_student ON homeroom_follow_ups(student_id, academic_year_id, created_at DESC);
     CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
     CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
   `);
@@ -1174,6 +1177,32 @@ export function db() {
         CREATE UNIQUE INDEX IF NOT EXISTS mobile_sessions_user_device ON mobile_sessions(user_id,device_id) WHERE device_id<>'' AND revoked_at IS NULL;
       `);
       connection.pragma('user_version = 53');
+    })();
+  }
+  if (schemaVersion < 54) {
+    connection.transaction(() => {
+      connection.exec(`
+        CREATE TABLE IF NOT EXISTS homeroom_follow_ups (
+          id TEXT PRIMARY KEY,
+          school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
+          academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT,
+          class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+          student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+          homeroom_teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT,
+          category TEXT NOT NULL CHECK (category IN ('attendance','academic','behavior','welfare','other')),
+          note TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
+          due_date TEXT,
+          resolved_at TEXT,
+          created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS homeroom_follow_ups_class_status ON homeroom_follow_ups(class_id, academic_year_id, status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS homeroom_follow_ups_student ON homeroom_follow_ups(student_id, academic_year_id, created_at DESC);
+      `);
+      connection.pragma('user_version = 54');
     })();
   }
   globalDb.cmsDb = connection;

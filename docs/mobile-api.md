@@ -85,10 +85,34 @@ berlaku setelah digunakan.
 | `GET`  | `/api/v1/me`                                         | Profil akun, guru, dan sekolah                      |
 | `GET`  | `/api/v1/me/schedule?date=YYYY-MM-DD`                | Gabungan jadwal pelajaran dan ekstrakurikuler       |
 | `GET`  | `/api/v1/me/check-ins?from=YYYY-MM-DD&to=YYYY-MM-DD` | Riwayat check-in, maksimal 100 baris                |
+| `GET`  | `/api/v1/me/homeroom`                                | Deteksi penugasan wali kelas aktif                  |
 | `GET`  | `/api/v1/classes`                                    | Rombel yang diajar atau diwalikan pada tahun aktif  |
 | `GET`  | `/api/v1/classes/:classId/students`                  | Daftar minimal murid pada rombel yang boleh diakses |
 
 Tanggal kosong mengikuti zona waktu sekolah.
+
+## Wali kelas
+
+Fitur wali kelas memakai akun Guru yang sama dan diaktifkan berdasarkan penugasan
+`homeroom_assignments` pada tahun ajaran aktif. Aplikasi mobile tidak perlu memiliki role atau proses
+login khusus wali kelas. Gunakan `GET /api/v1/me/homeroom` setelah login untuk menentukan apakah
+menu **Kelas Wali** perlu ditampilkan.
+
+| Method  | Endpoint                                      | Keterangan                                     |
+| ------- | --------------------------------------------- | ---------------------------------------------- |
+| `GET`   | `/api/v1/me/homeroom`                         | Status dan identitas kelas wali aktif          |
+| `GET`   | `/api/v1/homeroom/dashboard?date=YYYY-MM-DD`  | Ringkasan gerbang dan pelajaran pada satu hari |
+| `GET`   | `/api/v1/homeroom/attendance?from=...&to=...` | Rekap kehadiran per murid, maksimal 92 hari    |
+| `GET`   | `/api/v1/homeroom/students/:studentId`        | Profil aman, kontak wali, dan tindak lanjut    |
+| `GET`   | `/api/v1/homeroom/follow-ups?status=open`     | Daftar tindak lanjut kelas                     |
+| `POST`  | `/api/v1/homeroom/follow-ups`                 | Membuat tindak lanjut                          |
+| `PATCH` | `/api/v1/homeroom/follow-ups/:followUpId`     | Mengubah atau menyelesaikan tindak lanjut      |
+
+Kontrak respons, contoh payload, pemetaan layar, serta penanganan token dan error dijelaskan dalam
+[panduan integrasi wali kelas](mobile-homeroom-integration.md). Seluruh endpoint selain
+`/me/homeroom` mengembalikan `404 HOMEROOM_NOT_ASSIGNED` apabila guru tidak menjadi wali kelas aktif.
+Server mengambil sekolah, guru, tahun ajaran, dan rombel dari access token; klien tidak boleh
+mengirim atau menyimpan nilai tersebut sebagai dasar otorisasi.
 
 ## Penugasan mata pelajaran
 

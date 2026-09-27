@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const corsMethods = 'GET, POST, PUT, OPTIONS';
+const corsMethods = 'GET, POST, PUT, PATCH, OPTIONS';
 const corsHeaders = 'Authorization, Content-Type';
 
 function allowedOrigins() {

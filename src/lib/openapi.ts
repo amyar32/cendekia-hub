@@ -125,6 +125,64 @@ const examples = {
     },
     meta: {},
   },
+  homeroom: {
+    data: {
+      is_homeroom_teacher: true,
+      homeroom: {
+        assignment_id: 'homeroom-assignment-uuid',
+        academic_year_id: 'year-uuid',
+        academic_year_name: '2029/2030',
+        academic_year_start_date: '2029-07-01',
+        academic_year_end_date: '2030-06-30',
+        class_id: 'class-uuid',
+        class_name: '7A',
+        grade_name: 'Kelas 7',
+        student_count: 32,
+      },
+    },
+    meta: {},
+  },
+  homeroomDashboard: {
+    data: {
+      date: '2029-07-02',
+      homeroom: { class_id: 'class-uuid', class_name: '7A', student_count: 32 },
+      summary: {
+        total_students: 32,
+        checked_in: 30,
+        on_time: 28,
+        late: 2,
+        gateway_absent: 0,
+        not_checked_in: 2,
+        scheduled_lessons: 6,
+        recorded_lessons: 4,
+        open_lessons: 1,
+        closed_lessons: 3,
+        unrecorded_lessons: 2,
+        attention_students: 4,
+      },
+      schedules: [],
+      attention_students: [],
+    },
+    meta: {},
+  },
+  homeroomFollowUps: {
+    data: {
+      homeroom: { class_id: 'class-uuid', class_name: '7A' },
+      follow_ups: [
+        {
+          id: 'follow-up-uuid',
+          student_id: 'student-uuid',
+          student_name: 'Siti Aminah',
+          category: 'attendance',
+          note: 'Hubungi wali terkait keterlambatan berulang.',
+          status: 'open',
+          due_date: '2029-07-05',
+          resolved_at: null,
+        },
+      ],
+    },
+    meta: {},
+  },
   lessonSessions: {
     data: {
       date: '2029-07-02',
@@ -294,7 +352,7 @@ export const openApiDocument = {
   openapi: '3.1.1',
   info: {
     title: `${APP_NAME} Teacher API`,
-    version: '1.0.1',
+    version: '1.1.0',
     description:
       'REST API untuk aplikasi guru. Semua respons sukses memakai `{ data, meta }`; respons gagal memakai `{ error }`.',
   },
@@ -303,6 +361,7 @@ export const openApiDocument = {
     { name: 'Authentication', description: 'Sesi dan kredensial aplikasi guru.' },
     { name: 'Profile', description: 'Profil, jadwal, dan data guru.' },
     { name: 'Class', description: 'Rombel dan murid yang dapat diakses guru.' },
+    { name: 'Homeroom', description: 'Ringkasan dan tindak lanjut kelas wali aktif.' },
     { name: 'Lesson attendance', description: 'Absensi kegiatan belajar.' },
     { name: 'Extracurricular', description: 'Penugasan dan absensi ekstrakurikuler.' },
   ],
@@ -446,6 +505,19 @@ export const openApiDocument = {
         },
       },
     },
+    '/me/homeroom': {
+      get: {
+        tags: ['Homeroom'],
+        summary: 'Deteksi penugasan wali kelas aktif',
+        description:
+          'Selalu mengembalikan 200. Gunakan `is_homeroom_teacher` untuk menampilkan atau menyembunyikan menu Kelas Wali.',
+        security: bearer,
+        responses: {
+          '200': successResponse('Status wali kelas guru aktif.', examples.homeroom),
+          '401': errorResponse,
+        },
+      },
+    },
     '/attendances': {
       get: {
         tags: ['Lesson attendance'],
@@ -523,6 +595,134 @@ export const openApiDocument = {
         ],
         responses: {
           '200': successResponse('Murid aktif pada rombel.', examples.students),
+          '404': errorResponse,
+        },
+      },
+    },
+    '/homeroom/dashboard': {
+      get: {
+        tags: ['Homeroom'],
+        summary: 'Dashboard harian kelas wali',
+        security: bearer,
+        parameters: [date('date', 'Default: tanggal lokal sekolah.')],
+        responses: {
+          '200': successResponse(
+            'Ringkasan gerbang, pelajaran, dan murid yang perlu perhatian.',
+            examples.homeroomDashboard,
+          ),
+          '400': errorResponse,
+          '404': errorResponse,
+        },
+      },
+    },
+    '/homeroom/attendance': {
+      get: {
+        tags: ['Homeroom'],
+        summary: 'Rekap kehadiran kelas wali',
+        security: bearer,
+        parameters: [
+          date('from', 'Default: 29 hari sebelum `to`; rentang maksimal 92 hari.'),
+          date('to', 'Default: tanggal lokal sekolah.'),
+          {
+            name: 'student_id',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          '200': successResponse('Agregat check-in gerbang dan absensi pelajaran per murid.'),
+          '400': errorResponse,
+          '404': errorResponse,
+        },
+      },
+    },
+    '/homeroom/students/{studentId}': {
+      get: {
+        tags: ['Homeroom'],
+        summary: 'Profil operasional murid kelas wali',
+        description: 'Tidak mengembalikan NIK, nomor KK, alamat lengkap, atau dokumen murid.',
+        security: bearer,
+        parameters: [
+          {
+            name: 'studentId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          '200': successResponse('Profil, kontak wali, dan tindak lanjut murid.'),
+          '404': errorResponse,
+        },
+      },
+    },
+    '/homeroom/follow-ups': {
+      get: {
+        tags: ['Homeroom'],
+        summary: 'Daftar tindak lanjut kelas wali',
+        security: bearer,
+        parameters: [
+          {
+            name: 'status',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ['open', 'resolved'] },
+          },
+          {
+            name: 'student_id',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          '200': successResponse('Daftar tindak lanjut.', examples.homeroomFollowUps),
+          '404': errorResponse,
+        },
+      },
+      post: {
+        tags: ['Homeroom'],
+        summary: 'Buat tindak lanjut murid',
+        security: bearer,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/CreateFollowUpRequest' } },
+          },
+        },
+        responses: {
+          '201': successResponse('Tindak lanjut dibuat.', {
+            data: { id: 'follow-up-uuid', status: 'open' },
+            meta: {},
+          }),
+          '400': errorResponse,
+          '404': errorResponse,
+        },
+      },
+    },
+    '/homeroom/follow-ups/{followUpId}': {
+      patch: {
+        tags: ['Homeroom'],
+        summary: 'Perbarui atau selesaikan tindak lanjut',
+        security: bearer,
+        parameters: [
+          {
+            name: 'followUpId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/UpdateFollowUpRequest' } },
+          },
+        },
+        responses: {
+          '200': successResponse('Tindak lanjut diperbarui.'),
+          '400': errorResponse,
           '404': errorResponse,
         },
       },
@@ -795,6 +995,32 @@ export const openApiDocument = {
               },
             },
           },
+        },
+      },
+      CreateFollowUpRequest: {
+        type: 'object',
+        required: ['student_id', 'category', 'note'],
+        properties: {
+          student_id: { type: 'string', format: 'uuid' },
+          category: {
+            type: 'string',
+            enum: ['attendance', 'academic', 'behavior', 'welfare', 'other'],
+          },
+          note: { type: 'string', minLength: 1, maxLength: 2000 },
+          due_date: { type: ['string', 'null'], format: 'date' },
+        },
+      },
+      UpdateFollowUpRequest: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          category: {
+            type: 'string',
+            enum: ['attendance', 'academic', 'behavior', 'welfare', 'other'],
+          },
+          note: { type: 'string', minLength: 1, maxLength: 2000 },
+          due_date: { type: ['string', 'null'], format: 'date' },
+          status: { type: 'string', enum: ['open', 'resolved'] },
         },
       },
     },
