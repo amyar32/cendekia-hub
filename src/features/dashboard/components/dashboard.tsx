@@ -1,5 +1,8 @@
 'use client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
+import type { FollowUp } from '@/features/dashboard/server/follow-ups';
 import { Badge, Box, Button, Paper, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import {
   IconArrowUpRight,
@@ -60,13 +63,18 @@ export function Dashboard({
   activities,
   onboardingComplete,
   academicContext,
+  followUps,
 }: {
   user: SessionUser;
   stats: Record<string, number | null>;
   activities: { id: number; actor: string; action: string; entity: string; created_at: string }[];
   onboardingComplete: boolean;
   academicContext: { year: string; semester: string };
+  followUps: { date: string; items: FollowUp[] };
 }) {
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
+  const pendingCategories = followUps.items.filter((item) => item.count > 0).length;
   const primaryAction = can(user.permissions, 'live-display.read')
     ? { label: 'Buka Live Report', path: '/live' }
     : can(user.permissions, 'schedules.read')
@@ -115,6 +123,77 @@ export function Dashboard({
           </Button>
         </Paper>
       )}
+      <Paper
+        component="section"
+        className={styles.followUps}
+        withBorder
+        aria-labelledby="follow-up-heading"
+      >
+        <div className={styles.panelHeader}>
+          <Stack gap={5}>
+            <Title order={2} size="h3" id="follow-up-heading">
+              Perlu Tindak Lanjut
+            </Title>
+            <Text variant="caption">
+              {new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeZone: 'UTC' }).format(
+                new Date(`${followUps.date}T00:00:00Z`),
+              )}{' '}
+              · Sesuai akses Anda · {pendingCategories} kategori tertunda
+            </Text>
+          </Stack>
+          <Button
+            variant="subtle"
+            size="compact-sm"
+            loading={refreshing}
+            onClick={() => startRefresh(() => router.refresh())}
+          >
+            Perbarui
+          </Button>
+        </div>
+        {followUps.items.length ? (
+          <div className={styles.followUpList}>
+            {followUps.items.map((item) => (
+              <Link key={item.id} href={item.href} className={styles.followUpItem}>
+                <ThemeIcon
+                  size={42}
+                  radius="md"
+                  color={item.count ? 'orange' : 'brand'}
+                  variant="light"
+                >
+                  {item.count ? <IconChecklist size={23} /> : <IconCircleCheck size={23} />}
+                </ThemeIcon>
+                <div className={styles.followUpContent}>
+                  <Text fw={600} size="sm">
+                    {item.label}
+                  </Text>
+                  <Text variant="caption" mt={4}>
+                    {item.description}
+                  </Text>
+                  <Text size="xs" c="brand" mt={7}>
+                    {item.action} →
+                  </Text>
+                </div>
+                <Badge variant="light" color={item.count ? 'orange' : 'gray'} size="lg">
+                  {item.count.toLocaleString('id-ID')}
+                </Badge>
+              </Link>
+            ))}
+            {!pendingCategories && (
+              <Text className={styles.followUpNote} size="sm">
+                Tidak ada tindak lanjut tertunda pada kategori yang tersedia.
+              </Text>
+            )}
+          </div>
+        ) : (
+          <div className={styles.emptySmall}>
+            <IconCircleCheck size={30} />
+            <Text variant="description">
+              Belum ada kategori tindak lanjut yang tersedia untuk akses dan konfigurasi sekolah
+              Anda.
+            </Text>
+          </div>
+        )}
+      </Paper>
       <section className={styles.welcomeBanner}>
         <div>
           <Badge variant="light" color="brand" mb="md" leftSection={<IconSparkles size={13} />}>

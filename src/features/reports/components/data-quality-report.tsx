@@ -57,10 +57,16 @@ const severity = {
   low: { label: 'Penyempurnaan', color: 'blue' },
 } as const;
 
-export function DataQualityReport() {
+export function DataQualityReport({
+  initialYear = '',
+  initialCategory = '',
+}: {
+  initialYear?: string;
+  initialCategory?: string;
+}) {
   const [data, setData] = useState<DataQuality | null>(null);
-  const [year, setYear] = useState('');
-  const [category, setCategory] = useState('');
+  const [year, setYear] = useState(initialYear);
+  const [category, setCategory] = useState(initialCategory);
   const [level, setLevel] = useState('');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -88,9 +94,9 @@ export function DataQualityReport() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => void load(''), 0);
+    const timer = setTimeout(() => void load(initialYear), 0);
     return () => clearTimeout(timer);
-  }, [load]);
+  }, [load, initialYear]);
 
   const visibleIssues = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('id-ID');

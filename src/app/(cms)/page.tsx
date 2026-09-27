@@ -3,6 +3,7 @@ import { Dashboard } from '@/features/dashboard/components/dashboard';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { can } from '@/config/modules';
+import { dashboardFollowUps } from '@/features/dashboard/server/follow-ups';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +87,7 @@ export default async function Page() {
       user={user}
       stats={stats}
       activities={activities}
+      followUps={dashboardFollowUps(user, schoolId)}
       onboardingComplete={Boolean(onboarding?.onboarding_completed_at)}
       academicContext={{
         year: academicContext?.academic_year || 'Belum ada tahun ajaran aktif',

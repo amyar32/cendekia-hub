@@ -71,16 +71,18 @@ const dateToday = () => new Date().toLocaleDateString('en-CA');
 export function AttendanceManager({
   writable,
   kind,
+  initialDate,
 }: {
   writable: boolean;
   kind: 'lesson' | 'extracurricular';
+  initialDate?: string;
 }) {
   const extra = kind === 'extracurricular';
   const endpoint = `/api/modules/${extra ? 'extracurricular-attendance' : 'student-attendance'}`;
   const SessionIcon = extra ? IconRun : IconBook2;
   const scheduleName = (schedule: Schedule) =>
     extra ? schedule.extracurricular_name : `${schedule.subject_name} · ${schedule.class_name}`;
-  const [date, setDate] = useState(dateToday);
+  const [date, setDate] = useState(() => initialDate || dateToday());
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selected, setSelected] = useState<Schedule | null>(null);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);

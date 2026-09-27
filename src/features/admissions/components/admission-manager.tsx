@@ -324,14 +324,16 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
 export function AdmissionManager({
   writable,
   applicationId,
+  initialStatus = '',
 }: {
   writable: boolean;
   applicationId?: string;
+  initialStatus?: string;
 }) {
   const router = useRouter();
   const [view, setView] = useState<'applications' | 'periods'>('applications');
   const [periodId, setPeriodId] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(initialStatus);
   const list = useModuleList<Application>('/api/modules/admissions', {
     ...(periodId ? { period_id: periodId } : {}),
     ...(status ? { status } : {}),

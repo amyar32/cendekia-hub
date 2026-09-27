@@ -63,7 +63,12 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **Check-in gerbang:** satu scanner untuk kartu QR murid dan guru, daftar bertab, pencatatan manual, deteksi keterlambatan otomatis, rotasi QR, dan kartu identitas siap cetak.
 - **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
-- **Dashboard:** statistik dan aktivitas aktual, sesuai akses pengguna.
+- **Dashboard:** statistik dan aktivitas aktual, serta panel tindak lanjut sesuai akses pengguna:
+  sesi absensi pelajaran hari ini yang belum dibuka/ditutup (termasuk jadwal yang belum mulai,
+  tidak termasuk KBM yang ditangguhkan oleh ujian), pendaftar SPMB berstatus Dikirim dari seluruh
+  periode, serta murid aktif tanpa wali utama atau NISN. Tautan membuka tanggal/filter terkait;
+  tombol Perbarui menghitung ulang data. Absensi guru dibatasi sesuai akses kelasnya. Kategori
+  akademik muncul setelah tahun ajaran aktif tersedia.
 - **Pusat laporan:** laporan kehadiran terpadu dari absensi pelajaran serta check-in gerbang,
   pemeriksaan kelengkapan data lintas murid/guru/rombel, dan riwayat mutasi murid; dilengkapi filter,
   drill-down tindakan, tampilan cetak, serta export Excel.
