@@ -6,6 +6,7 @@ import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { assignAutomaticAbsences, localDateTime } from '@/lib/checkins';
 import { APP_BRAND_NAME, STUDENT_QR_PREFIX, TEACHER_QR_PREFIX } from '@/config/branding';
+import { notifyPrimaryGuardianOfStudentCheckin } from '@/lib/notifications/student-checkins';
 
 const scanSchema = z.object({
   code: z.string().trim().min(1).max(200),
@@ -101,9 +102,10 @@ export async function POST(request: Request) {
     assignAutomaticAbsences(schoolId, actor);
     const school = db()
       .prepare(
-        'SELECT timezone,checkin_late_after,teacher_checkin_late_enabled FROM schools WHERE id=?',
+        'SELECT name,timezone,checkin_late_after,teacher_checkin_late_enabled FROM schools WHERE id=?',
       )
       .get(schoolId) as {
+      name: string;
       timezone: string;
       checkin_late_after: string;
       teacher_checkin_late_enabled: number;
@@ -213,6 +215,17 @@ export async function POST(request: Request) {
         `SELECT status,checked_in_at FROM ${table} WHERE ${foreignKey}=? AND attendance_date=?`,
       )
       .get(person.id, now.date) as { status: 'present' | 'late'; checked_in_at: string };
+    const notification =
+      created && personType === 'student'
+        ? await notifyPrimaryGuardianOfStudentCheckin({
+            studentId: person.id,
+            schoolName: school.name,
+            studentName: person.name,
+            date: now.date,
+            time: now.time,
+            status: saved.status,
+          })
+        : undefined;
     return Response.json(
       {
         outcome: created ? 'success' : 'duplicate',
@@ -220,6 +233,7 @@ export async function POST(request: Request) {
         person_type: personType,
         date: now.date,
         ...saved,
+        ...(notification ? { notification } : {}),
         ...dashboard(schoolId, now.date),
       },
       { status: created && !existing ? 201 : 200 },

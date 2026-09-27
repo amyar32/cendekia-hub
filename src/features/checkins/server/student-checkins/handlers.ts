@@ -10,7 +10,8 @@ import {
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
-import { assignAutomaticAbsences } from '@/lib/checkins';
+import { assignAutomaticAbsences, localDateTime } from '@/lib/checkins';
+import { notifyPrimaryGuardianOfStudentCheckin } from '@/lib/notifications/student-checkins';
 import { isoDateSchema } from '@/lib/validation';
 
 const dateSchema = isoDateSchema('Tanggal cek-in tidak valid.');
@@ -108,8 +109,40 @@ export async function POST(request: Request) {
         status: data.status,
       });
     })();
-    return Response.json({ ok: true, id }, { status: existing ? 200 : 201 });
+    const notification = await notifyManualCheckin({
+      schoolId,
+      studentId: student.id,
+      studentName: student.name,
+      date: data.attendance_date,
+      status: data.status,
+    });
+    return Response.json(
+      { ok: true, id, ...(notification ? { notification } : {}) },
+      { status: existing ? 200 : 201 },
+    );
   } catch (error) {
     return failure(error);
   }
+}
+
+async function notifyManualCheckin(input: {
+  schoolId: string;
+  studentId: string;
+  studentName: string;
+  date: string;
+  status: 'present' | 'late' | 'absent';
+}) {
+  const school = db()
+    .prepare('SELECT name,timezone FROM schools WHERE id=?')
+    .get(input.schoolId) as { name: string; timezone: string } | undefined;
+  if (!school) return 'failed';
+  const now = localDateTime(school.timezone);
+  return notifyPrimaryGuardianOfStudentCheckin({
+    studentId: input.studentId,
+    schoolName: school.name,
+    studentName: input.studentName,
+    date: input.date,
+    time: now.time,
+    status: input.status,
+  });
 }
