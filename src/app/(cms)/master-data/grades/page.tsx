@@ -1,9 +1,9 @@
-import { GradeManager } from '@/components/academic/academic-managers';
-import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { can } from '@/config/modules';
-import { currentUser } from '@/lib/auth';
-export default async function Page() {
-  const user = (await currentUser())!;
-  if (!can(user.permissions, 'grades.read')) return <AccessDenied />;
-  return <GradeManager writable={can(user.permissions, 'grades.write')} />;
+import { ModulePage } from '@/components/cms/module-page/module-page';
+import { GradeManager } from '@/features/academic/components/academic-managers';
+export default function Page() {
+  return (
+    <ModulePage readPermission="grades.read" writePermission="grades.write">
+      {({ writable }) => <GradeManager writable={writable} />}
+    </ModulePage>
+  );
 }

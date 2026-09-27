@@ -1,10 +1,10 @@
-import { ScheduleManager } from '@/components/schedules/schedule-manager';
-import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { can } from '@/config/modules';
-import { currentUser } from '@/lib/auth';
+import { ModulePage } from '@/components/cms/module-page/module-page';
+import { ScheduleManager } from '@/features/schedules/components/schedule-manager';
 
-export default async function Page() {
-  const user = (await currentUser())!;
-  if (!can(user.permissions, 'schedules.read')) return <AccessDenied />;
-  return <ScheduleManager writable={can(user.permissions, 'schedules.write')} />;
+export default function Page() {
+  return (
+    <ModulePage readPermission="schedules.read" writePermission="schedules.write">
+      {({ writable }) => <ScheduleManager writable={writable} />}
+    </ModulePage>
+  );
 }

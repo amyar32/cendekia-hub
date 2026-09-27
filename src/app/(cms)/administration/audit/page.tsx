@@ -1,4 +1,4 @@
-import { AuditList } from '@/components/audit/audit-list';
+import { AuditList } from '@/features/audit/components/audit-list';
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/config/modules';

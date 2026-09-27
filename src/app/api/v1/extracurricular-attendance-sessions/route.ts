@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { schoolLocalDate } from '@/app/api/modules/_shared/academic-context';
+import { schoolLocalDate } from '@/lib/server/academic-context';
 import {
   extracurricularAttendanceDateSchema,
-  extracurricularWeekday,
   openTeacherExtracurricularAttendance,
-} from '@/app/api/v1/_shared/extracurricular-attendance';
+} from '@/features/attendance/server/mobile/extracurricular-attendance';
 import { db } from '@/lib/db';
+import { isoWeekday } from '@/lib/dates';
 import { mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
 
 const createSchema = z.object({
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
            AND es.weekday=? AND sem.start_date<=? AND sem.end_date>=?
          ORDER BY sts.start_time,e.name`,
       )
-      .all(date, actor.teacher_id, actor.school_id, extracurricularWeekday(date), date, date);
+      .all(date, actor.teacher_id, actor.school_id, isoWeekday(date), date, date);
     return mobileData({ date, sessions });
   } catch (error) {
     return mobileFailure(error);

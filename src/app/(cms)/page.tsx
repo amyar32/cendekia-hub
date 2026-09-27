@@ -1,5 +1,5 @@
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { Dashboard } from '@/components/dashboard/dashboard';
+import { Dashboard } from '@/features/dashboard/components/dashboard';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { can } from '@/config/modules';

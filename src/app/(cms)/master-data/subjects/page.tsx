@@ -1,9 +1,9 @@
-import { SubjectManager } from '@/components/academic/academic-managers';
-import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { can } from '@/config/modules';
-import { currentUser } from '@/lib/auth';
-export default async function Page() {
-  const user = (await currentUser())!;
-  if (!can(user.permissions, 'subjects.read')) return <AccessDenied />;
-  return <SubjectManager writable={can(user.permissions, 'subjects.write')} />;
+import { ModulePage } from '@/components/cms/module-page/module-page';
+import { SubjectManager } from '@/features/academic/components/academic-managers';
+export default function Page() {
+  return (
+    <ModulePage readPermission="subjects.read" writePermission="subjects.write">
+      {({ writable }) => <SubjectManager writable={writable} />}
+    </ModulePage>
+  );
 }

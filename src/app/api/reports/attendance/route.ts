@@ -8,7 +8,7 @@ import {
   requireClass,
   requireSubject,
   semesterOptions,
-} from '@/app/api/modules/_shared/academic-context';
+} from '@/lib/server/academic-context';
 import { HttpError, requireUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { failure } from '@/lib/http';

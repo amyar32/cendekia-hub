@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { requireTeacherExtracurricularSession } from '@/app/api/v1/_shared/extracurricular-attendance';
+import { requireTeacherExtracurricularSession } from '@/features/attendance/server/mobile/extracurricular-attendance';
 import { audit, db } from '@/lib/db';
 import { MobileApiError, mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
 

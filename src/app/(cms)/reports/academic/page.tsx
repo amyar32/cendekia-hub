@@ -1,4 +1,4 @@
-import { AcademicReport } from '@/components/reports/academic-report';
+import { AcademicReport } from '@/features/reports/components/academic-report';
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';

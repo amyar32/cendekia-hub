@@ -1,4 +1,4 @@
-import { ExtracurricularAssignmentManager } from '@/components/extracurriculars/extracurricular-assignment-manager';
+import { ExtracurricularAssignmentManager } from '@/features/extracurriculars/components/extracurricular-assignment-manager';
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';

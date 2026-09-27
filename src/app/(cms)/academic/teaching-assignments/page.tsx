@@ -1,4 +1,4 @@
-import { TeachingAssignmentManager } from '@/components/teachers/teacher-managers';
+import { TeachingAssignmentManager } from '@/features/teachers/components/teacher-managers';
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';

@@ -1,10 +1,10 @@
-import { ClassroomManager } from '@/components/academic/academic-managers';
-import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { can } from '@/config/modules';
-import { currentUser } from '@/lib/auth';
+import { ModulePage } from '@/components/cms/module-page/module-page';
+import { ClassroomManager } from '@/features/academic/components/academic-managers';
 
-export default async function Page() {
-  const user = (await currentUser())!;
-  if (!can(user.permissions, 'classes.read')) return <AccessDenied />;
-  return <ClassroomManager writable={can(user.permissions, 'classes.write')} />;
+export default function Page() {
+  return (
+    <ModulePage readPermission="classes.read" writePermission="classes.write">
+      {({ writable }) => <ClassroomManager writable={writable} />}
+    </ModulePage>
+  );
 }

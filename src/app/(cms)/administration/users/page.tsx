@@ -1,5 +1,5 @@
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { UserManager } from '@/components/users/user-manager';
+import { UserManager } from '@/features/users/components/user-manager';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/config/modules';
 

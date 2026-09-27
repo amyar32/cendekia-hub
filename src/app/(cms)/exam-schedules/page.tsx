@@ -1,5 +1,5 @@
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { ExamScheduleManager } from '@/components/exam-schedules/exam-schedule-manager';
+import { ExamScheduleManager } from '@/features/exam-schedules/components/exam-schedule-manager';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 

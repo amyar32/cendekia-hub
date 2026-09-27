@@ -1,10 +1,6 @@
 import { z } from 'zod';
-import {
-  currentSchoolId,
-  gradeOptions,
-  schoolLocalDate,
-} from '@/app/api/modules/_shared/academic-context';
-import { createApplication, applicationSchema } from '@/app/api/modules/admissions/handlers';
+import { currentSchoolId, gradeOptions, schoolLocalDate } from '@/lib/server/academic-context';
+import { createApplication, applicationSchema } from '@/features/admissions/server/handlers';
 import { checkOrigin, HttpError } from '@/lib/auth';
 import {
   createAdmissionCaptcha,

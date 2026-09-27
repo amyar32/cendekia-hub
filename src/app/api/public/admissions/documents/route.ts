@@ -1,35 +1,31 @@
 import { randomUUID } from 'node:crypto';
-import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import { currentSchoolId } from '@/lib/server/academic-context';
 import { checkOrigin, HttpError } from '@/lib/auth';
 import { admissionRateLimit } from '@/lib/admissions-public';
 import { db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import {
   removeUpload,
-  pruneOrphanedUploads,
   safeOriginalName,
   storeUpload,
   uploadUrl,
   validateDocument,
 } from '@/lib/uploads';
+import { runUploadMaintenance } from '@/lib/uploads/maintenance';
+import { assertUploadRequestSize } from '@/lib/uploads/request';
 
 export const runtime = 'nodejs';
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const MAX_MULTIPART_OVERHEAD = 64 * 1024;
 
 export async function POST(request: Request) {
   let storedKey: string | null = null;
   try {
     checkOrigin(request);
     admissionRateLimit(request, 'upload');
-    const contentLengthHeader = request.headers.get('content-length');
-    if (!contentLengthHeader)
-      throw new HttpError(411, 'Content-Length wajib dikirim untuk upload dokumen.');
-    const contentLength = Number(contentLengthHeader);
-    if (!Number.isSafeInteger(contentLength) || contentLength <= 0)
-      throw new HttpError(400, 'Ukuran request upload tidak valid.');
-    if (contentLength > MAX_UPLOAD_BYTES + MAX_MULTIPART_OVERHEAD)
-      throw new HttpError(413, 'Ukuran request upload terlalu besar.');
+    assertUploadRequestSize(request, {
+      maxFileBytes: MAX_UPLOAD_BYTES,
+      missingContentLengthMessage: 'Content-Length wajib dikirim untuk upload dokumen.',
+    });
     const form = await request.formData();
     const file = form.get('file');
     const trackingToken = form.get('tracking_token');
@@ -63,6 +59,7 @@ export async function POST(request: Request) {
         error instanceof Error ? error.message : 'Format dokumen tidak valid.',
       );
     }
+    const originalName = safeOriginalName(file.name);
     storedKey = await storeUpload(bytes, extension, isPhoto ? 'images' : 'documents');
     const uploadId = randomUUID();
     const documentId = randomUUID();
@@ -74,7 +71,7 @@ export async function POST(request: Request) {
         .run(
           uploadId,
           storedKey,
-          safeOriginalName(file.name),
+          originalName,
           file.type,
           file.size,
           isPhoto ? 'admission.photo' : 'admission.document',
@@ -100,11 +97,7 @@ export async function POST(request: Request) {
           );
     })();
     storedKey = null;
-    try {
-      pruneOrphanedUploads();
-    } catch (cleanupError) {
-      console.error('Cleanup upload yatim gagal.', cleanupError);
-    }
+    runUploadMaintenance();
     return Response.json(
       { ok: true, id: isPhoto ? uploadId : documentId, url: uploadUrl(uploadId) },
       { status: 201 },

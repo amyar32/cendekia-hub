@@ -1,10 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import {
-  currentSchoolId,
-  requireClass,
-  requireSemester,
-} from '@/app/api/modules/_shared/academic-context';
+import { currentSchoolId, requireClass, requireSemester } from '@/lib/server/academic-context';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';

@@ -1,5 +1,5 @@
 import { db } from '../src/lib/db';
-import { pruneOrphanedUploads } from '../src/lib/uploads';
+import { pruneOrphanedUploads } from '../src/lib/uploads/index';
 
 const removed = pruneOrphanedUploads({ limit: 500 });
 db().close();

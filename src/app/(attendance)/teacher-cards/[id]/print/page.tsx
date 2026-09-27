@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import QRCode from 'qrcode';
 import { z } from 'zod';
-import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import { currentSchoolId } from '@/lib/server/academic-context';
 import { CardPrintTrigger } from '@/components/identity-card/card-print-trigger';
 import { CardPrintPageStyle } from '@/components/identity-card/card-print-page-style';
 import { can } from '@/config/modules';

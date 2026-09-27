@@ -54,9 +54,9 @@ import type { SessionUser } from '@/lib/auth';
 import {
   subscribeAcademicContext,
   type AcademicContextUpdate,
-} from '@/lib/academic-context-client';
+} from '@/features/academic/client/context';
 import styles from './cms-shell.module.css';
-import { ScheduleBell } from '@/components/schedules/schedule-bell';
+import { ScheduleBell } from '@/features/schedules/components/schedule-bell';
 const icons = {
   onboarding: IconChecklist,
   'live-display': IconDeviceTv,

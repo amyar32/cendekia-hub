@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { requireTeacherSession } from '@/app/api/v1/_shared/teacher-attendance';
+import { requireTeacherSession } from '@/features/attendance/server/mobile/teacher-attendance';
 import { db } from '@/lib/db';
 import { mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
 

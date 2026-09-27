@@ -1,1 +1,1 @@
-export { GET, PATCH } from './handlers';
+export { GET, PATCH } from '@/features/settings/server/school/handlers';

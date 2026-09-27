@@ -1,10 +1,10 @@
-import { SemesterManager } from '@/components/academic/academic-managers';
-import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { can } from '@/config/modules';
-import { currentUser } from '@/lib/auth';
+import { ModulePage } from '@/components/cms/module-page/module-page';
+import { SemesterManager } from '@/features/academic/components/academic-managers';
 
-export default async function Page() {
-  const user = (await currentUser())!;
-  if (!can(user.permissions, 'semesters.read')) return <AccessDenied />;
-  return <SemesterManager writable={can(user.permissions, 'semesters.write')} />;
+export default function Page() {
+  return (
+    <ModulePage readPermission="semesters.read" writePermission="semesters.write">
+      {({ writable }) => <SemesterManager writable={writable} />}
+    </ModulePage>
+  );
 }

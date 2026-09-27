@@ -1,4 +1,4 @@
-import { LiveDisplay } from '@/components/live/live-display';
+import { LiveDisplay } from '@/features/live/components/live-display';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 

@@ -1,5 +1,5 @@
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { RoleManager } from '@/components/roles/role-manager';
+import { RoleManager } from '@/features/roles/components/role-manager';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/config/modules';
 

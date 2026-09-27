@@ -1,5 +1,5 @@
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { SchoolSettings, type School } from '@/components/settings/school-settings';
+import { SchoolSettings, type School } from '@/features/settings/components/school-settings';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';

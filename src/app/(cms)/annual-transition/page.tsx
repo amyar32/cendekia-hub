@@ -1,4 +1,4 @@
-import { PromotionManager } from '@/components/students/promotion-manager';
+import { PromotionManager } from '@/features/annual-transition/components/promotion-manager';
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';

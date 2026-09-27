@@ -1,4 +1,4 @@
-import { schoolLocalDate } from '@/app/api/modules/_shared/academic-context';
+import { schoolLocalDate } from '@/lib/server/academic-context';
 import { db } from '@/lib/db';
 import { MobileApiError, mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
 import { isoDateSchema } from '@/lib/validation';

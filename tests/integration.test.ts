@@ -112,6 +112,21 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   adminCookie = res.headers.get('set-cookie')!.split(';')[0];
   assert.match(adminCookie, /cms_session=/);
   assert.equal((await api('/')).status, 200);
+  for (const page of [
+    '/master-data/teachers',
+    '/academic/classes',
+    '/administration/roles',
+    '/student-attendance',
+    '/extracurricular-attendance',
+  ]) {
+    const response = await api(page);
+    assert.equal(
+      response.status,
+      200,
+      `Halaman ${page} harus tetap tersedia setelah pemindahan folder`,
+    );
+    assert.doesNotMatch(await response.text(), /Anda tidak memiliki izin untuk membuka modul ini/);
+  }
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
     'base64',
@@ -1282,6 +1297,8 @@ test('authentication, CRUD, RBAC, session revocation and audit end-to-end', asyn
   );
   assert.equal(res.status, 200);
   const viewerCookie = res.headers.get('set-cookie')!.split(';')[0];
+  const deniedPage = await api('/administration/roles', 'GET', undefined, viewerCookie);
+  assert.match(await deniedPage.text(), /Anda tidak memiliki izin untuk membuka modul ini/);
   assert.equal((await api('/api/modules/users', 'GET', undefined, viewerCookie)).status, 403);
   assert.equal((await api('/api/modules/audit', 'GET', undefined, viewerCookie)).status, 403);
   assert.equal((await api('/api/modules/school', 'GET', undefined, viewerCookie)).status, 403);

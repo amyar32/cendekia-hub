@@ -1,8 +1,11 @@
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { OnboardingManager, type OnboardingData } from '@/components/onboarding/onboarding-manager';
+import {
+  OnboardingManager,
+  type OnboardingData,
+} from '@/features/onboarding/components/onboarding-manager';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
-import { onboardingState } from '@/app/api/modules/onboarding/handlers';
+import { onboardingState } from '@/features/onboarding/server/handlers';
 
 const writePermissions = [
   'school.write',

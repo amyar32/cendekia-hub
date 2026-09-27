@@ -1,10 +1,10 @@
-import { ExtracurricularManager } from '@/components/academic/academic-managers';
-import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { can } from '@/config/modules';
-import { currentUser } from '@/lib/auth';
+import { ModulePage } from '@/components/cms/module-page/module-page';
+import { ExtracurricularManager } from '@/features/academic/components/academic-managers';
 
-export default async function Page() {
-  const user = (await currentUser())!;
-  if (!can(user.permissions, 'extracurriculars.read')) return <AccessDenied />;
-  return <ExtracurricularManager writable={can(user.permissions, 'extracurriculars.write')} />;
+export default function Page() {
+  return (
+    <ModulePage readPermission="extracurriculars.read" writePermission="extracurriculars.write">
+      {({ writable }) => <ExtracurricularManager writable={writable} />}
+    </ModulePage>
+  );
 }

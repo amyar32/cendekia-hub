@@ -8,8 +8,8 @@ test('private uploads are not publicly cacheable and automatic absences require 
   const uploadRoute = await readFile('src/app/api/uploads/[id]/route.ts', 'utf8');
   assert.match(uploadRoute, /scope\.public[\s\S]*'private, no-store'/);
   for (const file of [
-    'src/app/api/modules/student-checkins/handlers.ts',
-    'src/app/api/modules/teacher-checkins/handlers.ts',
+    'src/features/checkins/server/student-checkins/handlers.ts',
+    'src/features/checkins/server/teacher-checkins/handlers.ts',
     'src/app/api/modules/checkins/scanner/route.ts',
   ]) {
     const source = await readFile(file, 'utf8');
@@ -33,7 +33,7 @@ test('rate limits persist in SQLite and orphan upload cleanup preserves referenc
       await Promise.all([
         import('../src/lib/admissions-public'),
         import('../src/lib/db'),
-        import('../src/lib/uploads'),
+        import('../src/lib/uploads/index'),
       ]);
     const request = new Request('http://localhost/api/public/admissions', {
       headers: { 'user-agent': 'hardening-test' },

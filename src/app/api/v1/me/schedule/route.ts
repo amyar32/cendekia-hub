@@ -1,15 +1,11 @@
-import { schoolLocalDate } from '@/app/api/modules/_shared/academic-context';
+import { schoolLocalDate } from '@/lib/server/academic-context';
 import { db } from '@/lib/db';
+import { isoWeekday } from '@/lib/dates';
 import { regularScheduleBlock } from '@/lib/exam-schedules';
 import { mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
 import { isoDateSchema } from '@/lib/validation';
 
 const dateSchema = isoDateSchema();
-
-function weekday(date: string) {
-  const day = new Date(`${date}T12:00:00Z`).getUTCDay();
-  return day === 0 ? 7 : day;
-}
 
 export async function GET(request: Request) {
   try {
@@ -33,7 +29,7 @@ export async function GET(request: Request) {
            AND cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?
          ORDER BY sts.start_time,c.name,s.name`,
       )
-      .all(date, actor.teacher_id, actor.school_id, weekday(date), date, date) as Array<
+      .all(date, actor.teacher_id, actor.school_id, isoWeekday(date), date, date) as Array<
       Record<string, unknown> & { class_id: string; start_time: string }
     >;
     const lessons = lessonRows.map((row) => {
@@ -65,7 +61,7 @@ export async function GET(request: Request) {
            AND es.weekday=? AND sem.start_date<=? AND sem.end_date>=?
          ORDER BY sts.start_time,e.name`,
       )
-      .all(date, actor.teacher_id, actor.school_id, weekday(date), date, date) as Array<
+      .all(date, actor.teacher_id, actor.school_id, isoWeekday(date), date, date) as Array<
       Record<string, unknown> & { start_time: string }
     >;
     const schedules = [

@@ -1,4 +1,4 @@
-import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import { currentSchoolId } from '@/lib/server/academic-context';
 import { requireUser } from '@/lib/auth';
 import { localDateTime } from '@/lib/checkins';
 import { db } from '@/lib/db';

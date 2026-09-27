@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { CheckinScanner } from '@/components/checkins/checkin-scanner';
+import { CheckinScanner } from '@/features/checkins/components/checkin-scanner';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 

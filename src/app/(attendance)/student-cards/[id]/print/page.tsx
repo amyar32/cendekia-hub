@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import { currentSchoolId } from '@/lib/server/academic-context';
 import { CardPrintTrigger } from '@/components/identity-card/card-print-trigger';
 import { CardPrintPageStyle } from '@/components/identity-card/card-print-page-style';
 import { STUDENT_QR_PREFIX } from '@/config/branding';

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
-import { AttendanceReport } from '@/components/reports/attendance-report';
+import { AttendanceReport } from '@/features/reports/components/attendance-report';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';
 

@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { schoolLocalDate } from '@/app/api/modules/_shared/academic-context';
+import { schoolLocalDate } from '@/lib/server/academic-context';
 import {
   attendanceDateSchema,
   openTeacherAttendance,
-  weekday,
-} from '@/app/api/v1/_shared/teacher-attendance';
+} from '@/features/attendance/server/mobile/teacher-attendance';
+import { isoWeekday } from '@/lib/dates';
 import { db } from '@/lib/db';
 import { regularScheduleBlock } from '@/lib/exam-schedules';
 import { mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
            AND cs.weekday=? AND sem.start_date<=? AND sem.end_date>=?
          ORDER BY sts.start_time,c.name,s.name`,
       )
-      .all(date, actor.teacher_id, actor.school_id, weekday(date), date, date) as Array<
+      .all(date, actor.teacher_id, actor.school_id, isoWeekday(date), date, date) as Array<
       Record<string, unknown> & { class_id: string }
     >;
     const sessions = rows.map((row) => {

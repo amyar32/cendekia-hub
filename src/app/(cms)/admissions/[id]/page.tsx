@@ -1,4 +1,4 @@
-import { AdmissionManager } from '@/components/admissions/admission-manager';
+import { AdmissionManager } from '@/features/admissions/components/admission-manager';
 import { AccessDenied } from '@/components/cms/access-denied/access-denied';
 import { can } from '@/config/modules';
 import { currentUser } from '@/lib/auth';

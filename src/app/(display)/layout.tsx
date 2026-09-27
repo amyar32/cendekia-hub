@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { ScheduleBell } from '@/components/schedules/schedule-bell';
+import { ScheduleBell } from '@/features/schedules/components/schedule-bell';
 import { currentUser } from '@/lib/auth';
 
 export const runtime = 'nodejs';

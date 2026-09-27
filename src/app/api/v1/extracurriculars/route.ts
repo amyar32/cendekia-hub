@@ -1,4 +1,4 @@
-import { activeAcademicYear } from '@/app/api/modules/_shared/academic-context';
+import { activeAcademicYear } from '@/lib/server/academic-context';
 import { db } from '@/lib/db';
 import { mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
 

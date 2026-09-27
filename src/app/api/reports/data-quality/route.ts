@@ -4,7 +4,7 @@ import {
   activeAcademicYear,
   currentSchoolId,
   requireAcademicYear,
-} from '@/app/api/modules/_shared/academic-context';
+} from '@/lib/server/academic-context';
 import { requireUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { failure } from '@/lib/http';

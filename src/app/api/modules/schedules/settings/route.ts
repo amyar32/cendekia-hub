@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { currentSchoolId } from '@/app/api/modules/_shared/academic-context';
+import { currentSchoolId } from '@/lib/server/academic-context';
 import { checkOrigin, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
