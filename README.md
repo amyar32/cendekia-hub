@@ -263,6 +263,23 @@ pnpm start
 
 Gunakan HTTPS karena cookie sesi memakai `Secure` pada produksi. Isi `ADMISSION_FORM_SECRET` dengan secret acak yang sama pada setiap instance agar captcha formulir penerimaan tetap valid setelah restart. Jika menggunakan reverse proxy, pertahankan host/origin publik agar pemeriksaan origin cocok. Database SQLite dan direktori `UPLOAD_STORAGE_PATH` membutuhkan disk persisten dengan izin tulis; keduanya perlu dibackup bersama. Rancangan ini ditujukan untuk satu instance Node.js. Untuk deployment serverless atau beberapa instance, pindahkan database ke PostgreSQL dan implementasi fungsi storage di `src/lib/uploads.ts` ke object storage bersama (misalnya S3-compatible), lalu siapkan migrasi dan strategi backup.
 
+### Scheduler notifikasi guru
+
+Notifikasi jadwal dan pengingat presensi memerlukan scheduler eksternal; aplikasi tidak
+menjalankan cron sendiri. Buat `NOTIFICATION_CRON_SECRET` sebagai string acak minimal
+32 karakter di environment produksi, lalu jalankan request berikut setiap 10 menit dari
+cron VPS, Task Scheduler Windows, atau scheduler hosting:
+
+```bash
+curl --fail-with-body -X POST 'https://domain-sekolah.com/api/internal/notifications/teacher-reminders' \
+  -H 'Authorization: Bearer <NOTIFICATION_CRON_SECRET>'
+```
+
+Endpoint hanya menerima `POST` dengan secret tersebut. Setiap eksekusi aman diulang:
+outbox mencegah notifikasi ganda per jadwal, guru, dan tanggal. Pengingat jadwal dibuat
+15 menit sebelum mulai; pengingat presensi dibuat 10 menit setelah selesai bila sesi
+presensi belum ditutup.
+
 Trigger audit mencegah perubahan melalui koneksi aplikasi biasa, tetapi bukan penyimpanan tahan manipulasi oleh pemilik file database. Gunakan layanan audit terpisah jika membutuhkan jaminan tersebut.
 
 ## Referensi

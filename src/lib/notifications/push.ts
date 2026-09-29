@@ -87,7 +87,7 @@ export function deactivateSessionPushTokens(sessionId: string) {
 export function queuePushNotification(input: {
   recipientUserId: string | null | undefined;
   eventKey: string;
-  type: 'point_entry' | 'coaching_case';
+  type: 'point_entry' | 'coaching_case' | 'lesson_schedule' | 'attendance_reminder';
   title: string;
   body: string;
   data: Record<string, string>;

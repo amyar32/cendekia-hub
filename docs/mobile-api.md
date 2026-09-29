@@ -113,6 +113,12 @@ Notifikasi poin menggunakan payload data `{ "type": "point_entry", "entry_id": "
 Notifikasi pembinaan menggunakan `{ "type": "coaching_case", "case_id": "<uuid>" }`. Setelah
 notifikasi ditekan, muat detail dari API; jangan memperlakukan teks push sebagai sumber data.
 
+Notifikasi guru terjadwal memakai payload `{ "type": "lesson_schedule", "schedule_id": "<uuid>",
+"date": "YYYY-MM-DD" }` atau `{ "type": "attendance_reminder", "schedule_id": "<uuid>",
+"date": "YYYY-MM-DD" }`. Keduanya diarahkan ke tab Jadwal. Backend hanya membuatnya saat
+endpoint internal `POST /api/internal/notifications/teacher-reminders` dipanggil scheduler
+setiap 10 menit dengan header `Authorization: Bearer <NOTIFICATION_CRON_SECRET>`.
+
 ## Poin dan pembinaan murid
 
 API `/api/v1/points` menyediakan pencarian identitas dasar murid satu sekolah, pengajuan apresiasi/pelanggaran,
