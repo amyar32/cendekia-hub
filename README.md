@@ -51,6 +51,11 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 
 ## Fitur
 
+- **Poin & Pembinaan Murid:** apresiasi dan pelanggaran terpisah per semester, master aturan dan ambang,
+  pengajuan guru, verifikasi wali kelas/admin, bukti privat, pembatalan beralasan, pembinaan manual/berdasarkan ambang,
+  rekap dan ekspor Excel. Web tersedia di `/points`; [panduan native](docs/mobile-points-integration.md)
+  menjelaskan API `/api/v1/points`. Tidak ada role BK pada tahap ini.
+
 - **Autentikasi:** login, logout, ubah password, sesi server 8 jam, cookie HttpOnly/SameSite, password scrypt dengan salt acak, dan batas 5 percobaan login gagal per email selama 15 menit.
 - **Pengguna:** tambah, edit, nonaktifkan, hapus, dan tentukan role. Saat profil guru baru dibuat, akun role Guru dapat dibuat otomatis dengan password sementara yang wajib diganti saat login pertama. Perubahan pengguna mencabut sesi pengguna tersebut.
 - **RBAC:** role Administrator, Editor, Viewer; custom role dengan permission baca/tulis per modul. Permission diperiksa ulang dari database pada setiap request. Navigasi juga mengikuti permission.

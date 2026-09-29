@@ -91,6 +91,13 @@ berlaku setelah digunakan.
 
 Tanggal kosong mengikuti zona waktu sekolah.
 
+## Poin dan pembinaan murid
+
+API `/api/v1/points` menyediakan pencarian identitas dasar murid satu sekolah, pengajuan apresiasi/pelanggaran,
+verifikasi wali kelas, bukti privat, rekap semester, dan pembinaan. Tidak ada role BK.
+Lihat [panduan integrasi native poin](mobile-points-integration.md) untuk kontrak endpoint, contoh payload,
+idempotensi, pagination, hak akses, error, dan alur layar. Swagger tersedia pada tag **Points**.
+
 ## Wali kelas
 
 Fitur wali kelas memakai akun Guru yang sama dan diaktifkan berdasarkan penugasan
@@ -103,6 +110,7 @@ menu **Kelas Wali** perlu ditampilkan.
 | `GET`   | `/api/v1/me/homeroom`                         | Status dan identitas kelas wali aktif          |
 | `GET`   | `/api/v1/homeroom/dashboard?date=YYYY-MM-DD`  | Ringkasan gerbang dan pelajaran pada satu hari |
 | `GET`   | `/api/v1/homeroom/attendance?from=...&to=...` | Rekap kehadiran per murid, maksimal 92 hari    |
+| `GET`   | `/api/v1/homeroom/attendance-sessions/:sessionId` | Detail baca-saja sesi dan status murid kelas wali |
 | `GET`   | `/api/v1/homeroom/students/:studentId`        | Profil aman, kontak wali, dan tindak lanjut    |
 | `GET`   | `/api/v1/homeroom/follow-ups?status=open`     | Daftar tindak lanjut kelas                     |
 | `POST`  | `/api/v1/homeroom/follow-ups`                 | Membuat tindak lanjut                          |

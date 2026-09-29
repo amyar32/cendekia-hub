@@ -47,7 +47,7 @@ function dashboard(schoolId: string, date: string) {
            'teacher' AS person_type
          FROM teacher_checkins tc JOIN teachers t ON t.id=tc.teacher_id
          WHERE tc.school_id=? AND tc.attendance_date=? AND tc.status<>'absent'
-       ) ORDER BY checked_in_at DESC LIMIT 8`,
+       ) ORDER BY julianday(checked_in_at) DESC LIMIT 8`,
     )
     .all(schoolId, date, schoolId, date);
   return {

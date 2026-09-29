@@ -13,7 +13,9 @@ dengan token baru dari `POST /auth/refresh`.
    melakukan pull-to-refresh di beranda.
 3. Tampilkan menu **Kelas Wali** hanya saat `is_homeroom_teacher=true`.
 4. Halaman utama Kelas Wali mengambil `/homeroom/dashboard`. Halaman rekap mengambil
-   `/homeroom/attendance`; detail murid mengambil `/homeroom/students/:studentId`.
+   `/homeroom/attendance`; detail sesi pelajaran mengambil
+   `/homeroom/attendance-sessions/:sessionId`; detail murid mengambil
+   `/homeroom/students/:studentId`.
 5. Setelah membuat atau memperbarui tindak lanjut, invalidasi cache dashboard, detail murid, dan
    daftar tindak lanjut.
 
@@ -202,7 +204,17 @@ Setiap elemen `students` berisi identitas ringkas dan agregat berikut:
 Angka check-in adalah hitungan hari di gerbang. Angka pelajaran adalah hitungan per sesi pelajaran;
 keduanya tidak boleh dijumlahkan menjadi satu metrik kehadiran.
 
-## 4. Detail murid
+## 4. Detail sesi absensi pelajaran
+
+`GET /homeroom/attendance-sessions/:sessionId`
+
+Gunakan endpoint ini saat wali kelas memilih sesi pelajaran dari dashboard. Respons `data`
+memiliki `homeroom`, `session`, dan `records`; bentuk `session` serta `records` sama seperti
+detail sesi guru sehingga layar detail dapat dipakai ulang. Endpoint ini hanya-baca dan hanya
+mengembalikan sesi dari rombel wali kelas pada tahun ajaran aktif. Jika tidak sesuai, server
+mengembalikan `404 HOMEROOM_ATTENDANCE_SESSION_NOT_FOUND`.
+
+## 5. Detail murid
 
 `GET /homeroom/students/:studentId`
 
@@ -215,7 +227,7 @@ API sengaja tidak mengirim NIK, nomor KK, alamat lengkap, token QR, maupun dokum
 boleh dinormalisasi di sisi tampilan untuk deep link `tel:` atau WhatsApp, tetapi nilai asli jangan
 ditulis ke log analitik atau crash report.
 
-## 5. Tindak lanjut
+## 6. Tindak lanjut
 
 Daftar: `GET /homeroom/follow-ups?status=open&student_id=<uuid>`.
 Kedua filter opsional. Respons dibatasi maksimal 200 item dan memprioritaskan status terbuka serta
@@ -251,6 +263,7 @@ Body boleh berisi satu atau beberapa dari `category`, `note`, `due_date`, dan `s
 | Beranda         | `/me/homeroom`           | Saat bootstrap dan app resume          |
 | Kelas Wali      | `/homeroom/dashboard`    | Pull-to-refresh dan setelah mutasi     |
 | Rekap Kehadiran | `/homeroom/attendance`   | Saat rentang/filter berubah            |
+| Detail Sesi Pelajaran | `/homeroom/attendance-sessions/:sessionId` | Saat sesi pada dashboard dipilih |
 | Detail Murid    | `/homeroom/students/:id` | Saat dibuka dan setelah mutasi         |
 | Tindak Lanjut   | `/homeroom/follow-ups`   | Saat filter berubah dan setelah mutasi |
 

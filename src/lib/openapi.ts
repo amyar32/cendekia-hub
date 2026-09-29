@@ -1,4 +1,5 @@
 import { APP_NAME } from '@/config/branding';
+import { pointPaths, pointSchemas } from '@/features/points/server/openapi';
 
 const json = { type: 'object', additionalProperties: true };
 
@@ -352,13 +353,17 @@ export const openApiDocument = {
   openapi: '3.1.1',
   info: {
     title: `${APP_NAME} Teacher API`,
-    version: '1.1.0',
+    version: '1.2.0',
     description:
       'REST API untuk aplikasi guru. Semua respons sukses memakai `{ data, meta }`; respons gagal memakai `{ error }`.',
   },
   servers: [{ url: '/api/v1', description: 'Server saat ini' }],
   tags: [
     { name: 'Authentication', description: 'Sesi dan kredensial aplikasi guru.' },
+    {
+      name: 'Points',
+      description: 'Poin apresiasi, pelanggaran, verifikasi wali kelas, dan pembinaan.',
+    },
     { name: 'Profile', description: 'Profil, jadwal, dan data guru.' },
     { name: 'Class', description: 'Rombel dan murid yang dapat diakses guru.' },
     { name: 'Homeroom', description: 'Ringkasan dan tindak lanjut kelas wali aktif.' },
@@ -366,6 +371,7 @@ export const openApiDocument = {
     { name: 'Extracurricular', description: 'Penugasan dan absensi ekstrakurikuler.' },
   ],
   paths: {
+    ...pointPaths,
     '/auth/login': {
       post: {
         tags: ['Authentication'],
@@ -633,6 +639,20 @@ export const openApiDocument = {
         responses: {
           '200': successResponse('Agregat check-in gerbang dan absensi pelajaran per murid.'),
           '400': errorResponse,
+          '404': errorResponse,
+        },
+      },
+    },
+    '/homeroom/attendance-sessions/{sessionId}': {
+      get: {
+        tags: ['Homeroom'],
+        summary: 'Detail sesi absensi pelajaran kelas wali',
+        description:
+          'Hanya-baca. Sesi harus berasal dari rombel wali kelas pada tahun ajaran aktif.',
+        security: bearer,
+        parameters: [sessionId],
+        responses: {
+          '200': successResponse('Sesi dan catatan absensi murid kelas wali.', examples.lessonDetail),
           '404': errorResponse,
         },
       },
@@ -925,6 +945,7 @@ export const openApiDocument = {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'opaque access token' },
     },
     schemas: {
+      ...pointSchemas,
       DataResponse: {
         type: 'object',
         required: ['data', 'meta'],

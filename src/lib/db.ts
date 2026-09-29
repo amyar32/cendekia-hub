@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { migratePoints } from '@/features/points/server/migration';
 const globalDb = globalThis as unknown as { cmsDb?: Database.Database };
 export function db() {
   if (globalDb.cmsDb) return globalDb.cmsDb;
@@ -1205,6 +1206,7 @@ export function db() {
       connection.pragma('user_version = 54');
     })();
   }
+  if (schemaVersion < 55) migratePoints(connection);
   globalDb.cmsDb = connection;
   return connection;
 }

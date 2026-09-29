@@ -59,6 +59,7 @@ import {
 import styles from './cms-shell.module.css';
 import { ScheduleBell } from '@/features/schedules/components/schedule-bell';
 const icons = {
+  points: IconClipboardCheck,
   onboarding: IconChecklist,
   'live-display': IconDeviceTv,
   users: IconUsers,
@@ -88,7 +89,7 @@ const icons = {
 const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
   {
     label: 'Operasional Harian',
-    keys: ['schedules', 'checkins', 'student-attendance', 'extracurricular-attendance'],
+    keys: ['schedules', 'checkins', 'student-attendance', 'extracurricular-attendance', 'points'],
   },
   {
     label: 'Akademik',
@@ -114,6 +115,7 @@ const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
 ];
 
 const legacyNavigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
+  { label: 'Poin & Pembinaan', keys: ['points'] },
   {
     label: 'Data Sekolah',
     keys: ['students', 'teachers', 'grades', 'subjects', 'extracurriculars'],

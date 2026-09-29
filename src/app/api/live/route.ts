@@ -166,7 +166,7 @@ export async function GET() {
               JOIN teaching_assignments ta ON ta.id=cs.teaching_assignment_id
               WHERE ta.teacher_id=t.id AND cs.semester_id=? AND cs.weekday=? AND cs.archived_at IS NULL
             )
-        ) ORDER BY checked_in_at DESC LIMIT 12`,
+        ) ORDER BY julianday(checked_in_at) DESC LIMIT 12`,
       )
       .all(
         schoolId,

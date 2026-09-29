@@ -72,6 +72,8 @@ db().transaction(() => {
       'Guru',
       'Mengisi absensi untuk jadwal mengajar sendiri.',
       JSON.stringify([
+        'points.read',
+        'points.write',
         'dashboard.read',
         'exam-schedules.read',
         'student-attendance.read',

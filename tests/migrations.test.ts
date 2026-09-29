@@ -54,7 +54,14 @@ test('database lama dimigrasikan sampai skema mobile API dan role terbaru', () =
     assert.ok(columns.some((column) => column.name === 'province_code'));
     assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 54);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 55);
+    assert.ok(
+      migrated
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='student_point_entries'",
+        )
+        .get(),
+    );
     const schoolColumns = migrated.pragma('table_info(schools)') as { name: string }[];
     assert.ok(schoolColumns.some((column) => column.name === 'teacher_checkin_late_enabled'));
     const scheduleColumns = migrated.pragma('table_info(class_schedules)') as { name: string }[];

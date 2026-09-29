@@ -1,4 +1,7 @@
 export const permissions = [
+  'points.read',
+  'points.write',
+  'points.manage',
   'dashboard.read',
   'live-display.read',
   'users.read',
@@ -54,6 +57,7 @@ export const permissions = [
 ] as const;
 export type Permission = (typeof permissions)[number];
 export type ModuleKey =
+  | 'points'
   | 'onboarding'
   | 'live-display'
   | 'users'
@@ -89,6 +93,14 @@ export type CmsModule = {
 };
 
 export const modules: CmsModule[] = [
+  {
+    key: 'points',
+    label: 'Poin & Pembinaan',
+    description: 'Apresiasi, pelanggaran, verifikasi, dan pembinaan murid.',
+    path: '/points',
+    permission: 'points.read',
+    group: 'Operasional Harian',
+  },
   {
     key: 'live-display',
     label: 'Live Report',

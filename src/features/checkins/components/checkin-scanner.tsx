@@ -71,15 +71,17 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
   const scanningRef = useRef(false);
   const lastScanRef = useRef({ code: '', at: 0 });
   const clearResultRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exitResultRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hidBufferRef = useRef('');
   const hidBufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [summary, setSummary] = useState<Summary>(emptySummary);
   const [recent, setRecent] = useState<Recent[]>([]);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [isFeedbackExiting, setIsFeedbackExiting] = useState(false);
   const [error, setError] = useState('');
   const [manualCode, setManualCode] = useState('');
-  const [clock, setClock] = useState(new Date());
+  const [clock, setClock] = useState<Date | null>(null);
   const [sound, setSound] = useState(true);
   const [hidState, setHidState] = useState<'ready' | 'reading' | 'processing'>('ready');
   const [receivedCharacters, setReceivedCharacters] = useState(0);
@@ -105,6 +107,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
             setError(cause instanceof Error ? cause.message : 'Data scanner gagal dimuat.');
         });
     void loadDashboard();
+    setClock(new Date());
     const timer = setInterval(() => setClock(new Date()), 1000);
     const dashboardTimer = setInterval(loadDashboard, 60_000);
     return () => {
@@ -147,13 +150,24 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error);
         const scan = body as ScanResult;
+        if (clearResultRef.current) clearTimeout(clearResultRef.current);
+        if (exitResultRef.current) clearTimeout(exitResultRef.current);
+        setIsFeedbackExiting(false);
         setResult(scan);
         setSummary(scan.summary);
         setRecent(scan.recent);
         beep(scan.outcome === 'success' ? 'success' : 'warning');
-        if (clearResultRef.current) clearTimeout(clearResultRef.current);
-        clearResultRef.current = setTimeout(() => setResult(null), 4200);
+        clearResultRef.current = setTimeout(() => {
+          setIsFeedbackExiting(true);
+          exitResultRef.current = setTimeout(() => {
+            setResult(null);
+            setIsFeedbackExiting(false);
+          }, 460);
+        }, 3700);
       } catch (cause) {
+        if (clearResultRef.current) clearTimeout(clearResultRef.current);
+        if (exitResultRef.current) clearTimeout(exitResultRef.current);
+        setIsFeedbackExiting(false);
         setResult(null);
         setError(cause instanceof Error ? cause.message : 'QR gagal diproses.');
         beep('error');
@@ -222,6 +236,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
   useEffect(
     () => () => {
       if (clearResultRef.current) clearTimeout(clearResultRef.current);
+      if (exitResultRef.current) clearTimeout(exitResultRef.current);
     },
     [],
   );
@@ -239,19 +254,23 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
   }
 
   const timeZone = config?.school.timezone || 'Asia/Jakarta';
-  const time = new Intl.DateTimeFormat('id-ID', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(clock);
-  const fullDate = new Intl.DateTimeFormat('id-ID', {
-    timeZone,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(clock);
+  const time = clock
+    ? new Intl.DateTimeFormat('id-ID', {
+        timeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(clock)
+    : '--:--:--';
+  const fullDate = clock
+    ? new Intl.DateTimeFormat('id-ID', {
+        timeZone,
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(clock)
+    : 'Memuat waktu…';
 
   return (
     <>
@@ -351,7 +370,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
               )}
               {(result || error) && (
                 <div
-                  className={`${styles.feedback} ${error ? styles.failed : result?.outcome === 'duplicate' ? styles.duplicate : styles.success}`}
+                  className={`${styles.feedback} ${isFeedbackExiting ? styles.feedbackExiting : ''} ${error ? styles.failed : result?.outcome === 'duplicate' ? styles.duplicate : styles.success}`}
                 >
                   {error ? (
                     <>
@@ -365,7 +384,7 @@ export function CheckinScanner({ operatorName }: { operatorName: string }) {
                     <>
                       <Avatar
                         src={result.student.photo_url}
-                        size={112}
+                        size={440}
                         radius="50%"
                         className={styles.resultPhoto}
                       />

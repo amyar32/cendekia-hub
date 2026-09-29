@@ -406,6 +406,16 @@ test('mobile teacher authentication and attendance flow', async () => {
   assert.equal(response.status, 200);
   const recordId = (await response.json()).data.records[0].id;
   response = await api(
+    `/api/v1/homeroom/attendance-sessions/${sessionId}`,
+    'GET',
+    undefined,
+    login.access_token,
+  );
+  assert.equal(response.status, 200);
+  const homeroomSession = (await response.json()).data;
+  assert.equal(homeroomSession.session.id, sessionId);
+  assert.equal(homeroomSession.records[0].student_id, ids.student);
+  response = await api(
     `/api/v1/attendance-sessions/${sessionId}/records`,
     'PUT',
     { records: [{ id: recordId, status: 'present', note: '' }] },
@@ -468,6 +478,14 @@ test('mobile teacher authentication and attendance flow', async () => {
     assert.equal((await response.json()).data.is_homeroom_teacher, false);
     response = await api(
       '/api/v1/homeroom/dashboard?date=2029-07-02',
+      'GET',
+      undefined,
+      login.access_token,
+    );
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).error.code, 'HOMEROOM_NOT_ASSIGNED');
+    response = await api(
+      `/api/v1/homeroom/attendance-sessions/${sessionId}`,
       'GET',
       undefined,
       login.access_token,

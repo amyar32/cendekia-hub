@@ -75,6 +75,10 @@ test('dashboard follow-ups respect permissions, school, dates, attendance state 
       JOIN teachers t ON t.id=ta.teacher_id JOIN semesters s ON s.id=cs.semester_id
       JOIN academic_years ay ON ay.id=s.academic_year_id
       WHERE ay.is_active=1 AND s.start_date<=? AND s.end_date>=?
+        AND NOT EXISTS (
+          SELECT 1 FROM student_attendance_sessions existing
+          WHERE existing.class_schedule_id=cs.id AND existing.attendance_date='2026-09-28'
+        )
       GROUP BY ta.teacher_id LIMIT 2`,
       )
       .all('2026-09-28', '2026-09-28') as { id: string; teacher_id: string; user_id: string }[];
