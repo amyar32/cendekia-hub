@@ -184,9 +184,31 @@ export function listStudents(a: PointActor, q: URLSearchParams) {
 }
 export function listMaster(a: PointActor, type: 'rules' | 'policies', q: URLSearchParams) {
   const table = type === 'rules' ? 'point_rules' : 'coaching_policies';
+  const kind =
+    type === 'rules'
+      ? z
+          .enum(['appreciation', 'violation'])
+          .optional()
+          .parse(q.get('kind') || undefined)
+      : undefined;
+  const search = z
+    .string()
+    .trim()
+    .max(100)
+    .parse(q.get('search') || '');
+  const params: (string | number | null)[] = [a.school_id];
+  let where = `school_id=? ${manager(a) ? '' : 'AND is_active=1'}`;
+  if (kind) {
+    where += ' AND kind=?';
+    params.push(kind);
+  }
+  if (search) {
+    where += ' AND name LIKE ?';
+    params.push(`%${search}%`);
+  }
   return list(
-    `SELECT * FROM ${table} WHERE school_id=? ${manager(a) ? '' : 'AND is_active=1'} ORDER BY ${type === 'rules' ? 'name' : 'threshold'},id`,
-    [a.school_id],
+    `SELECT * FROM ${table} WHERE ${where} ORDER BY ${type === 'rules' ? 'name' : 'threshold'},id`,
+    params,
     q,
   );
 }

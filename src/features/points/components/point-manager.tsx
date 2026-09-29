@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ActionIcon,
   Alert,
   Badge,
   Button,
+  Divider,
   FileInput,
   Group,
   Modal,
@@ -12,6 +14,7 @@ import {
   Pagination,
   Paper,
   Select,
+  SimpleGrid,
   Stack,
   Switch,
   Table,
@@ -21,7 +24,18 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
 import { useDebouncedValue } from '@mantine/hooks';
+import {
+  IconCalendar,
+  IconEye,
+  IconFileDescription,
+  IconPaperclip,
+  IconPencil,
+  IconSearch,
+  IconUser,
+} from '@tabler/icons-react';
+import 'dayjs/locale/id';
 
 type Row = Record<string, string | number | null>;
 type Options = {
@@ -42,6 +56,25 @@ const labels: Record<string, string> = {
   appreciation: 'Apresiasi',
   violation: 'Pelanggaran',
 };
+const statusColors: Record<
+  string,
+  'orange' | 'teal' | 'red' | 'gray' | 'blue' | 'yellow' | 'green'
+> = {
+  pending: 'orange',
+  approved: 'teal',
+  rejected: 'red',
+  voided: 'gray',
+  open: 'blue',
+  in_progress: 'yellow',
+  resolved: 'green',
+};
+function StatusBadge({ status, size = 'lg' }: { status: string; size?: 'sm' | 'lg' }) {
+  return (
+    <Badge color={statusColors[status] || 'gray'} variant="filled" size={size} radius="sm">
+      {labels[status] || status}
+    </Badge>
+  );
+}
 const value = (r: Row, key: string) => String(r[key] ?? '');
 async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(base + '/' + path, {
@@ -57,10 +90,12 @@ function StudentPicker({
   selected,
   onChange,
   required = true,
+  validationError,
 }: {
   selected: Row | null;
   onChange: (row: Row | null) => void;
   required?: boolean;
+  validationError?: string;
 }) {
   const [search, setSearch] = useState('');
   const [query] = useDebouncedValue(search, 250);
@@ -97,7 +132,7 @@ function StudentPicker({
         label: `${r.name} · ${r.nis} · ${r.class_name || 'Belum ada kelas'}`,
       }))}
       onChange={(id) => onChange(options.find((r) => r.id === id) || null)}
-      error={error || undefined}
+      error={validationError || error || undefined}
       nothingFoundMessage="Murid tidak ditemukan"
       required={required}
     />
@@ -109,6 +144,8 @@ export function PointManager() {
   const [term, setTerm] = useState<string | null>(null);
   const [classId, setClassId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [ruleKindFilter, setRuleKindFilter] = useState<string | null>(null);
+  const [policySearch, setPolicySearch] = useState('');
   const [scope, setScope] = useState('accessible');
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<List>({ rows: [], total: 0, page: 1, page_size: 20 });
@@ -137,6 +174,7 @@ export function PointManager() {
   const [activities, setActivities] = useState<Row[]>([]);
   const [caseStatus, setCaseStatus] = useState('open');
   const [assign, setAssign] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   useEffect(() => {
     api<Options>('options')
       .then((data) => {
@@ -157,11 +195,13 @@ export function PointManager() {
       if (status && ['entries', 'cases'].includes(tab)) q.set('status', status);
       if (classId && ['entries', 'summary'].includes(tab)) q.set('class_id', classId);
       if (tab === 'entries') q.set('scope', scope);
+      if (tab === 'rules' && ruleKindFilter) q.set('kind', ruleKindFilter);
+      if (tab === 'policies' && policySearch.trim()) q.set('search', policySearch.trim());
       if (filterStudent && ['entries', 'summary', 'cases'].includes(tab))
         q.set('student_id', value(filterStudent, 'id'));
       return q;
     },
-    [page, term, status, classId, tab, scope, filterStudent],
+    [page, term, status, classId, tab, scope, filterStudent, ruleKindFilter, policySearch],
   );
   const reload = useCallback(async () => {
     if (!options || (tab === 'summary' && !term)) return;
@@ -193,6 +233,7 @@ export function PointManager() {
   };
   function reset(action: string, row: Row | null = null) {
     setError('');
+    setFormErrors({});
     setSelected(row);
     setPickedStudent(null);
     setName(row ? value(row, 'name') : '');
@@ -235,6 +276,7 @@ export function PointManager() {
       setCaseStatus(value(record as Row, 'status'));
       setAssign(false);
       setAttachment(null);
+      setFormErrors({});
       setModal(resource === 'entries' ? 'entry-detail' : 'case-detail');
     } catch (e) {
       setError((e as Error).message);
@@ -258,7 +300,48 @@ export function PointManager() {
   const canManage = !!options?.capabilities.can_manage;
   const canWrite = !!options?.capabilities.can_write;
   const canCoach = canManage || !!options?.capabilities.homeroom_class_id;
+  function validate(fields: Record<string, string | undefined>) {
+    const next = Object.fromEntries(
+      Object.entries(fields).filter(([, message]) => Boolean(message)),
+    ) as Record<string, string>;
+    setFormErrors(next);
+    return Object.keys(next).length === 0;
+  }
   async function save() {
+    let valid = true;
+    if (modal === 'rules')
+      valid = validate({
+        name: name.trim() ? undefined : 'Nama aturan wajib diisi.',
+        category: category.trim() ? undefined : 'Kategori wajib diisi.',
+        points:
+          Number(points) >= 1 && Number(points) <= 1000
+            ? undefined
+            : 'Bobot harus antara 1–1000 poin.',
+      });
+    if (modal === 'policies')
+      valid = validate({
+        name: name.trim() ? undefined : 'Tindak lanjut wajib diisi.',
+        points:
+          Number(points) >= 1 && Number(points) <= 10000
+            ? undefined
+            : 'Ambang harus antara 1–10000 poin.',
+      });
+    if (modal === 'entries')
+      valid = validate({
+        student: pickedStudent ? undefined : 'Pilih murid terlebih dahulu.',
+        semester: term ? undefined : 'Pilih semester.',
+        rule: ruleId ? undefined : 'Pilih aturan poin.',
+        date: date ? undefined : 'Tanggal kejadian wajib diisi.',
+        note: note.trim() ? undefined : 'Catatan wajib diisi.',
+      });
+    if (modal === 'cases')
+      valid = validate({
+        student: pickedStudent ? undefined : 'Pilih murid terlebih dahulu.',
+        semester: term ? undefined : 'Pilih semester.',
+        name: name.trim() ? undefined : 'Judul pembinaan wajib diisi.',
+        note: note.trim() ? undefined : 'Catatan wajib diisi.',
+      });
+    if (!valid) return;
     await perform(async () => {
       if (modal === 'rules')
         return api(`rules${selected ? '/' + selected.id : ''}`, selected ? 'PATCH' : 'POST', {
@@ -275,8 +358,7 @@ export function PointManager() {
           is_active: active,
         });
       if (modal === 'entries') {
-        if (!pickedStudent || !term || !ruleId)
-          throw new Error('Pilih murid, semester, dan aturan.');
+        if (!pickedStudent || !term || !ruleId) return;
         const entry = await api<Row>('entries', 'POST', {
           student_id: pickedStudent.id,
           semester_id: term,
@@ -302,7 +384,7 @@ export function PointManager() {
         return entry;
       }
       if (modal === 'cases') {
-        if (!pickedStudent || !term) throw new Error('Pilih murid dan semester.');
+        if (!pickedStudent || !term) return;
         return api('cases', 'POST', {
           student_id: pickedStudent.id,
           semester_id: term,
@@ -383,6 +465,8 @@ export function PointManager() {
           setTab(v || 'entries');
           setPage(1);
           setStatus(null);
+          setRuleKindFilter(null);
+          setPolicySearch('');
           setResult({ rows: [], total: 0, page: 1, page_size: 20 });
         }}
       >
@@ -395,110 +479,143 @@ export function PointManager() {
         </Tabs.List>
       </Tabs>
       <Paper withBorder p="md">
-        <Group align="end">
-          {['entries', 'summary', 'cases'].includes(tab) && (
-            <StudentPicker
-              selected={filterStudent}
-              required={false}
-              onChange={(row) => {
-                setFilterStudent(row);
-                setPage(1);
-              }}
-            />
-          )}
-          {['entries', 'summary', 'cases'].includes(tab) && (
-            <Select
-              label="Semester"
-              placeholder="Pilih semester"
-              value={term}
-              onChange={(v) => {
-                setTerm(v);
-                setPage(1);
-              }}
-              data={
-                options?.semesters.map((s) => ({
-                  value: value(s, 'id'),
-                  label: `${s.academic_year_name} · ${s.name}`,
-                })) || []
-              }
-            />
-          )}
-          {['entries', 'summary'].includes(tab) && (
-            <Select
-              label="Kelas"
-              clearable
-              placeholder="Semua yang dapat diakses"
-              value={classId}
-              onChange={(v) => {
-                setClassId(v);
-                setPage(1);
-              }}
-              data={(options?.classes || [])
-                .filter(
-                  (c) =>
-                    tab !== 'summary' ||
-                    canManage ||
-                    c.id === options?.capabilities.homeroom_class_id,
-                )
-                .map((c) => ({ value: value(c, 'id'), label: value(c, 'name') }))}
-            />
-          )}
-          {['entries', 'cases'].includes(tab) && (
-            <Select
-              label="Status"
-              clearable
-              placeholder="Semua status"
-              value={status}
-              onChange={(v) => {
-                setStatus(v);
-                setPage(1);
-              }}
-              data={statuses.map((s) => ({ value: s, label: labels[s] }))}
-            />
-          )}
-          {tab === 'entries' && (
-            <Select
-              label="Cakupan"
-              value={scope}
-              onChange={(v) => {
-                setScope(v || 'accessible');
-                setPage(1);
-              }}
-              data={[
-                { value: 'accessible', label: 'Semua yang dapat diakses' },
-                { value: 'mine', label: 'Pengajuan saya' },
-                ...(options?.capabilities.homeroom_class_id
-                  ? [{ value: 'homeroom', label: 'Kelas wali saya' }]
-                  : []),
-              ]}
-            />
-          )}
-          <Button variant="light" loading={loading} onClick={reload}>
-            Perbarui
-          </Button>
-          {['entries', 'summary'].includes(tab) && (
-            <Button variant="default" loading={busy} onClick={exportReport}>
-              Ekspor Excel
+        <Stack gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+            {['entries', 'summary', 'cases'].includes(tab) && (
+              <StudentPicker
+                selected={filterStudent}
+                required={false}
+                onChange={(row) => {
+                  setFilterStudent(row);
+                  setPage(1);
+                }}
+              />
+            )}
+            {['entries', 'summary', 'cases'].includes(tab) && (
+              <Select
+                label="Semester"
+                placeholder="Pilih semester"
+                value={term}
+                onChange={(v) => {
+                  setTerm(v);
+                  setPage(1);
+                }}
+                data={
+                  options?.semesters.map((s) => ({
+                    value: value(s, 'id'),
+                    label: `${s.academic_year_name} · ${s.name}`,
+                  })) || []
+                }
+              />
+            )}
+            {['entries', 'summary'].includes(tab) && (
+              <Select
+                label="Kelas"
+                clearable
+                placeholder="Semua yang dapat diakses"
+                value={classId}
+                onChange={(v) => {
+                  setClassId(v);
+                  setPage(1);
+                }}
+                data={(options?.classes || [])
+                  .filter(
+                    (c) =>
+                      tab !== 'summary' ||
+                      canManage ||
+                      c.id === options?.capabilities.homeroom_class_id,
+                  )
+                  .map((c) => ({ value: value(c, 'id'), label: value(c, 'name') }))}
+              />
+            )}
+            {['entries', 'cases'].includes(tab) && (
+              <Select
+                label="Status"
+                clearable
+                placeholder="Semua status"
+                value={status}
+                onChange={(v) => {
+                  setStatus(v);
+                  setPage(1);
+                }}
+                data={statuses.map((s) => ({ value: s, label: labels[s] }))}
+              />
+            )}
+            {tab === 'entries' && (
+              <Select
+                label="Cakupan"
+                placeholder="Pilih cakupan data"
+                value={scope}
+                onChange={(v) => {
+                  setScope(v || 'accessible');
+                  setPage(1);
+                }}
+                data={[
+                  { value: 'accessible', label: 'Semua yang dapat diakses' },
+                  { value: 'mine', label: 'Pengajuan saya' },
+                  ...(options?.capabilities.homeroom_class_id
+                    ? [{ value: 'homeroom', label: 'Kelas wali saya' }]
+                    : []),
+                ]}
+              />
+            )}
+            {tab === 'rules' && (
+              <Select
+                label="Jenis aturan"
+                placeholder="Semua jenis aturan"
+                clearable
+                value={ruleKindFilter}
+                onChange={(value) => {
+                  setRuleKindFilter(value);
+                  setPage(1);
+                }}
+                data={[
+                  { value: 'appreciation', label: 'Apresiasi' },
+                  { value: 'violation', label: 'Pelanggaran' },
+                ]}
+              />
+            )}
+            {tab === 'policies' && (
+              <TextInput
+                label="Cari ambang pembinaan"
+                placeholder="Cari nama tindak lanjut"
+                value={policySearch}
+                onChange={(event) => {
+                  setPolicySearch(event.currentTarget.value);
+                  setPage(1);
+                }}
+                leftSection={<IconSearch size={16} />}
+              />
+            )}
+          </SimpleGrid>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="light" loading={loading} onClick={reload}>
+              Perbarui
             </Button>
-          )}
-          {canWrite && tab !== 'summary' && (
-            <Button
-              onClick={() => {
-                reset(tab);
-                if (tab === 'entries') loadRules().catch((e) => setError(e.message));
-              }}
-            >
-              Tambah{' '}
-              {tab === 'entries'
-                ? 'catatan'
-                : tab === 'cases'
-                  ? 'pembinaan'
-                  : tab === 'rules'
-                    ? 'aturan'
-                    : 'ambang'}
-            </Button>
-          )}
-        </Group>
+            {['entries', 'summary'].includes(tab) && (
+              <Button variant="default" loading={busy} onClick={exportReport}>
+                Ekspor Excel
+              </Button>
+            )}
+            {canWrite && tab !== 'summary' && (
+              <Button
+                onClick={() => {
+                  reset(tab);
+                  if (tab === 'entries') loadRules().catch((e) => setError(e.message));
+                }}
+              >
+                Tambah{' '}
+                {tab === 'entries'
+                  ? 'catatan'
+                  : tab === 'cases'
+                    ? 'pembinaan'
+                    : tab === 'rules'
+                      ? 'aturan'
+                      : 'ambang'}
+              </Button>
+            )}
+          </Group>
+        </Stack>
       </Paper>
       {tab === 'policies' && (
         <Text size="sm" c="dimmed">
@@ -506,22 +623,24 @@ export function PointManager() {
           semester. Pembatalan poin tidak menutup kasus secara otomatis.
         </Text>
       )}
-      <Paper withBorder p="md">
-        <Table.ScrollContainer minWidth={700}>
-          <Table striped highlightOnHover>
+      <Paper withBorder p={0} style={{ overflow: 'hidden' }}>
+        <Table.ScrollContainer minWidth={tab === 'entries' ? 960 : tab === 'cases' ? 840 : 720}>
+          <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover fz="xs">
             <Table.Thead>
               <Table.Tr>
                 {(tab === 'entries'
-                  ? ['Murid / kelas', 'Kejadian', 'Jenis / poin', 'Status', 'Pencatat', '']
+                  ? ['Murid / kelas', 'Kejadian', 'Jenis / poin', 'Status', 'Pencatat', 'Aksi']
                   : tab === 'summary'
                     ? ['Murid', 'NIS', 'Apresiasi', 'Pelanggaran', 'Pembinaan aktif']
                     : tab === 'cases'
-                      ? ['Murid', 'Pembinaan', 'Penanggung jawab', 'Status', 'Tenggat', '']
+                      ? ['Murid', 'Pembinaan', 'Penanggung jawab', 'Status', 'Tenggat', 'Aksi']
                       : tab === 'rules'
-                        ? ['Aturan', 'Kategori', 'Jenis', 'Poin', 'Status', '']
-                        : ['Tindak lanjut', 'Ambang', 'Status', '']
+                        ? ['Aturan', 'Kategori', 'Jenis', 'Poin', 'Status', 'Aksi']
+                        : ['Tindak lanjut', 'Ambang', 'Status', 'Aksi']
                 ).map((h, i) => (
-                  <Table.Th key={i}>{h}</Table.Th>
+                  <Table.Th key={i} ta={h === 'Aksi' ? 'right' : undefined}>
+                    {h.toUpperCase()}
+                  </Table.Th>
                 ))}
               </Table.Tr>
             </Table.Thead>
@@ -544,17 +663,19 @@ export function PointManager() {
                         {labels[value(row, 'kind')]} · {row.points}
                       </Table.Td>
                       <Table.Td>
-                        <Badge variant="light">{labels[value(row, 'status')]}</Badge>
+                        <StatusBadge status={value(row, 'status')} size="sm" />
                       </Table.Td>
                       <Table.Td>{row.created_by_name}</Table.Td>
-                      <Table.Td>
-                        <Button
-                          size="xs"
-                          variant="light"
+                      <Table.Td ta="right">
+                        <ActionIcon
+                          aria-label={`Lihat detail catatan ${row.student_name}`}
+                          title="Lihat detail"
+                          variant="subtle"
+                          color="blue"
                           onClick={() => openDetail(row, 'entries')}
                         >
-                          Detail
-                        </Button>
+                          <IconEye size={17} />
+                        </ActionIcon>
                       </Table.Td>
                     </>
                   ) : tab === 'summary' ? (
@@ -570,12 +691,20 @@ export function PointManager() {
                       <Table.Td>{row.student_name}</Table.Td>
                       <Table.Td>{row.title}</Table.Td>
                       <Table.Td>{row.responsible_name || 'Belum ditugaskan'}</Table.Td>
-                      <Table.Td>{labels[value(row, 'status')]}</Table.Td>
-                      <Table.Td>{row.due_date || '—'}</Table.Td>
                       <Table.Td>
-                        <Button size="xs" variant="light" onClick={() => openDetail(row, 'cases')}>
-                          Detail
-                        </Button>
+                        <StatusBadge status={value(row, 'status')} size="sm" />
+                      </Table.Td>
+                      <Table.Td>{row.due_date || '—'}</Table.Td>
+                      <Table.Td ta="right">
+                        <ActionIcon
+                          aria-label={`Lihat detail pembinaan ${row.student_name}`}
+                          title="Lihat detail"
+                          variant="subtle"
+                          color="blue"
+                          onClick={() => openDetail(row, 'cases')}
+                        >
+                          <IconEye size={17} />
+                        </ActionIcon>
                       </Table.Td>
                     </>
                   ) : (
@@ -588,12 +717,27 @@ export function PointManager() {
                         </>
                       )}
                       <Table.Td>{row.points ?? row.threshold}</Table.Td>
-                      <Table.Td>{row.is_active ? 'Aktif' : 'Nonaktif'}</Table.Td>
                       <Table.Td>
+                        <Badge
+                          color={row.is_active ? 'green' : 'gray'}
+                          variant="filled"
+                          size="sm"
+                          radius="sm"
+                        >
+                          {row.is_active ? 'Aktif' : 'Nonaktif'}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td ta="right">
                         {canWrite && (
-                          <Button size="xs" variant="light" onClick={() => reset(tab, row)}>
-                            Edit
-                          </Button>
+                          <ActionIcon
+                            aria-label={`Edit ${row.name}`}
+                            title="Edit"
+                            variant="subtle"
+                            color="gray"
+                            onClick={() => reset(tab, row)}
+                          >
+                            <IconPencil size={17} />
+                          </ActionIcon>
                         )}
                       </Table.Td>
                     </>
@@ -604,16 +748,26 @@ export function PointManager() {
           </Table>
         </Table.ScrollContainer>
         {!result.rows.length && (
-          <Text ta="center" c="dimmed" py="lg">
+          <Text ta="center" c="dimmed" py="xl" px="md">
             Belum ada data untuk filter ini.
           </Text>
         )}
-        <Group justify="space-between" mt="md">
-          <Text size="sm">{result.total} data</Text>
+        <Group
+          justify="space-between"
+          px={24}
+          py={18}
+          style={{ borderTop: '1px solid var(--app-color-border)' }}
+        >
+          <Text variant="label">
+            {result.total
+              ? `${(page - 1) * result.page_size + 1}–${Math.min(page * result.page_size, result.total)} dari ${result.total} data`
+              : '0 data'}
+          </Text>
           <Pagination
             value={page}
             onChange={setPage}
-            total={Math.max(1, Math.ceil(result.total / 20))}
+            total={Math.max(1, Math.ceil(result.total / result.page_size))}
+            size="sm"
           />
         </Group>
       </Paper>
@@ -637,14 +791,21 @@ export function PointManager() {
             <>
               <TextInput
                 label={modal === 'rules' ? 'Nama aturan' : 'Tindak lanjut'}
+                placeholder={
+                  modal === 'rules'
+                    ? 'Contoh: Datang tepat waktu'
+                    : 'Contoh: Konseling dengan wali kelas'
+                }
                 value={name}
                 onChange={(e) => setName(e.currentTarget.value)}
+                error={formErrors.name}
                 required
               />
               {modal === 'rules' && (
                 <>
                   <Select
                     label="Jenis"
+                    placeholder="Pilih jenis poin"
                     value={kind}
                     onChange={(v) => setKind(v || 'appreciation')}
                     data={[
@@ -654,18 +815,24 @@ export function PointManager() {
                   />
                   <TextInput
                     label="Kategori"
+                    placeholder="Contoh: Kedisiplinan"
                     value={category}
                     onChange={(e) => setCategory(e.currentTarget.value)}
+                    error={formErrors.category}
+                    required
                   />
                 </>
               )}
               <NumberInput
                 label={modal === 'rules' ? 'Bobot poin' : 'Ambang poin pelanggaran'}
+                placeholder="Masukkan jumlah poin"
                 min={1}
                 max={modal === 'rules' ? 1000 : 10000}
                 allowDecimal={false}
                 value={points}
                 onChange={setPoints}
+                error={formErrors.points}
+                required
               />
               <Switch
                 label="Aktif"
@@ -676,9 +843,14 @@ export function PointManager() {
           )}
           {(modal === 'entries' || modal === 'cases') && (
             <>
-              <StudentPicker selected={pickedStudent} onChange={setPickedStudent} />
+              <StudentPicker
+                selected={pickedStudent}
+                onChange={setPickedStudent}
+                validationError={formErrors.student}
+              />
               <Select
                 label="Semester"
+                placeholder="Pilih semester"
                 value={term}
                 onChange={setTerm}
                 data={
@@ -688,11 +860,13 @@ export function PointManager() {
                   })) || []
                 }
                 required
+                error={formErrors.semester}
               />
               {modal === 'entries' ? (
                 <>
                   <Select
                     label="Aturan poin"
+                    placeholder="Pilih aturan poin"
                     searchable
                     value={ruleId}
                     onChange={setRuleId}
@@ -701,16 +875,22 @@ export function PointManager() {
                       label: `${r.name} · ${labels[value(r, 'kind')]} ${r.points} poin`,
                     }))}
                     required
+                    error={formErrors.rule}
                   />
-                  <TextInput
-                    type="date"
+                  <DateInput
                     label="Tanggal kejadian"
-                    value={date}
-                    onChange={(e) => setDate(e.currentTarget.value)}
+                    placeholder="Pilih tanggal kejadian"
+                    value={date || null}
+                    onChange={(value) => setDate(value || '')}
+                    valueFormat="DD MMMM YYYY"
+                    locale="id"
+                    maxDate={new Date()}
                     required
+                    error={formErrors.date}
                   />
                   <FileInput
                     label="Bukti opsional (maks. 5 MB)"
+                    placeholder="Pilih gambar atau PDF"
                     accept="image/png,image/jpeg,image/webp,application/pdf"
                     value={attachment}
                     onChange={setAttachment}
@@ -721,13 +901,16 @@ export function PointManager() {
                 <>
                   <TextInput
                     label="Judul pembinaan"
+                    placeholder="Contoh: Pembinaan kedisiplinan"
                     value={name}
                     onChange={(e) => setName(e.currentTarget.value)}
                     required
+                    error={formErrors.name}
                   />
                   <TextInput
                     type="date"
                     label="Tenggat opsional"
+                    placeholder="Pilih tanggal tenggat"
                     value={due}
                     onChange={(e) => setDue(e.currentTarget.value)}
                   />
@@ -735,39 +918,117 @@ export function PointManager() {
               )}
               <Textarea
                 label="Catatan"
+                placeholder={
+                  modal === 'entries'
+                    ? 'Jelaskan kejadian yang dicatat'
+                    : 'Jelaskan tujuan atau konteks pembinaan'
+                }
                 value={note}
                 onChange={(e) => setNote(e.currentTarget.value)}
                 minRows={3}
                 required
+                error={formErrors.note}
               />
             </>
           )}
           {modal === 'entry-detail' && selected && (
             <>
-              <Text fw={600}>
-                {selected.student_name} · {selected.rule_name}
-              </Text>
-              <Text>
-                {labels[value(selected, 'kind')]} {selected.points} poin ·{' '}
-                {labels[value(selected, 'status')]} · {selected.occurred_on}
-              </Text>
-              <Text style={{ whiteSpace: 'pre-wrap' }}>{selected.note}</Text>
-              {!!selected.review_reason && <Text>Alasan verifikasi: {selected.review_reason}</Text>}
-              {!!selected.void_reason && <Text>Alasan pembatalan: {selected.void_reason}</Text>}
-              {attachments.map((file) => (
-                <Button
-                  key={value(file, 'id')}
-                  component="a"
-                  variant="light"
-                  href={`${base}/entries/${selected.id}/attachments/${file.id}`}
-                >
-                  Unduh {file.original_name}
-                </Button>
-              ))}
+              <Paper withBorder p="md" radius="md" bg="var(--mantine-color-gray-0)">
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <div>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                      Catatan poin murid
+                    </Text>
+                    <Title order={4} mt={4}>
+                      {selected.student_name}
+                    </Title>
+                    <Text c="dimmed" mt={2}>
+                      {selected.class_name || 'Kelas tidak tercatat'}
+                    </Text>
+                  </div>
+                  <StatusBadge status={value(selected, 'status')} />
+                </Group>
+                <Divider my="md" />
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                  <div>
+                    <Group gap={6} c="dimmed">
+                      <IconFileDescription size={16} />
+                      <Text size="xs" fw={700} tt="uppercase">
+                        Aturan poin
+                      </Text>
+                    </Group>
+                    <Text fw={600} mt={3}>
+                      {selected.rule_name}
+                    </Text>
+                    <Badge
+                      mt={6}
+                      color={value(selected, 'kind') === 'violation' ? 'red' : 'teal'}
+                      variant="light"
+                    >
+                      {labels[value(selected, 'kind')]} · {selected.points} poin
+                    </Badge>
+                  </div>
+                  <div>
+                    <Group gap={6} c="dimmed">
+                      <IconCalendar size={16} />
+                      <Text size="xs" fw={700} tt="uppercase">
+                        Tanggal kejadian
+                      </Text>
+                    </Group>
+                    <Text fw={600} mt={3}>
+                      {selected.occurred_on}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      Dicatat oleh {selected.created_by_name || '—'}
+                    </Text>
+                  </div>
+                </SimpleGrid>
+              </Paper>
+              <Paper withBorder p="md" radius="md">
+                <Text size="sm" fw={700} mb={6}>
+                  Catatan kejadian
+                </Text>
+                <Text style={{ whiteSpace: 'pre-wrap' }}>{selected.note}</Text>
+              </Paper>
+              {!!selected.review_reason && (
+                <Alert color="blue" title="Alasan verifikasi">
+                  {selected.review_reason}
+                </Alert>
+              )}
+              {!!selected.void_reason && (
+                <Alert color="gray" title="Alasan pembatalan">
+                  {selected.void_reason}
+                </Alert>
+              )}
+              {!!attachments.length && (
+                <Paper withBorder p="md" radius="md">
+                  <Group gap={6} mb="sm">
+                    <IconPaperclip size={17} />
+                    <Text size="sm" fw={700}>
+                      Bukti lampiran ({attachments.length})
+                    </Text>
+                  </Group>
+                  <Stack gap="xs">
+                    {attachments.map((file) => (
+                      <Button
+                        key={value(file, 'id')}
+                        component="a"
+                        variant="light"
+                        justify="space-between"
+                        rightSection={<IconPaperclip size={16} />}
+                        href={`${base}/entries/${selected.id}/attachments/${file.id}`}
+                      >
+                        {file.original_name}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Paper>
+              )}
               {canWrite && !!selected.can_attach && (
                 <>
                   <FileInput
                     label="Tambah bukti (pencatat saja, maksimal 3 file)"
+                    placeholder="Pilih gambar atau PDF"
                     accept="image/png,image/jpeg,image/webp,application/pdf"
                     value={attachment}
                     onChange={setAttachment}
@@ -795,8 +1056,10 @@ export function PointManager() {
                   <>
                     <Textarea
                       label="Alasan (wajib untuk penolakan/pembatalan)"
+                      placeholder="Tuliskan alasan penolakan atau pembatalan"
                       value={reason}
                       onChange={(e) => setReason(e.currentTarget.value)}
+                      error={formErrors.reason}
                     />
                     <Group>
                       {(selected.status === 'pending' ? ['approve', 'reject'] : ['void']).map(
@@ -805,11 +1068,18 @@ export function PointManager() {
                             key={action}
                             color={action === 'approve' ? 'green' : 'red'}
                             loading={busy}
-                            onClick={() =>
+                            onClick={() => {
+                              if (
+                                action !== 'approve' &&
+                                !validate({
+                                  reason: reason.trim() ? undefined : 'Alasan wajib diisi.',
+                                })
+                              )
+                                return;
                               perform(() =>
                                 api(`entries/${selected.id}/${action}`, 'POST', { reason }),
-                              )
-                            }
+                              );
+                            }}
                           >
                             {action === 'approve'
                               ? 'Sahkan'
@@ -826,15 +1096,57 @@ export function PointManager() {
           )}
           {modal === 'case-detail' && selected && (
             <>
-              <Text fw={600}>
-                {selected.student_name} · {selected.title}
-              </Text>
-              <Text>{selected.note}</Text>
-              <Text size="sm">
-                Penanggung jawab: {selected.responsible_name || 'Belum ditugaskan'}
-              </Text>
+              <Paper withBorder p="md" radius="md" bg="var(--mantine-color-blue-0)">
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <div>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                      Pembinaan murid
+                    </Text>
+                    <Title order={4} mt={4}>
+                      {selected.student_name}
+                    </Title>
+                    <Text c="dimmed" mt={2}>
+                      {selected.title}
+                    </Text>
+                  </div>
+                  <StatusBadge status={value(selected, 'status')} />
+                </Group>
+                <Divider my="md" />
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                  <div>
+                    <Group gap={6} c="dimmed">
+                      <IconUser size={16} />
+                      <Text size="xs" fw={700} tt="uppercase">
+                        Penanggung jawab
+                      </Text>
+                    </Group>
+                    <Text fw={600} mt={3}>
+                      {selected.responsible_name || 'Belum ditugaskan'}
+                    </Text>
+                  </div>
+                  <div>
+                    <Group gap={6} c="dimmed">
+                      <IconCalendar size={16} />
+                      <Text size="xs" fw={700} tt="uppercase">
+                        Tenggat
+                      </Text>
+                    </Group>
+                    <Text fw={600} mt={3}>
+                      {selected.due_date || 'Belum ditentukan'}
+                    </Text>
+                  </div>
+                </SimpleGrid>
+              </Paper>
+              <Paper withBorder p="md" radius="md">
+                <Text size="sm" fw={700} mb={6}>
+                  Konteks pembinaan
+                </Text>
+                <Text style={{ whiteSpace: 'pre-wrap' }}>{selected.note}</Text>
+              </Paper>
+              <Divider label="Perbarui pembinaan" labelPosition="center" />
               <Select
                 label="Status"
+                placeholder="Pilih status pembinaan"
                 value={caseStatus}
                 onChange={(v) => setCaseStatus(v || 'open')}
                 data={['open', 'in_progress', 'resolved'].map((s) => ({
@@ -845,13 +1157,16 @@ export function PointManager() {
               <TextInput
                 type="date"
                 label="Tenggat"
+                placeholder="Pilih tanggal tenggat"
                 value={due}
                 onChange={(e) => setDue(e.currentTarget.value)}
               />
               <Textarea
                 label="Hasil pembinaan (wajib saat selesai)"
+                placeholder="Tuliskan hasil atau kesepakatan pembinaan"
                 value={reason}
                 onChange={(e) => setReason(e.currentTarget.value)}
+                error={formErrors.resolution}
               />
               <Switch
                 label="Jadikan saya penanggung jawab"
@@ -861,7 +1176,16 @@ export function PointManager() {
               {canWrite && (
                 <Button
                   loading={busy}
-                  onClick={() =>
+                  onClick={() => {
+                    if (
+                      caseStatus === 'resolved' &&
+                      !validate({
+                        resolution: reason.trim()
+                          ? undefined
+                          : 'Hasil pembinaan wajib diisi saat status selesai.',
+                      })
+                    )
+                      return;
                     perform(() =>
                       api(`cases/${selected.id}`, 'PATCH', {
                         status: caseStatus,
@@ -869,38 +1193,57 @@ export function PointManager() {
                         resolution: reason,
                         ...(assign ? { assign_to_me: true } : {}),
                       }),
-                    )
-                  }
+                    );
+                  }}
                 >
                   Simpan pembinaan
                 </Button>
               )}
-              <Title order={5}>Riwayat tindak lanjut</Title>
+              <Divider label="Riwayat tindak lanjut" labelPosition="center" />
               {activities.map((item) => (
-                <Paper key={value(item, 'id')} withBorder p="sm">
-                  <Text size="xs" c="dimmed">
-                    {item.created_by_name} · {item.created_at}
+                <Paper key={value(item, 'id')} withBorder p="md" radius="md">
+                  <Group justify="space-between" mb={6}>
+                    <Text size="sm" fw={600}>
+                      {item.created_by_name}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {item.created_at}
+                    </Text>
+                  </Group>
+                  <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                    {item.note}
                   </Text>
-                  <Text style={{ whiteSpace: 'pre-wrap' }}>{item.note}</Text>
                 </Paper>
               ))}
-              {!activities.length && <Text c="dimmed">Belum ada aktivitas.</Text>}
+              {!activities.length && (
+                <Text ta="center" c="dimmed" py="sm">
+                  Belum ada aktivitas tindak lanjut.
+                </Text>
+              )}
               {canWrite && (
                 <>
                   <Textarea
                     label="Catatan tindak lanjut"
+                    placeholder="Tuliskan perkembangan atau tindak lanjut"
                     value={note}
                     onChange={(e) => setNote(e.currentTarget.value)}
+                    error={formErrors.activity}
                   />
                   <Button
                     variant="light"
                     loading={busy}
-                    onClick={() =>
+                    onClick={() => {
+                      if (
+                        !validate({
+                          activity: note.trim() ? undefined : 'Catatan tindak lanjut wajib diisi.',
+                        })
+                      )
+                        return;
                       perform(async () => {
                         await api(`cases/${selected.id}/activities`, 'POST', { note });
                         await openDetail(selected, 'cases');
-                      }, true)
-                    }
+                      }, true);
+                    }}
                   >
                     Tambah aktivitas
                   </Button>
