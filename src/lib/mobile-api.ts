@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { ZodError } from 'zod';
 import { can } from '@/config/modules';
 import { db } from '@/lib/db';
+import { deactivateSessionPushTokens } from '@/lib/notifications/push';
 
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -106,6 +107,15 @@ export function createMobileSession(userId: string, device: { id?: string; name?
   const deviceId = (device.id || '').trim();
   const deviceName = (device.name || '').trim();
   db().transaction(() => {
+    db()
+      .prepare(
+        `UPDATE mobile_push_tokens SET active=0
+         WHERE mobile_session_id IN (
+           SELECT id FROM mobile_sessions
+           WHERE user_id=? AND device_id=? AND device_id<>'' AND revoked_at IS NULL
+         )`,
+      )
+      .run(userId, deviceId);
     db()
       .prepare(
         "UPDATE mobile_sessions SET revoked_at=? WHERE user_id=? AND device_id=? AND device_id<>'' AND revoked_at IS NULL",
@@ -231,13 +241,26 @@ export function requireMobileTeacher(
 }
 
 export function revokeMobileSession(sessionId: string) {
-  db()
-    .prepare('UPDATE mobile_sessions SET revoked_at=? WHERE id=? AND revoked_at IS NULL')
-    .run(Date.now(), sessionId);
+  db().transaction(() => {
+    deactivateSessionPushTokens(sessionId);
+    db()
+      .prepare('UPDATE mobile_sessions SET revoked_at=? WHERE id=? AND revoked_at IS NULL')
+      .run(Date.now(), sessionId);
+  })();
 }
 
 export function revokeAllMobileSessions(userId: string) {
-  db()
-    .prepare('UPDATE mobile_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL')
-    .run(Date.now(), userId);
+  db().transaction(() => {
+    db()
+      .prepare(
+        `UPDATE mobile_push_tokens SET active=0
+         WHERE user_id=? AND mobile_session_id IN (
+           SELECT id FROM mobile_sessions WHERE user_id=? AND revoked_at IS NULL
+         )`,
+      )
+      .run(userId, userId);
+    db()
+      .prepare('UPDATE mobile_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL')
+      .run(Date.now(), userId);
+  })();
 }

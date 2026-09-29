@@ -8,7 +8,12 @@ import { spawn } from 'node:child_process';
 import { setTimeout } from 'node:timers/promises';
 import { tokenHash } from '../src/lib/auth';
 import { db } from '../src/lib/db';
-import { createMobileSession } from '../src/lib/mobile-api';
+import { createMobileSession, requireMobileTeacher } from '../src/lib/mobile-api';
+import {
+  deactivateSessionPushTokens,
+  flushPushNotificationOutbox,
+  registerPushToken,
+} from '../src/lib/notifications/push';
 import { mobileHandler, webHandler } from '../src/features/points/server/handlers';
 import * as points from '../src/features/points/server/service';
 
@@ -132,6 +137,93 @@ test('guru mencari identitas minimal lintas kelas, tanpa riwayat dan data pribad
     () => points.saveMaster(reporter, 'rules', { name: 'Bebas', kind: 'violation', points: 999 }),
     /pengelola/,
   );
+});
+test('pengajuan poin membuat dan mengirim push aman untuk wali kelas', async () => {
+  const session = createMobileSession(wali.user_id, { id: 'wali-push-test' });
+  const mobileActor = requireMobileTeacher(
+    new Request('http://localhost/api/v1/me', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }),
+  );
+  registerPushToken(mobileActor, {
+    token: 'ExponentPushToken[points-test-device]',
+    platform: 'android',
+  });
+  const created = points.createEntry(reporter, entry());
+  const notification = sql
+    .prepare(
+      `SELECT o.title,o.body,o.data_json
+       FROM push_notification_outbox o
+       JOIN mobile_push_tokens t ON t.id=o.token_id
+       WHERE t.user_id=? AND o.event_key=?`,
+    )
+    .get(wali.user_id, `point-entry-pending:${String(created.entry.id)}`) as {
+    title: string;
+    body: string;
+    data_json: string;
+  };
+  assert.equal(notification.title, 'Pengajuan poin baru');
+  assert.match(notification.body, /Andi/);
+  assert.doesNotMatch(notification.body, /Kejadian sudah diperiksa/);
+  assert.deepEqual(JSON.parse(notification.data_json), {
+    type: 'point_entry',
+    entry_id: created.entry.id,
+  });
+  registerPushToken(mobileActor, {
+    token: 'ExponentPushToken[points-test-device]',
+    platform: 'android',
+  });
+  assert.equal(
+    (
+      sql
+        .prepare('SELECT status FROM push_notification_outbox WHERE event_key=?')
+        .get(`point-entry-pending:${String(created.entry.id)}`) as { status: string }
+    ).status,
+    'pending',
+  );
+  const originalFetch = globalThis.fetch;
+  let sentPayload: unknown;
+  globalThis.fetch = async (_input, init) => {
+    sentPayload = JSON.parse(String(init?.body));
+    return Response.json({ data: [{ status: 'ok', id: 'expo-ticket' }] });
+  };
+  try {
+    await flushPushNotificationOutbox();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(
+    (
+      sql
+        .prepare('SELECT status FROM push_notification_outbox WHERE event_key=?')
+        .get(`point-entry-pending:${String(created.entry.id)}`) as { status: string }
+    ).status,
+    'sent',
+  );
+  assert.doesNotMatch(JSON.stringify(sentPayload), /Kejadian sudah diperiksa/);
+  const invalidCredentialsEntry = points.createEntry(reporter, entry());
+  globalThis.fetch = async () =>
+    Response.json({
+      data: [
+        {
+          status: 'error',
+          message: 'Unable to retrieve the FCM server key.',
+          details: { error: 'InvalidCredentials' },
+        },
+      ],
+    });
+  try {
+    await flushPushNotificationOutbox();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.deepEqual(
+    sql
+      .prepare('SELECT status,attempts,last_error FROM push_notification_outbox WHERE event_key=?')
+      .get(`point-entry-pending:${String(invalidCredentialsEntry.entry.id)}`),
+    { status: 'failed', attempts: 5, last_error: 'InvalidCredentials' },
+  );
+  deactivateSessionPushTokens(mobileActor.session_id);
 });
 test('pengajuan, idempotensi, snapshot bobot, verifikasi, dan ambang hanya sekali', () => {
   const input = entry();

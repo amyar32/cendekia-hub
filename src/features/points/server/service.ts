@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { can } from '@/config/modules';
 import { audit, db } from '@/lib/db';
 import { MobileApiError } from '@/lib/mobile-api';
+import { queuePushNotification } from '@/lib/notifications/push';
 import { isoDateSchema } from '@/lib/validation';
 import { schoolLocalDate } from '@/lib/server/academic-context';
 
@@ -328,8 +329,10 @@ function makeThresholdCases(a: PointActor, studentId: string, semesterId: string
   const policies = db()
     .prepare('SELECT * FROM coaching_policies WHERE school_id=? AND is_active=1 AND threshold<=?')
     .all(a.school_id, total) as Row[];
+  const studentName = String(student(a, studentId).name);
   for (const policy of policies) {
     const id = randomUUID();
+    const responsible = responsibleUser(a, studentId);
     const result = db()
       .prepare(
         `INSERT OR IGNORE INTO student_coaching_cases(id,school_id,student_id,semester_id,policy_id,title,note,responsible_user_id,created_by) VALUES (?,?,?,?,?,?,?,?,?)`,
@@ -342,24 +345,34 @@ function makeThresholdCases(a: PointActor, studentId: string, semesterId: string
         policy.id,
         policy.name,
         `Ambang ${policy.threshold} poin tercapai (total ${total}).`,
-        responsibleUser(a, studentId),
+        responsible,
         a.user_id,
       );
-    if (result.changes)
+    if (result.changes) {
       audit(a.email, 'create', 'student_coaching_cases', id, {
         policy_id: policy.id,
         student_id: studentId,
         total,
       });
+      queuePushNotification({
+        recipientUserId: responsible,
+        excludeUserId: a.user_id,
+        eventKey: `coaching-case-created:${id}`,
+        type: 'coaching_case',
+        title: 'Pembinaan baru',
+        body: `${studentName} mencapai ambang pembinaan yang perlu ditindaklanjuti.`,
+        data: { case_id: id },
+      });
+    }
   }
 }
-function responsibleUser(a: PointActor, studentId: string) {
+function responsibleUser(a: PointActor, studentId: string): string | null {
   const row = db()
     .prepare(
       `SELECT t.user_id FROM class_memberships cm JOIN academic_years y ON y.id=cm.academic_year_id JOIN homeroom_assignments h ON h.class_id=cm.class_id AND h.academic_year_id=y.id JOIN teachers t ON t.id=h.teacher_id JOIN users u ON u.id=t.user_id WHERE cm.student_id=? AND cm.status='active' AND y.is_active=1 AND y.school_id=? AND t.is_active=1 AND u.active=1`,
     )
     .get(studentId, a.school_id) as Row | undefined;
-  return row?.user_id || null;
+  return row?.user_id ? String(row.user_id) : null;
 }
 export function createEntry(a: PointActor, input: unknown) {
   requireWrite(a);
@@ -376,7 +389,7 @@ export function createEntry(a: PointActor, input: unknown) {
         fail(409, 'IDEMPOTENCY_CONFLICT', 'ID pengiriman sudah digunakan dengan isi berbeda.');
       return { entry: entryDetail(a, String(previous.id)), replayed: true };
     }
-    student(a, data.student_id, true);
+    const targetStudent = student(a, data.student_id, true);
     const term = semester(a, data.semester_id);
     if (!term.year_active)
       fail(409, 'ACADEMIC_YEAR_INACTIVE', 'Pencatatan hanya untuk tahun ajaran aktif.');
@@ -425,6 +438,16 @@ export function createEntry(a: PointActor, input: unknown) {
       status: approved ? 'approved' : 'pending',
       points: rule.points,
     });
+    if (!approved)
+      queuePushNotification({
+        recipientUserId: responsibleUser(a, data.student_id),
+        excludeUserId: a.user_id,
+        eventKey: `point-entry-pending:${id}`,
+        type: 'point_entry',
+        title: 'Pengajuan poin baru',
+        body: `${String(targetStudent.name)} memiliki pengajuan ${String(rule.name)} yang menunggu verifikasi.`,
+        data: { entry_id: id },
+      });
     if (approved) makeThresholdCases(a, data.student_id, data.semester_id);
     return { entry: entryDetail(a, id), replayed: false };
   })();
@@ -460,6 +483,20 @@ export function reviewEntry(
         )
         .run(action === 'approve' ? 'approved' : 'rejected', a.user_id, data.reason, id);
     audit(a.email, action, 'student_point_entries', id, data);
+    queuePushNotification({
+      recipientUserId: String(row.created_by),
+      excludeUserId: a.user_id,
+      eventKey: `point-entry-${action}:${id}`,
+      type: 'point_entry',
+      title:
+        action === 'approve'
+          ? 'Pengajuan poin disetujui'
+          : action === 'reject'
+            ? 'Pengajuan poin ditolak'
+            : 'Catatan poin dibatalkan',
+      body: `Status catatan ${String(row.rule_name)} untuk ${String(row.student_name)} telah diperbarui.`,
+      data: { entry_id: id },
+    });
     if (action === 'approve')
       makeThresholdCases(a, String(row.student_id), String(row.semester_id));
     return entryDetail(a, id);
@@ -553,6 +590,7 @@ export function createCase(a: PointActor, input: unknown) {
   semester(a, data.semester_id);
   return db().transaction(() => {
     const id = randomUUID();
+    const responsible = responsibleUser(a, data.student_id);
     db()
       .prepare(
         `INSERT INTO student_coaching_cases(id,school_id,student_id,semester_id,title,note,due_date,responsible_user_id,created_by) VALUES (?,?,?,?,?,?,?,?,?)`,
@@ -565,10 +603,19 @@ export function createCase(a: PointActor, input: unknown) {
         data.title,
         data.note,
         data.due_date || null,
-        responsibleUser(a, data.student_id),
+        responsible,
         a.user_id,
       );
     audit(a.email, 'create', 'student_coaching_cases', id, data);
+    queuePushNotification({
+      recipientUserId: responsible,
+      excludeUserId: a.user_id,
+      eventKey: `coaching-case-created:${id}`,
+      type: 'coaching_case',
+      title: 'Pembinaan baru',
+      body: `${String(student(a, data.student_id).name)} memiliki pembinaan baru.`,
+      data: { case_id: id },
+    });
     return caseDetail(a, id);
   })();
 }
@@ -602,6 +649,15 @@ export function updateCase(a: PointActor, id: string, input: unknown) {
         id,
       );
     audit(a.email, 'update', 'student_coaching_cases', id, { before: row, changes: data });
+    queuePushNotification({
+      recipientUserId: data.assign_to_me ? a.user_id : String(row.responsible_user_id || ''),
+      excludeUserId: a.user_id,
+      eventKey: `coaching-case-updated:${id}:${randomUUID()}`,
+      type: 'coaching_case',
+      title: 'Pembinaan diperbarui',
+      body: `Pembinaan ${String(row.student_name)} telah diperbarui.`,
+      data: { case_id: id },
+    });
     return caseDetail(a, id);
   })();
 }
@@ -609,12 +665,21 @@ export function addActivity(a: PointActor, id: string, input: unknown) {
   requireWrite(a);
   const data = z.object({ note: text }).strict().parse(input);
   return db().transaction(() => {
-    getCase(a, id);
+    const coachingCase = getCase(a, id);
     const activityId = randomUUID();
     db()
       .prepare('INSERT INTO coaching_activities(id,case_id,note,created_by) VALUES (?,?,?,?)')
       .run(activityId, id, data.note, a.user_id);
     audit(a.email, 'create', 'coaching_activities', activityId, { case_id: id });
+    queuePushNotification({
+      recipientUserId: String(coachingCase.responsible_user_id || ''),
+      excludeUserId: a.user_id,
+      eventKey: `coaching-activity-created:${activityId}`,
+      type: 'coaching_case',
+      title: 'Aktivitas pembinaan baru',
+      body: `Tindak lanjut untuk ${String(coachingCase.student_name)} telah ditambahkan.`,
+      data: { case_id: id },
+    });
     return caseDetail(a, id);
   })();
 }

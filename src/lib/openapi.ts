@@ -652,8 +652,44 @@ export const openApiDocument = {
         security: bearer,
         parameters: [sessionId],
         responses: {
-          '200': successResponse('Sesi dan catatan absensi murid kelas wali.', examples.lessonDetail),
+          '200': successResponse(
+            'Sesi dan catatan absensi murid kelas wali.',
+            examples.lessonDetail,
+          ),
           '404': errorResponse,
+        },
+      },
+    },
+    '/me/push-token': {
+      put: {
+        tags: ['Profile'],
+        summary: 'Daftarkan token push perangkat aktif',
+        security: bearer,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/PushTokenRequest' } },
+          },
+        },
+        responses: {
+          '200': successResponse('Token push terdaftar.', {
+            data: { registered: true },
+            meta: {},
+          }),
+          '400': errorResponse,
+          '401': errorResponse,
+        },
+      },
+      delete: {
+        tags: ['Profile'],
+        summary: 'Nonaktifkan token push perangkat aktif',
+        security: bearer,
+        responses: {
+          '200': successResponse('Token push dinonaktifkan.', {
+            data: { registered: false },
+            meta: {},
+          }),
+          '401': errorResponse,
         },
       },
     },
@@ -989,6 +1025,19 @@ export const openApiDocument = {
         properties: {
           current_password: { type: 'string', format: 'password' },
           new_password: { type: 'string', format: 'password', minLength: 12 },
+        },
+      },
+      PushTokenRequest: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['token', 'platform'],
+        properties: {
+          token: {
+            type: 'string',
+            maxLength: 512,
+            example: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+          },
+          platform: { type: 'string', enum: ['android', 'ios'] },
         },
       },
       OpenSessionRequest: {

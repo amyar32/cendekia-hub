@@ -1207,6 +1207,44 @@ export function db() {
     })();
   }
   if (schemaVersion < 55) migratePoints(connection);
+  if (schemaVersion < 56) {
+    connection.transaction(() => {
+      connection.exec(`
+        CREATE TABLE mobile_push_tokens (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          mobile_session_id TEXT NOT NULL REFERENCES mobile_sessions(id) ON DELETE CASCADE,
+          expo_push_token TEXT NOT NULL UNIQUE,
+          platform TEXT NOT NULL CHECK(platform IN ('android','ios')),
+          active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+          last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX mobile_push_tokens_user ON mobile_push_tokens(user_id,active);
+        CREATE INDEX mobile_push_tokens_session ON mobile_push_tokens(mobile_session_id,active);
+        CREATE TABLE push_notification_outbox (
+          id TEXT PRIMARY KEY,
+          token_id TEXT NOT NULL REFERENCES mobile_push_tokens(id) ON DELETE CASCADE,
+          event_key TEXT NOT NULL,
+          notification_type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          data_json TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed')),
+          attempts INTEGER NOT NULL DEFAULT 0,
+          available_at INTEGER NOT NULL,
+          processing_at INTEGER,
+          sent_at TEXT,
+          last_error TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE(token_id,event_key)
+        );
+        CREATE INDEX push_notification_outbox_pending
+          ON push_notification_outbox(status,available_at,created_at);
+      `);
+      connection.pragma('user_version = 56');
+    })();
+  }
   globalDb.cmsDb = connection;
   return connection;
 }

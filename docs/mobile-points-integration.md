@@ -4,6 +4,7 @@ Panduan ini merupakan kontrak implementasi REST API yang tersedia, bukan rencana
 Base URL: `/api/v1/points`. Swagger: `/docs` (tag **Points**).
 OpenAPI untuk Postman/generator klien: `/api/v1/openapi.json`.
 Autentikasi dan refresh token mengikuti [REST API aplikasi guru](mobile-api.md).
+Registrasi token dan deep-link push mengikuti bagian **Push notification** pada panduan API mobile.
 Tidak ada role atau alur BK, katalog hadiah, penukaran poin, maupun poin otomatis dari check-in.
 
 ## Persiapan admin

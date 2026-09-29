@@ -54,11 +54,23 @@ test('database lama dimigrasikan sampai skema mobile API dan role terbaru', () =
     assert.ok(columns.some((column) => column.name === 'province_code'));
     assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 55);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 56);
     assert.ok(
       migrated
         .prepare(
           "SELECT name FROM sqlite_master WHERE type='table' AND name='student_point_entries'",
+        )
+        .get(),
+    );
+    assert.ok(
+      migrated
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='mobile_push_tokens'")
+        .get(),
+    );
+    assert.ok(
+      migrated
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='push_notification_outbox'",
         )
         .get(),
     );

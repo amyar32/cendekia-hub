@@ -80,16 +80,38 @@ berlaku setelah digunakan.
 
 ## Profil dan data guru
 
-| Method | Endpoint                                             | Keterangan                                          |
-| ------ | ---------------------------------------------------- | --------------------------------------------------- |
-| `GET`  | `/api/v1/me`                                         | Profil akun, guru, dan sekolah                      |
-| `GET`  | `/api/v1/me/schedule?date=YYYY-MM-DD`                | Gabungan jadwal pelajaran dan ekstrakurikuler       |
-| `GET`  | `/api/v1/me/check-ins?from=YYYY-MM-DD&to=YYYY-MM-DD` | Riwayat check-in, maksimal 100 baris                |
-| `GET`  | `/api/v1/me/homeroom`                                | Deteksi penugasan wali kelas aktif                  |
-| `GET`  | `/api/v1/classes`                                    | Rombel yang diajar atau diwalikan pada tahun aktif  |
-| `GET`  | `/api/v1/classes/:classId/students`                  | Daftar minimal murid pada rombel yang boleh diakses |
+| Method   | Endpoint                                             | Keterangan                                          |
+| -------- | ---------------------------------------------------- | --------------------------------------------------- |
+| `GET`    | `/api/v1/me`                                         | Profil akun, guru, dan sekolah                      |
+| `GET`    | `/api/v1/me/schedule?date=YYYY-MM-DD`                | Gabungan jadwal pelajaran dan ekstrakurikuler       |
+| `GET`    | `/api/v1/me/check-ins?from=YYYY-MM-DD&to=YYYY-MM-DD` | Riwayat check-in, maksimal 100 baris                |
+| `GET`    | `/api/v1/me/homeroom`                                | Deteksi penugasan wali kelas aktif                  |
+| `PUT`    | `/api/v1/me/push-token`                              | Daftarkan token Expo Push untuk sesi aktif          |
+| `DELETE` | `/api/v1/me/push-token`                              | Nonaktifkan token push untuk sesi aktif             |
+| `GET`    | `/api/v1/classes`                                    | Rombel yang diajar atau diwalikan pada tahun aktif  |
+| `GET`    | `/api/v1/classes/:classId/students`                  | Daftar minimal murid pada rombel yang boleh diakses |
 
 Tanggal kosong mengikuti zona waktu sekolah.
+
+## Push notification
+
+Setelah pengguna memberi izin notifikasi, kirim token project-scoped Expo dari
+`getExpoPushTokenAsync` ke `PUT /api/v1/me/push-token`:
+
+```json
+{
+  "token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+  "platform": "android"
+}
+```
+
+Token terikat ke sesi mobile aktif dan otomatis dinonaktifkan saat logout atau seluruh sesi akun
+dicabut. Aplikasi perlu mendaftarkan ulang token setelah login, saat token perangkat berubah, dan
+saat aplikasi kembali aktif setelah izin notifikasi diberikan.
+
+Notifikasi poin menggunakan payload data `{ "type": "point_entry", "entry_id": "<uuid>" }`.
+Notifikasi pembinaan menggunakan `{ "type": "coaching_case", "case_id": "<uuid>" }`. Setelah
+notifikasi ditekan, muat detail dari API; jangan memperlakukan teks push sebagai sumber data.
 
 ## Poin dan pembinaan murid
 
@@ -105,16 +127,16 @@ Fitur wali kelas memakai akun Guru yang sama dan diaktifkan berdasarkan penugasa
 login khusus wali kelas. Gunakan `GET /api/v1/me/homeroom` setelah login untuk menentukan apakah
 menu **Kelas Wali** perlu ditampilkan.
 
-| Method  | Endpoint                                      | Keterangan                                     |
-| ------- | --------------------------------------------- | ---------------------------------------------- |
-| `GET`   | `/api/v1/me/homeroom`                         | Status dan identitas kelas wali aktif          |
-| `GET`   | `/api/v1/homeroom/dashboard?date=YYYY-MM-DD`  | Ringkasan gerbang dan pelajaran pada satu hari |
-| `GET`   | `/api/v1/homeroom/attendance?from=...&to=...` | Rekap kehadiran per murid, maksimal 92 hari    |
+| Method  | Endpoint                                          | Keterangan                                        |
+| ------- | ------------------------------------------------- | ------------------------------------------------- |
+| `GET`   | `/api/v1/me/homeroom`                             | Status dan identitas kelas wali aktif             |
+| `GET`   | `/api/v1/homeroom/dashboard?date=YYYY-MM-DD`      | Ringkasan gerbang dan pelajaran pada satu hari    |
+| `GET`   | `/api/v1/homeroom/attendance?from=...&to=...`     | Rekap kehadiran per murid, maksimal 92 hari       |
 | `GET`   | `/api/v1/homeroom/attendance-sessions/:sessionId` | Detail baca-saja sesi dan status murid kelas wali |
-| `GET`   | `/api/v1/homeroom/students/:studentId`        | Profil aman, kontak wali, dan tindak lanjut    |
-| `GET`   | `/api/v1/homeroom/follow-ups?status=open`     | Daftar tindak lanjut kelas                     |
-| `POST`  | `/api/v1/homeroom/follow-ups`                 | Membuat tindak lanjut                          |
-| `PATCH` | `/api/v1/homeroom/follow-ups/:followUpId`     | Mengubah atau menyelesaikan tindak lanjut      |
+| `GET`   | `/api/v1/homeroom/students/:studentId`            | Profil aman, kontak wali, dan tindak lanjut       |
+| `GET`   | `/api/v1/homeroom/follow-ups?status=open`         | Daftar tindak lanjut kelas                        |
+| `POST`  | `/api/v1/homeroom/follow-ups`                     | Membuat tindak lanjut                             |
+| `PATCH` | `/api/v1/homeroom/follow-ups/:followUpId`         | Mengubah atau menyelesaikan tindak lanjut         |
 
 Kontrak respons, contoh payload, pemetaan layar, serta penanganan token dan error dijelaskan dalam
 [panduan integrasi wali kelas](mobile-homeroom-integration.md). Seluruh endpoint selain

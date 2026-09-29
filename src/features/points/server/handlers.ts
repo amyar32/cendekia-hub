@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { mobileData, mobileFailure, MobileApiError, requireMobileTeacher } from '@/lib/mobile-api';
+import { flushPushNotificationOutbox } from '@/lib/notifications/push';
 import { currentSchoolId } from '@/lib/server/academic-context';
 import { safeOriginalName, validateDocument } from '@/lib/uploads/validation';
 import * as service from './service';
@@ -135,6 +136,7 @@ export async function dispatch(a: service.PointActor, request: Request, path: st
   if (resource === 'entries') {
     if (method === 'POST' && path.length === 1) {
       const result = service.createEntry(a, await json(request));
+      await flushPushNotificationOutbox();
       return mobileData(
         result.entry,
         { status: result.replayed ? 200 : 201 },
@@ -143,24 +145,39 @@ export async function dispatch(a: service.PointActor, request: Request, path: st
     }
     if (id) service.uuid.parse(id);
     if (method === 'GET' && path.length === 2) return mobileData(service.entryDetail(a, id));
-    if (method === 'POST' && path.length === 3 && ['approve', 'reject', 'void'].includes(action))
-      return mobileData(
-        service.reviewEntry(a, id, action as 'approve' | 'reject' | 'void', await json(request)),
+    if (method === 'POST' && path.length === 3 && ['approve', 'reject', 'void'].includes(action)) {
+      const result = service.reviewEntry(
+        a,
+        id,
+        action as 'approve' | 'reject' | 'void',
+        await json(request),
       );
+      await flushPushNotificationOutbox();
+      return mobileData(result);
+    }
     if (action === 'attachments' && method === 'POST' && path.length === 3)
       return mobileData(await upload(a, id, request), { status: 201 });
     if (action === 'attachments' && method === 'GET' && path.length === 4)
       return download(a, id, attachmentId);
   }
   if (resource === 'cases') {
-    if (method === 'POST' && path.length === 1)
-      return mobileData(service.createCase(a, await json(request)), { status: 201 });
+    if (method === 'POST' && path.length === 1) {
+      const result = service.createCase(a, await json(request));
+      await flushPushNotificationOutbox();
+      return mobileData(result, { status: 201 });
+    }
     if (id) service.uuid.parse(id);
     if (method === 'GET' && path.length === 2) return mobileData(service.caseDetail(a, id));
-    if (method === 'PATCH' && path.length === 2)
-      return mobileData(service.updateCase(a, id, await json(request)));
-    if (method === 'POST' && path.length === 3 && action === 'activities')
-      return mobileData(service.addActivity(a, id, await json(request)), { status: 201 });
+    if (method === 'PATCH' && path.length === 2) {
+      const result = service.updateCase(a, id, await json(request));
+      await flushPushNotificationOutbox();
+      return mobileData(result);
+    }
+    if (method === 'POST' && path.length === 3 && action === 'activities') {
+      const result = service.addActivity(a, id, await json(request));
+      await flushPushNotificationOutbox();
+      return mobileData(result, { status: 201 });
+    }
   }
   service.fail(404, 'NOT_FOUND', 'Endpoint tidak ditemukan.');
 }
