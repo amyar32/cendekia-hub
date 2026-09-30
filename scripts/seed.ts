@@ -62,6 +62,9 @@ db().transaction(() => {
         'extracurricular-attendance.read',
         'extracurricular-attendance.write',
         'extracurricular-attendance.approve',
+        'tahfidz.read',
+        'tahfidz.write',
+        'tahfidz.approve',
         'academic-reports.read',
       ]),
     );
@@ -80,6 +83,8 @@ db().transaction(() => {
         'student-attendance.write',
         'extracurricular-attendance.read',
         'extracurricular-attendance.write',
+        'tahfidz.read',
+        'tahfidz.write',
       ]),
     );
   db()

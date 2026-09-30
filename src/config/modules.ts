@@ -53,6 +53,9 @@ export const permissions = [
   'extracurricular-attendance.read',
   'extracurricular-attendance.write',
   'extracurricular-attendance.approve',
+  'tahfidz.read',
+  'tahfidz.write',
+  'tahfidz.approve',
   'academic-reports.read',
 ] as const;
 export type Permission = (typeof permissions)[number];
@@ -82,6 +85,7 @@ export type ModuleKey =
   | 'student-attendance'
   | 'checkins'
   | 'extracurricular-attendance'
+  | 'tahfidz'
   | 'academic-reports';
 export type CmsModule = {
   key: ModuleKey;
@@ -196,6 +200,14 @@ export const modules: CmsModule[] = [
     path: '/extracurricular-attendance',
     permission: 'extracurricular-attendance.read',
     group: 'Utama',
+  },
+  {
+    key: 'tahfidz',
+    label: 'Tahfidz & Halaqah',
+    description: 'Kelola kelompok lintas rombel, jadwal, presensi, dan jurnal setoran Al-Qur’an.',
+    path: '/academic/tahfidz',
+    permission: 'tahfidz.read',
+    group: 'Akademik',
   },
   {
     key: 'semesters',

@@ -84,6 +84,7 @@ const icons = {
   'student-attendance': IconClipboardCheck,
   checkins: IconLogin,
   'extracurricular-attendance': IconBallFootball,
+  tahfidz: IconBooks,
   'academic-reports': IconReportAnalytics,
 };
 const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
@@ -100,6 +101,7 @@ const navigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
       'homeroom-assignments',
       'teaching-assignments',
       'extracurricular-assignments',
+      'tahfidz',
       'exam-schedules',
       'promotions',
     ],
@@ -129,6 +131,7 @@ const legacyNavigationGroups: Array<{ label: string; keys: ModuleKey[] }> = [
       'homeroom-assignments',
       'teaching-assignments',
       'extracurricular-assignments',
+      'tahfidz',
     ],
   },
   { label: 'Laporan', keys: ['academic-reports'] },

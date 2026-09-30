@@ -53,6 +53,10 @@ export function db() {
     CREATE TABLE IF NOT EXISTS teacher_checkins (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, checked_in_at TEXT NOT NULL DEFAULT (datetime('now')), status TEXT NOT NULL CHECK (status IN ('present', 'late', 'absent')), source TEXT NOT NULL DEFAULT 'staff' CHECK (source IN ('staff', 'qr', 'native_app', 'card')), note TEXT NOT NULL DEFAULT '', recorded_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (teacher_id, attendance_date));
     CREATE TABLE IF NOT EXISTS extracurricular_attendance_sessions (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, extracurricular_schedule_id TEXT NOT NULL REFERENCES extracurricular_schedules(id) ON DELETE RESTRICT, assignment_id TEXT NOT NULL REFERENCES extracurricular_assignments(id) ON DELETE RESTRICT, extracurricular_id TEXT NOT NULL REFERENCES extracurriculars(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')), extracurricular_name TEXT NOT NULL, teacher_name TEXT NOT NULL, starts_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (extracurricular_schedule_id, attendance_date));
     CREATE TABLE IF NOT EXISTS extracurricular_attendance_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES extracurricular_attendance_sessions(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, student_nis TEXT NOT NULL, student_name TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT '', status TEXT NOT NULL CHECK (status IN ('present', 'late', 'sick', 'excused', 'absent')), note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'teacher' CHECK (source IN ('teacher', 'admin', 'qr', 'native_app')), updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (session_id, student_id));
+    CREATE TABLE IF NOT EXISTS tahfidz_groups (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, name TEXT NOT NULL, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, semester_id TEXT REFERENCES semesters(id) ON DELETE RESTRICT, time_slot_id TEXT NOT NULL REFERENCES schedule_time_slots(id) ON DELETE RESTRICT, weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7), weekdays TEXT NOT NULL DEFAULT '[1,2,3,4,5]', location TEXT NOT NULL DEFAULT '', quota INTEGER NOT NULL DEFAULT 10 CHECK (quota BETWEEN 1 AND 100), status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('draft','active','completed')), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS tahfidz_group_members (id TEXT PRIMARY KEY, group_id TEXT NOT NULL REFERENCES tahfidz_groups(id) ON DELETE CASCADE, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(group_id,student_id));
+    CREATE TABLE IF NOT EXISTS tahfidz_sessions (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, group_id TEXT NOT NULL REFERENCES tahfidz_groups(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','closed')), group_name TEXT NOT NULL, teacher_name TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, starts_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(group_id,attendance_date));
+    CREATE TABLE IF NOT EXISTS tahfidz_session_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES tahfidz_sessions(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, student_nis TEXT NOT NULL, student_name TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT '', status TEXT NOT NULL CHECK(status IN ('present','late','sick','excused','absent')), activity_type TEXT NOT NULL DEFAULT 'none' CHECK(activity_type IN ('none','new','review')), surah_number INTEGER, ayah_from INTEGER, ayah_to INTEGER, result TEXT NOT NULL DEFAULT 'not_assessed' CHECK(result IN ('not_assessed','fluent','repeat','not_submitted')), note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'teacher' CHECK(source IN ('teacher','admin','native_app')), updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(session_id,student_id), CHECK(surah_number IS NULL OR surah_number BETWEEN 1 AND 114), CHECK(ayah_from IS NULL OR ayah_from > 0), CHECK(ayah_to IS NULL OR ayah_to > 0));
     CREATE TABLE IF NOT EXISTS homeroom_follow_ups (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, homeroom_teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, category TEXT NOT NULL CHECK (category IN ('attendance','academic','behavior','welfare','other')), note TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')), due_date TEXT, resolved_at TEXT, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE INDEX IF NOT EXISTS audit_created ON audit(created_at);
     CREATE INDEX IF NOT EXISTS admission_rate_limits_expiry ON admission_rate_limits(resets_at);
@@ -99,6 +103,10 @@ export function db() {
     CREATE INDEX IF NOT EXISTS teacher_checkins_teacher_date ON teacher_checkins(teacher_id, attendance_date DESC);
     CREATE INDEX IF NOT EXISTS extracurricular_attendance_sessions_date ON extracurricular_attendance_sessions(school_id, attendance_date DESC);
     CREATE INDEX IF NOT EXISTS extracurricular_attendance_records_student ON extracurricular_attendance_records(student_id, session_id);
+    CREATE INDEX IF NOT EXISTS tahfidz_groups_period ON tahfidz_groups(academic_year_id,weekday,time_slot_id);
+    CREATE INDEX IF NOT EXISTS tahfidz_group_members_student ON tahfidz_group_members(student_id,group_id);
+    CREATE INDEX IF NOT EXISTS tahfidz_sessions_date ON tahfidz_sessions(school_id,attendance_date DESC);
+    CREATE INDEX IF NOT EXISTS tahfidz_session_records_student ON tahfidz_session_records(student_id,session_id);
     CREATE INDEX IF NOT EXISTS homeroom_follow_ups_class_status ON homeroom_follow_ups(class_id, academic_year_id, status, created_at DESC);
     CREATE INDEX IF NOT EXISTS homeroom_follow_ups_student ON homeroom_follow_ups(student_id, academic_year_id, created_at DESC);
     CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT, 'Audit is append-only'); END;
@@ -1243,6 +1251,46 @@ export function db() {
           ON push_notification_outbox(status,available_at,created_at);
       `);
       connection.pragma('user_version = 56');
+    })();
+  }
+  if (schemaVersion < 57) {
+    connection.transaction(() => {
+      connection.exec(`
+        CREATE TABLE IF NOT EXISTS tahfidz_groups (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, name TEXT NOT NULL, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, academic_year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT, semester_id TEXT REFERENCES semesters(id) ON DELETE RESTRICT, time_slot_id TEXT NOT NULL REFERENCES schedule_time_slots(id) ON DELETE RESTRICT, weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7), location TEXT NOT NULL DEFAULT '', quota INTEGER NOT NULL DEFAULT 10 CHECK (quota BETWEEN 1 AND 100), status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('draft','active','completed')), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+        CREATE TABLE IF NOT EXISTS tahfidz_group_members (id TEXT PRIMARY KEY, group_id TEXT NOT NULL REFERENCES tahfidz_groups(id) ON DELETE CASCADE, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(group_id,student_id));
+        CREATE TABLE IF NOT EXISTS tahfidz_sessions (id TEXT PRIMARY KEY, school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE RESTRICT, group_id TEXT NOT NULL REFERENCES tahfidz_groups(id) ON DELETE RESTRICT, teacher_id TEXT NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT, attendance_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','closed')), group_name TEXT NOT NULL, teacher_name TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, starts_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(group_id,attendance_date));
+        CREATE TABLE IF NOT EXISTS tahfidz_session_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES tahfidz_sessions(id) ON DELETE RESTRICT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, student_nis TEXT NOT NULL, student_name TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT '', status TEXT NOT NULL CHECK(status IN ('present','late','sick','excused','absent')), activity_type TEXT NOT NULL DEFAULT 'none' CHECK(activity_type IN ('none','new','review')), surah_number INTEGER, ayah_from INTEGER, ayah_to INTEGER, result TEXT NOT NULL DEFAULT 'not_assessed' CHECK(result IN ('not_assessed','fluent','repeat','not_submitted')), note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'teacher' CHECK(source IN ('teacher','admin','native_app')), updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(session_id,student_id), CHECK(surah_number IS NULL OR surah_number BETWEEN 1 AND 114), CHECK(ayah_from IS NULL OR ayah_from > 0), CHECK(ayah_to IS NULL OR ayah_to > 0));
+        CREATE INDEX IF NOT EXISTS tahfidz_groups_period ON tahfidz_groups(academic_year_id,weekday,time_slot_id);
+        CREATE INDEX IF NOT EXISTS tahfidz_group_members_student ON tahfidz_group_members(student_id,group_id);
+        CREATE INDEX IF NOT EXISTS tahfidz_sessions_date ON tahfidz_sessions(school_id,attendance_date DESC);
+        CREATE INDEX IF NOT EXISTS tahfidz_session_records_student ON tahfidz_session_records(student_id,session_id);
+      `);
+      const systemRoles = connection
+        .prepare("SELECT id,permissions FROM roles WHERE system=1 OR id IN ('editor','teacher')")
+        .all() as { id: string; permissions: string }[];
+      const updateRole = connection.prepare('UPDATE roles SET permissions=? WHERE id=?');
+      for (const role of systemRoles) {
+        const grants = new Set<string>(JSON.parse(role.permissions));
+        grants.add('tahfidz.read');
+        grants.add('tahfidz.write');
+        if (role.id === 'admin' || role.id === 'editor') grants.add('tahfidz.approve');
+        updateRole.run(JSON.stringify([...grants]), role.id);
+      }
+      connection.pragma('user_version = 57');
+    })();
+  }
+  if (schemaVersion < 58) {
+    connection.transaction(() => {
+      const columns = connection.pragma('table_info(tahfidz_groups)') as { name: string }[];
+      if (!columns.some((column) => column.name === 'weekdays')) {
+        connection.exec(
+          "ALTER TABLE tahfidz_groups ADD COLUMN weekdays TEXT NOT NULL DEFAULT '[1,2,3,4,5]'",
+        );
+        connection.exec(
+          "UPDATE tahfidz_groups SET weekdays='[' || weekday || ']' WHERE weekdays='[1,2,3,4,5]'",
+        );
+      }
+      connection.pragma('user_version = 58');
     })();
   }
   globalDb.cmsDb = connection;
