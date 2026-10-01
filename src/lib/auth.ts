@@ -62,6 +62,9 @@ export async function createSession(userId: string) {
   });
 }
 export function checkOrigin(request: Request) {
-  if (request.headers.get('origin') !== new URL(request.url).origin)
+  const expectedOrigin = process.env.APP_ORIGIN
+    ? new URL(process.env.APP_ORIGIN).origin
+    : new URL(request.url).origin;
+  if (request.headers.get('origin') !== expectedOrigin)
     throw new HttpError(403, 'Origin tidak diizinkan.');
 }

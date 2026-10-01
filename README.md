@@ -261,7 +261,7 @@ pnpm run build
 pnpm start
 ```
 
-Gunakan HTTPS karena cookie sesi memakai `Secure` pada produksi. Isi `ADMISSION_FORM_SECRET` dengan secret acak yang sama pada setiap instance agar captcha formulir penerimaan tetap valid setelah restart. Jika menggunakan reverse proxy, pertahankan host/origin publik agar pemeriksaan origin cocok. Database SQLite dan direktori `UPLOAD_STORAGE_PATH` membutuhkan disk persisten dengan izin tulis; keduanya perlu dibackup bersama. Rancangan ini ditujukan untuk satu instance Node.js. Untuk deployment serverless atau beberapa instance, pindahkan database ke PostgreSQL dan implementasi fungsi storage di `src/lib/uploads.ts` ke object storage bersama (misalnya S3-compatible), lalu siapkan migrasi dan strategi backup.
+Gunakan HTTPS karena cookie sesi memakai `Secure` pada produksi. Set `APP_ORIGIN` ke alamat publik aplikasi, misalnya `https://cendekia.example.com`, agar pemeriksaan Origin API cocok saat Next.js berjalan di balik reverse proxy. Isi `ADMISSION_FORM_SECRET` dengan secret acak yang sama pada setiap instance agar captcha formulir penerimaan tetap valid setelah restart. Database SQLite dan direktori `UPLOAD_STORAGE_PATH` membutuhkan disk persisten dengan izin tulis; keduanya perlu dibackup bersama. Rancangan ini ditujukan untuk satu instance Node.js. Untuk deployment serverless atau beberapa instance, pindahkan database ke PostgreSQL dan implementasi fungsi storage di `src/lib/uploads.ts` ke object storage bersama (misalnya S3-compatible), lalu siapkan migrasi dan strategi backup.
 
 ### Scheduler notifikasi guru
 
