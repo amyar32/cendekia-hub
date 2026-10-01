@@ -72,6 +72,20 @@ const examples = {
           type: 'lesson',
           attendance_blocked_reason: null,
         },
+        {
+          schedule_id: 'tahfidz-group-uuid',
+          group_id: 'tahfidz-group-uuid',
+          group_name: 'Kelompok A',
+          location: 'Ruang Tahfidz',
+          slot_name: 'Tahfidz',
+          start_time: '09:00',
+          end_time: '10:00',
+          attendance_session_id: null,
+          attendance_status: null,
+          student_count: 10,
+          present_count: 0,
+          type: 'tahfidz',
+        },
       ],
     },
     meta: {},
@@ -488,7 +502,7 @@ export const openApiDocument = {
     '/me/schedule': {
       get: {
         tags: ['Profile'],
-        summary: 'Jadwal mengajar dan ekstrakurikuler',
+        summary: 'Jadwal mengajar, ekstrakurikuler, dan Tahfidz',
         security: bearer,
         parameters: [date('date', 'Default: tanggal lokal sekolah.')],
         responses: {

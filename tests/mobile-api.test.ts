@@ -37,6 +37,8 @@ const ids = {
   extracurricularSlot: randomUUID(),
   extracurricularSchedule: randomUUID(),
   extracurricularParticipant: randomUUID(),
+  tahfidzSlot: randomUUID(),
+  tahfidzGroup: randomUUID(),
 };
 
 async function api(path: string, method = 'GET', body?: unknown, accessToken = '') {
@@ -173,6 +175,27 @@ before(async () => {
         'INSERT INTO extracurricular_participants(id,assignment_id,student_id) VALUES (?,?,?)',
       )
       .run(ids.extracurricularParticipant, ids.extracurricularAssignment, ids.student);
+    database
+      .prepare(
+        "INSERT INTO schedule_time_slots(id,school_id,name,start_time,end_time,slot_order) VALUES (?,?,?,'09:00','10:00',3)",
+      )
+      .run(ids.tahfidzSlot, ids.school, 'Tahfidz');
+    database
+      .prepare(
+        "INSERT INTO tahfidz_groups(id,school_id,name,teacher_id,academic_year_id,semester_id,time_slot_id,weekday,weekdays,location,status) VALUES (?,?,?,?,?,?,?,1,'[1]','Ruang Tahfidz','active')",
+      )
+      .run(
+        ids.tahfidzGroup,
+        ids.school,
+        'Kelompok A',
+        ids.teacher,
+        ids.year,
+        ids.semester,
+        ids.tahfidzSlot,
+      );
+    database
+      .prepare('INSERT INTO tahfidz_group_members(id,group_id,student_id) VALUES (?,?,?)')
+      .run(randomUUID(), ids.tahfidzGroup, ids.student);
   })();
   database.close();
 
@@ -264,11 +287,15 @@ test('mobile teacher authentication and attendance flow', async () => {
   response = await api('/api/v1/me/schedule?date=2029-07-02', 'GET', undefined, login.access_token);
   assert.equal(response.status, 200);
   const combinedSchedule = (await response.json()).data.schedules;
-  assert.equal(combinedSchedule.length, 2);
+  assert.equal(combinedSchedule.length, 3);
   assert.deepEqual(
     combinedSchedule.map((entry: { type: string }) => entry.type),
-    ['lesson', 'extracurricular'],
+    ['lesson', 'tahfidz', 'extracurricular'],
   );
+  assert.equal(combinedSchedule[1].schedule_id, ids.tahfidzGroup);
+  assert.equal(combinedSchedule[1].group_name, 'Kelompok A');
+  assert.equal(combinedSchedule[1].student_count, 1);
+  assert.equal(combinedSchedule[1].attendance_session_id, null);
 
   assert.equal((await api('/api/v1/attendances')).status, 401);
   response = await api('/api/v1/attendances', 'GET', undefined, login.access_token);

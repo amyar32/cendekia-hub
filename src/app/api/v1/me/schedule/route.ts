@@ -64,9 +64,35 @@ export async function GET(request: Request) {
       .all(date, actor.teacher_id, actor.school_id, isoWeekday(date), date, date) as Array<
       Record<string, unknown> & { start_time: string }
     >;
+    const tahfidz = db()
+      .prepare(
+        `SELECT tg.id AS schedule_id,tg.id AS group_id,tg.name AS group_name,tg.location,
+          sts.name AS slot_name,sts.start_time,sts.end_time,
+          ts.id AS attendance_session_id,ts.status AS attendance_status,
+          CASE WHEN ts.id IS NULL THEN
+            (SELECT COUNT(*) FROM tahfidz_group_members gm
+             JOIN students s ON s.id=gm.student_id AND s.is_active=1
+             JOIN class_memberships cm ON cm.student_id=s.id AND cm.academic_year_id=tg.academic_year_id AND cm.status='active'
+             WHERE gm.group_id=tg.id)
+          ELSE (SELECT COUNT(*) FROM tahfidz_session_records tr WHERE tr.session_id=ts.id) END AS student_count,
+          COALESCE((SELECT COUNT(*) FROM tahfidz_session_records tr WHERE tr.session_id=ts.id AND tr.status='present'),0) AS present_count
+         FROM tahfidz_groups tg
+         JOIN schedule_time_slots sts ON sts.id=tg.time_slot_id
+         JOIN academic_years ay ON ay.id=tg.academic_year_id
+         LEFT JOIN semesters sem ON sem.id=tg.semester_id
+         LEFT JOIN tahfidz_sessions ts ON ts.group_id=tg.id AND ts.attendance_date=?
+         WHERE tg.teacher_id=? AND tg.school_id=? AND ay.is_active=1 AND tg.status='active'
+           AND EXISTS(SELECT 1 FROM json_each(tg.weekdays) WHERE value=?)
+           AND (tg.semester_id IS NULL OR (sem.start_date<=? AND sem.end_date>=?))
+         ORDER BY sts.start_time,tg.name`,
+      )
+      .all(date, actor.teacher_id, actor.school_id, isoWeekday(date), date, date) as Array<
+      Record<string, unknown> & { start_time: string }
+    >;
     const schedules = [
       ...lessons,
       ...extracurriculars.map((row) => ({ ...row, type: 'extracurricular' as const })),
+      ...tahfidz.map((row) => ({ ...row, type: 'tahfidz' as const })),
     ].sort((first, second) => String(first.start_time).localeCompare(String(second.start_time)));
     return mobileData({ date, schedules });
   } catch (error) {
