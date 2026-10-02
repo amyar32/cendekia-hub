@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { mobileData, mobileFailure, requireMobileTeacher } from '@/lib/mobile-api';
 import { requireTahfidzSession } from '@/features/tahfidz/server/mobile';
+import { tahfidzSuggestions } from '@/features/tahfidz/server/suggestions';
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> },
@@ -19,7 +20,8 @@ export async function GET(
         'SELECT id,student_id,student_nis,student_name,class_name,status,activity_type,surah_number,ayah_from,ayah_to,result,note FROM tahfidz_session_records WHERE session_id=? ORDER BY class_name,student_name',
       )
       .all(sessionId);
-    return mobileData({ session, records });
+    const suggestions = tahfidzSuggestions(actor.school_id, actor.teacher_id, sessionId);
+    return mobileData({ session, records, suggestions });
   } catch (error) {
     return mobileFailure(error);
   }
