@@ -93,6 +93,15 @@ berlaku setelah digunakan.
 
 Tanggal kosong mengikuti zona waktu sekolah.
 
+## Tahfidz dan tahun ajaran
+
+- `GET /api/v1/tahfidz` menampilkan kelompok aktif pada tahun ajaran aktif.
+- `GET /api/v1/tahfidz/sessions?date=YYYY-MM-DD` dan jadwal gabungan hanya menampilkan kegiatan pada tanggal dalam tahun ajaran aktif dan semester kelompok. Pembuatan sesi menerapkan batas yang sama.
+- `GET /api/v1/tahfidz/history?academic_year_id=UUID&student_id=UUID&page=1` memfilter siswa, jumlah catatan, dan riwayat menurut tahun ajaran kelompok. Gunakan `academic_year_id=all` (default) untuk riwayat lintas tahun. Respons menyertakan `academic_year_id`, pilihan `academic_years`, serta `academic_year_id` dan `academic_year_name` pada setiap catatan. Riwayat guru tetap terbatas pada sesi yang dibimbingnya.
+- Persiapan tahun baru dapat menyalin kelompok melalui `copy_tahfidz_groups=true` pada pembuatan tahun ajaran, bersama tahun sumber dan semester. Pembimbing, jadwal, dan peserta disalin sebagai draft; sesi dan setoran tetap pada tahun asal.
+- Pergantian tahun wajib menutup sesi tahfidz tahun asal terlebih dahulu. Peserta kelompok tahun baru disesuaikan dengan penempatan setelah kenaikan kelas, sehingga murid lulus atau keluar tidak terbawa. Aktifkan kelompok draft setelah meninjau peserta dan bentrok jadwal.
+- Pembatalan pergantian memulihkan peserta draft. Pembatalan ditolak jika peserta tahun baru sudah berubah atau tahun baru sudah memiliki sesi tahfidz. Kelompok tahun yang selesai dan setoran historis tetap tersedia untuk riwayat dan rekap.
+
 ## Push notification
 
 Setelah pengguna memberi izin notifikasi, kirim token project-scoped Expo dari

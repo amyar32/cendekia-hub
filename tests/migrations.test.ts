@@ -54,7 +54,12 @@ test('database lama dimigrasikan sampai skema mobile API dan role terbaru', () =
     assert.ok(columns.some((column) => column.name === 'province_code'));
     assert.ok(columns.some((column) => column.name === 'domicile_matches_family_card'));
     assert.ok(indexes.some((index) => index.name === 'students_school_nik'));
-    assert.equal(migrated.pragma('user_version', { simple: true }), 56);
+    assert.equal(migrated.pragma('user_version', { simple: true }), 59);
+    assert.ok(
+      (migrated.pragma('table_info(promotion_batches)') as { name: string }[]).some(
+        (column) => column.name === 'tahfidz_snapshot',
+      ),
+    );
     assert.ok(
       migrated
         .prepare(

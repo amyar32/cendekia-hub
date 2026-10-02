@@ -3,13 +3,14 @@ import { z } from 'zod';
 import { audit, db } from '@/lib/db';
 import { isoWeekday } from '@/lib/dates';
 import { MobileApiError, type MobileTeacherActor } from '@/lib/mobile-api';
+import { isoDateSchema } from '@/lib/validation';
 
 const status = z.enum(['present', 'late', 'sick', 'excused', 'absent']);
 const activity = z.enum(['none', 'new', 'review']);
 const result = z.enum(['not_assessed', 'fluent', 'repeat', 'not_submitted']);
 export const createTahfidzSessionSchema = z.object({
   schedule_id: z.string().uuid(),
-  attendance_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  attendance_date: isoDateSchema(),
 });
 export const updateTahfidzRecordsSchema = z.object({
   records: z
@@ -30,9 +31,9 @@ export const updateTahfidzRecordsSchema = z.object({
 function schedule(actor: MobileTeacherActor, id: string, date: string) {
   return db()
     .prepare(
-      `SELECT tg.id,tg.teacher_id,tg.academic_year_id,tg.name group_name,t.name teacher_name FROM tahfidz_groups tg JOIN teachers t ON t.id=tg.teacher_id JOIN academic_years ay ON ay.id=tg.academic_year_id LEFT JOIN semesters sem ON sem.id=tg.semester_id WHERE tg.id=? AND tg.school_id=? AND tg.teacher_id=? AND tg.status='active' AND ay.is_active=1 AND EXISTS(SELECT 1 FROM json_each(tg.weekdays) WHERE value=?) AND (tg.semester_id IS NULL OR (sem.start_date<=? AND sem.end_date>=?))`,
+      `SELECT tg.id,tg.teacher_id,tg.academic_year_id,tg.name group_name,t.name teacher_name FROM tahfidz_groups tg JOIN teachers t ON t.id=tg.teacher_id JOIN academic_years ay ON ay.id=tg.academic_year_id LEFT JOIN semesters sem ON sem.id=tg.semester_id WHERE tg.id=? AND tg.school_id=? AND tg.teacher_id=? AND tg.status='active' AND ay.is_active=1 AND ? BETWEEN ay.start_date AND ay.end_date AND EXISTS(SELECT 1 FROM json_each(tg.weekdays) WHERE value=?) AND (tg.semester_id IS NULL OR (sem.start_date<=? AND sem.end_date>=?))`,
     )
-    .get(id, actor.school_id, actor.teacher_id, isoWeekday(date), date, date) as
+    .get(id, actor.school_id, actor.teacher_id, date, isoWeekday(date), date, date) as
     | {
         id: string;
         teacher_id: string;
@@ -113,10 +114,13 @@ export function openTahfidzSession(
 export function requireTahfidzSession(actor: MobileTeacherActor, id: string) {
   const row = db()
     .prepare(
-      'SELECT id,status,teacher_id FROM tahfidz_sessions WHERE id=? AND school_id=? AND teacher_id=?',
+      `SELECT ts.id,ts.status,ts.teacher_id,ay.is_active AS year_active
+       FROM tahfidz_sessions ts JOIN tahfidz_groups g ON g.id=ts.group_id
+       JOIN academic_years ay ON ay.id=g.academic_year_id
+       WHERE ts.id=? AND ts.school_id=? AND ts.teacher_id=?`,
     )
     .get(id, actor.school_id, actor.teacher_id) as
-    { id: string; status: 'open' | 'closed'; teacher_id: string } | undefined;
+    { id: string; status: 'open' | 'closed'; teacher_id: string; year_active: number } | undefined;
   if (!row)
     throw new MobileApiError(
       404,
@@ -133,6 +137,12 @@ export function updateTahfidzRecords(
   const session = requireTahfidzSession(actor, id);
   if (session.status === 'closed')
     throw new MobileApiError(409, 'TAHFIDZ_SESSION_CLOSED', 'Sesi sudah ditutup.');
+  if (!session.year_active)
+    throw new MobileApiError(
+      409,
+      'TAHFIDZ_YEAR_INACTIVE',
+      'Sesi tahun ajaran yang sudah selesai hanya dapat dilihat.',
+    );
   for (const row of input.records) {
     if (row.ayah_from && row.ayah_to && row.ayah_from > row.ayah_to)
       throw new MobileApiError(

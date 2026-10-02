@@ -1,4 +1,6 @@
 export type TahfidzHistoryRecord = {
+  academic_year_id: string;
+  academic_year_name: string;
   id: string;
   student_id: string;
   class_name: string;
@@ -16,6 +18,8 @@ export type TahfidzHistoryRecord = {
   session_status: 'open' | 'closed';
 };
 export type TahfidzHistory = {
+  academic_year_id: string;
+  academic_years: { value: string; label: string }[];
   students: { id: string; name: string; nis: string }[];
   student: { id: string; name: string; nis: string } | null;
   records: TahfidzHistoryRecord[];

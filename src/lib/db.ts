@@ -1293,6 +1293,16 @@ export function db() {
       connection.pragma('user_version = 58');
     })();
   }
+  if (schemaVersion < 59) {
+    connection.transaction(() => {
+      const columns = connection.pragma('table_info(promotion_batches)') as { name: string }[];
+      if (!columns.some((column) => column.name === 'tahfidz_snapshot'))
+        connection.exec(
+          "ALTER TABLE promotion_batches ADD COLUMN tahfidz_snapshot TEXT NOT NULL DEFAULT ''",
+        );
+      connection.pragma('user_version = 59');
+    })();
+  }
   globalDb.cmsDb = connection;
   return connection;
 }

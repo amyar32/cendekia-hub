@@ -72,6 +72,7 @@ type AcademicYearForm = {
   copy_schedules: boolean;
   copy_extracurricular_assignments: boolean;
   copy_extracurricular_schedules: boolean;
+  copy_tahfidz_groups: boolean;
 };
 
 const emptyForm = (): AcademicYearForm => ({
@@ -87,6 +88,7 @@ const emptyForm = (): AcademicYearForm => ({
   copy_schedules: true,
   copy_extracurricular_assignments: true,
   copy_extracurricular_schedules: true,
+  copy_tahfidz_groups: true,
 });
 const endpoint = '/api/modules/academic-years';
 const dateFormatter = new Intl.DateTimeFormat('id-ID', {
@@ -121,6 +123,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
             copy_schedules: false,
             copy_extracurricular_assignments: false,
             copy_extracurricular_schedules: false,
+            copy_tahfidz_groups: false,
           }
         : emptyForm(),
     );
@@ -443,6 +446,7 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                         setForm({
                           ...form,
                           copy_semesters: checked,
+                          copy_tahfidz_groups: checked ? form.copy_tahfidz_groups : false,
                           copy_schedules: checked ? form.copy_schedules : false,
                           copy_extracurricular_assignments: checked
                             ? form.copy_extracurricular_assignments
@@ -485,6 +489,15 @@ export function AcademicYearManager({ writable }: { writable: boolean }) {
                           ...form,
                           copy_homeroom_assignments: event.currentTarget.checked,
                         })
+                      }
+                    />
+                    <Checkbox
+                      label="Salin kelompok tahfidz"
+                      description="Pembimbing, jadwal, dan peserta disalin sebagai draft untuk ditinjau."
+                      checked={form.copy_tahfidz_groups}
+                      disabled={!form.copy_semesters}
+                      onChange={(event) =>
+                        setForm({ ...form, copy_tahfidz_groups: event.currentTarget.checked })
                       }
                     />
                     <Checkbox

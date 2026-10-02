@@ -22,8 +22,9 @@ after(() => {
 });
 sql.exec(`
   CREATE TABLE schools(id TEXT PRIMARY KEY,name TEXT,timezone TEXT);
+  CREATE TABLE academic_years(id TEXT PRIMARY KEY,school_id TEXT,name TEXT,start_date TEXT,end_date TEXT,is_active INTEGER);
   CREATE TABLE students(id TEXT PRIMARY KEY,school_id TEXT,name TEXT,nis TEXT);
-  CREATE TABLE tahfidz_groups(id TEXT PRIMARY KEY,school_id TEXT,name TEXT);
+  CREATE TABLE tahfidz_groups(id TEXT PRIMARY KEY,school_id TEXT,name TEXT,academic_year_id TEXT);
   CREATE TABLE tahfidz_group_members(group_id TEXT,student_id TEXT);
   CREATE TABLE tahfidz_sessions(id TEXT PRIMARY KEY,school_id TEXT,group_id TEXT,attendance_date TEXT,group_name TEXT,teacher_name TEXT,status TEXT);
   CREATE TABLE tahfidz_session_records(id TEXT PRIMARY KEY,session_id TEXT,student_id TEXT,student_name TEXT,student_nis TEXT,class_name TEXT,
@@ -34,13 +35,26 @@ const group = randomUUID(),
   foreignGroup = randomUUID(),
   student = randomUUID(),
   foreignStudent = randomUUID();
+const currentYear = randomUUID(),
+  oldYear = randomUUID(),
+  foreignYear = randomUUID();
+for (const [id, school, name, start, end, active] of [
+  [oldYear, 'school', '2025/2026', '2025-07-01', '2026-06-30', 0],
+  [currentYear, 'school', '2026/2027', '2026-07-01', '2027-06-30', 1],
+  [foreignYear, 'foreign', '2026/2027', '2026-07-01', '2027-06-30', 1],
+])
+  sql
+    .prepare('INSERT INTO academic_years VALUES(?,?,?,?,?,?)')
+    .run(id, school, name, start, end, active);
 sql.prepare('INSERT INTO schools VALUES (?,?,?)').run('school', 'Sekolah Cendekia', 'Asia/Jakarta');
 for (const [id, school, name] of [
   [group, 'school', 'Halaqah A'],
   [otherGroup, 'school', 'Halaqah B'],
   [foreignGroup, 'foreign', 'Kelompok luar'],
 ])
-  sql.prepare('INSERT INTO tahfidz_groups VALUES (?,?,?)').run(id, school, name);
+  sql
+    .prepare('INSERT INTO tahfidz_groups VALUES (?,?,?,?)')
+    .run(id, school, name, school === 'foreign' ? foreignYear : currentYear);
 function pupil(id: string, school: string, name: string) {
   sql.prepare('INSERT INTO students VALUES (?,?,?,?)').run(id, school, name, `NIS-${name}`);
 }
@@ -191,17 +205,19 @@ test('Excel exports two complete sheets and PDF exports paginated summary and de
   const workbook = new Workbook();
   await workbook.xlsx.load(bytes);
   assert.equal(workbook.worksheets.length, 2);
-  assert.equal(workbook.worksheets[0].rowCount, 30);
-  assert.equal(workbook.worksheets[1].rowCount, 36);
-  assert.equal(workbook.worksheets[0].getCell('A8').value, 'NIS');
-  assert.equal(workbook.worksheets[0].getCell('B9').value, 'Andi');
-  assert.equal(workbook.worksheets[0].getCell('I9').value, 57.1);
-  assert.equal(workbook.worksheets[0].getCell('A8').font.name, reportExportTheme.font.excel);
+  assert.equal(workbook.worksheets[0].rowCount, 31);
+  assert.equal(workbook.worksheets[1].rowCount, 37);
+  assert.equal(workbook.worksheets[0].getCell('A9').value, 'NIS');
+  assert.equal(workbook.worksheets[0].getCell('B10').value, 'Andi');
+  assert.equal(workbook.worksheets[0].getCell('I10').value, 57.1);
+  assert.equal(workbook.worksheets[0].getCell('A9').font.name, reportExportTheme.font.excel);
   assert.equal(
-    workbook.worksheets[0].getCell('A8').font.color?.argb,
+    workbook.worksheets[0].getCell('A9').font.color?.argb,
     reportExportTheme.excel.surface,
   );
-  const headingFill = workbook.worksheets[0].getCell('A8').fill;
+  const headingFill = workbook.worksheets[0].getCell('A9').fill;
+  assert.match(String(workbook.worksheets[0].getCell('A3').value), /2026\/2027/);
+  assert.equal(workbook.worksheets[1].getCell('N10').value, '2026/2027');
   assert.equal(headingFill.type, 'pattern');
   if (headingFill.type === 'pattern')
     assert.equal(headingFill.fgColor?.argb, reportExportTheme.excel.brand);
@@ -216,4 +232,33 @@ test('Excel exports two complete sheets and PDF exports paginated summary and de
     writeFileSync(join(directory, 'recap.xlsx'), Buffer.from(bytes));
     console.log(`Export QA: ${directory}`);
   }
+});
+
+test('recap and exports follow group academic year rather than session date', () => {
+  const oldGroup = randomUUID();
+  sql
+    .prepare('INSERT INTO tahfidz_groups VALUES(?,?,?,?)')
+    .run(oldGroup, 'school', 'Halaqah lama', oldYear);
+  session('old-year', '2026-10-02', oldGroup);
+  record('old-year', student);
+  const current = tahfidzRecap(
+    'school',
+    request({ group_id: '', student_id: student, export: '1' }),
+  );
+  assert.equal(current.filters.academic_year_id, currentYear);
+  assert.ok(current.records?.every((row) => row.academic_year_id === currentYear));
+  assert.ok(current.options.groups.every((row) => row.value !== oldGroup));
+  const historical = tahfidzRecap(
+    'school',
+    request({ academic_year_id: oldYear, group_id: '', student_id: student, export: '1' }),
+  );
+  assert.equal(historical.summary.total, 1);
+  assert.equal(historical.records?.[0].academic_year_name, '2025/2026');
+  assert.throws(() => tahfidzRecap('school', request({ academic_year_id: foreignYear })));
+  assert.throws(() => tahfidzRecap('school', request({ group_id: oldGroup })));
+  const all = tahfidzRecap(
+    'school',
+    request({ academic_year_id: 'all', group_id: '', student_id: student }),
+  );
+  assert.equal(all.summary.total, current.summary.total + 1);
 });

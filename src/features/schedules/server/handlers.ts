@@ -14,6 +14,7 @@ import {
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { assertTahfidzScheduleAvailable } from '@/features/tahfidz/server/schedule-conflicts';
 
 const schema = z.object({
   teaching_assignment_id: z.string().uuid('Penugasan mengajar tidak valid.'),
@@ -76,6 +77,16 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
   if (!slot || !slot.is_active)
     throw new HttpError(400, 'Slot waktu tidak aktif atau tidak valid.');
   if (slot.is_break) throw new HttpError(400, 'Slot istirahat tidak dapat diisi pelajaran.');
+  assertTahfidzScheduleAvailable({
+    schoolId,
+    yearId: assignment.academic_year_id,
+    semesterId: semester.id,
+    weekday: data.weekday,
+    startTime: slot.start_time,
+    endTime: slot.end_time,
+    teacherId: assignment.teacher_id,
+    classId: assignment.class_id,
+  });
 
   const classConflict = db()
     .prepare(
@@ -180,9 +191,12 @@ export async function GET(request: Request) {
                  SELECT 1 FROM teaching_assignments ta WHERE ta.teacher_id=t.id AND ta.academic_year_id=?
                  UNION ALL
                  SELECT 1 FROM extracurricular_assignments ea WHERE ea.teacher_id=t.id AND ea.academic_year_id=?
+                 UNION ALL
+                 SELECT 1 FROM tahfidz_groups g WHERE g.teacher_id=t.id AND g.academic_year_id=? AND g.status='active'
                ) ORDER BY t.name LIMIT 1`,
               )
-              .get(schoolId, academicYearId, academicYearId) as { value: string } | undefined
+              .get(schoolId, academicYearId, academicYearId, academicYearId) as
+              { value: string } | undefined
           )?.value ?? '');
     const entityId = requestedEntity || defaultEntity;
     if (view === 'class' && entityId) {
@@ -230,6 +244,24 @@ export async function GET(request: Request) {
            ORDER BY weekday,time_slot_id`,
               )
               .all(semesterId, entityId, semesterId, entityId);
+    if (semesterId && entityId) {
+      const tahfidzEntries = db()
+        .prepare(
+          `SELECT g.id || ':' || day.value AS id,'tahfidz' AS entry_type,
+        g.id AS assignment_id,? AS semester_id,g.time_slot_id,day.value AS weekday,
+        t.name AS teacher_name,g.name AS entry_name,'TAHFIDZ' AS entry_code,'' AS class_name,0 AS has_attendance,
+        g.location,(SELECT COUNT(*) FROM tahfidz_group_members gm WHERE gm.group_id=g.id) AS participant_count
+        FROM tahfidz_groups g JOIN teachers t ON t.id=g.teacher_id JOIN json_each(g.weekdays) day
+        WHERE g.school_id=? AND g.academic_year_id=? AND g.status='active'
+          AND (g.semester_id IS NULL OR g.semester_id=?)
+          AND ((?='teacher' AND g.teacher_id=?) OR (?='class' AND EXISTS(
+            SELECT 1 FROM tahfidz_group_members gm JOIN class_memberships cm ON cm.student_id=gm.student_id
+            WHERE gm.group_id=g.id AND cm.academic_year_id=g.academic_year_id AND cm.class_id=? AND cm.status='active')))
+        ORDER BY day.value,g.name`,
+        )
+        .all(semesterId, schoolId, academicYearId, semesterId, view, entityId, view, entityId);
+      entries.push(...tahfidzEntries);
+    }
     const slots = db()
       .prepare(
         `SELECT * FROM schedule_time_slots sts WHERE sts.school_id=? AND
@@ -239,7 +271,7 @@ export async function GET(request: Request) {
          ) OR EXISTS (
            SELECT 1 FROM extracurricular_schedules es JOIN extracurricular_assignments ea ON ea.id=es.assignment_id
            WHERE es.time_slot_id=sts.id AND es.semester_id=? AND ?='teacher' AND ea.teacher_id=?
-         )) ORDER BY sts.slot_order,sts.start_time`,
+         ) OR EXISTS(SELECT 1 FROM json_each(?) entry_slot WHERE entry_slot.value=sts.id)) ORDER BY sts.slot_order,sts.start_time`,
       )
       .all(
         schoolId,
@@ -251,6 +283,7 @@ export async function GET(request: Request) {
         semesterId || '',
         view,
         entityId || '',
+        JSON.stringify(entries.map((entry) => (entry as { time_slot_id: string }).time_slot_id)),
       );
     const assignments =
       !semesterId || !entityId

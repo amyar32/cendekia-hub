@@ -6,6 +6,7 @@ import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
 import { isoDateSchema } from '@/lib/validation';
+import { copyTahfidzGroups } from '@/features/tahfidz/server/annual-transition';
 
 const isoDate = isoDateSchema('Tanggal tidak valid.');
 
@@ -111,8 +112,15 @@ const copySchema = z
     copy_schedules: z.boolean().default(false),
     copy_extracurricular_assignments: z.boolean().default(false),
     copy_extracurricular_schedules: z.boolean().default(false),
+    copy_tahfidz_groups: z.boolean().default(false),
   })
   .superRefine((data, context) => {
+    if (data.copy_tahfidz_groups && (!data.copy_from_academic_year_id || !data.copy_semesters))
+      context.addIssue({
+        code: 'custom',
+        message: 'Penyalinan tahfidz memerlukan tahun ajaran sumber dan semester.',
+        path: ['copy_tahfidz_groups'],
+      });
     if (
       data.copy_schedules &&
       (!data.copy_semesters || !data.copy_classrooms || !data.copy_teaching_assignments)
@@ -166,10 +174,18 @@ function hasRelatedAcademicData(academicYearId: string) {
              EXISTS(SELECT 1 FROM classes WHERE academic_year_id=?) OR
              EXISTS(SELECT 1 FROM teaching_assignments WHERE academic_year_id=?) OR
              EXISTS(SELECT 1 FROM class_memberships WHERE academic_year_id=?) OR
-             EXISTS(SELECT 1 FROM extracurricular_assignments WHERE academic_year_id=?)
+             EXISTS(SELECT 1 FROM extracurricular_assignments WHERE academic_year_id=?) OR
+             EXISTS(SELECT 1 FROM tahfidz_groups WHERE academic_year_id=?)
              AS related`,
         )
-        .get(academicYearId, academicYearId, academicYearId, academicYearId, academicYearId) as {
+        .get(
+          academicYearId,
+          academicYearId,
+          academicYearId,
+          academicYearId,
+          academicYearId,
+          academicYearId,
+        ) as {
         related: number;
       }
     ).related,
@@ -552,6 +568,8 @@ async function mutate(request: Request, method: 'POST' | 'PATCH' | 'DELETE') {
           const semesterByPeriod = new Map(
             targetSemesters.map((semester) => [semester.period, semester.id]),
           );
+          if (copy.copy_tahfidz_groups)
+            copyTahfidzGroups(schoolId, copy.copy_from_academic_year_id, id);
 
           if (copy.copy_teaching_assignments) {
             const assignments = db()

@@ -29,6 +29,7 @@ import {
 } from '../recap-export';
 
 const initial: TahfidzRecapFilters = {
+  academic_year_id: '',
   date_from: '',
   date_to: '',
   group_id: '',
@@ -126,6 +127,26 @@ export function TahfidzRecapPanel() {
         }}
       >
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+          <Select
+            label="Tahun ajaran"
+            allowDeselect={false}
+            value={draft.academic_year_id || state.data?.filters.academic_year_id || null}
+            data={[
+              { value: 'all', label: 'Semua tahun ajaran' },
+              ...(state.data?.options.academic_years || []),
+            ]}
+            onChange={(value) => {
+              const next = {
+                ...draft,
+                academic_year_id: value || '',
+                group_id: '',
+                student_id: '',
+              };
+              setDraft(next);
+              setFilters(next);
+              setPage(1);
+            }}
+          />
           <TextInput
             required
             type="date"

@@ -11,6 +11,7 @@ import {
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import { assertTahfidzScheduleAvailable } from '@/features/tahfidz/server/schedule-conflicts';
 
 const schema = z.object({
   extracurricular_assignment_id: z.string().uuid('Penugasan ekstrakurikuler tidak valid.'),
@@ -71,6 +72,19 @@ function validateSchedule(schoolId: string, id: string, data: z.infer<typeof sch
     | undefined;
   if (!slot || !slot.is_active || slot.is_break)
     throw new HttpError(400, 'Slot waktu tidak aktif atau tidak dapat digunakan.');
+  assertTahfidzScheduleAvailable({
+    schoolId,
+    yearId: assignment.academic_year_id,
+    semesterId: semester.id,
+    weekday: data.weekday,
+    startTime: slot.start_time,
+    endTime: slot.end_time,
+    teacherId: assignment.teacher_id,
+    studentIds: db()
+      .prepare('SELECT student_id FROM extracurricular_participants WHERE assignment_id=?')
+      .pluck()
+      .all(assignment.id) as string[],
+  });
 
   const lessonConflict = db()
     .prepare(

@@ -10,6 +10,10 @@ import {
 import { checkOrigin, HttpError, requireUser } from '@/lib/auth';
 import { audit, db } from '@/lib/db';
 import { failure } from '@/lib/http';
+import {
+  reconcileTahfidzParticipants,
+  restoreTahfidzParticipants,
+} from '@/features/tahfidz/server/annual-transition';
 
 const actionSchema = z.object({
   student_id: z.string().uuid('Murid tidak valid.'),
@@ -305,6 +309,19 @@ export async function GET(request: Request) {
         teaching_assignments: teachingAssignments,
         homeroom_assignments: homeroomAssignments,
         extracurricular_assignments: extracurricularAssignments,
+        tahfidz_groups: targetYear
+          ? db()
+              .prepare(
+                `SELECT g.id,g.name,g.status,t.name AS teacher_name,g.weekdays,
+                        slot.start_time,slot.end_time,
+                        (SELECT COUNT(*) FROM tahfidz_group_members gm WHERE gm.group_id=g.id) AS participant_count
+                 FROM tahfidz_groups g
+                 JOIN teachers t ON t.id=g.teacher_id
+                 JOIN schedule_time_slots slot ON slot.id=g.time_slot_id
+                 WHERE g.school_id=? AND g.academic_year_id=? ORDER BY g.name,g.id`,
+              )
+              .all(schoolId, targetYear.id)
+          : [],
         grade_options: gradeOptions(schoolId),
         last_batch: lastBatch || null,
         max_grade_level: (
@@ -753,6 +770,20 @@ export async function POST(request: Request) {
         storedActions.push({ ...action, source_membership_id: membership.id });
       }
       if (input.activate_target) {
+        if (activeAcademicYear(schoolId).id !== sourceYear.id)
+          throw new HttpError(409, 'Tahun ajaran aktif sudah berubah. Muat ulang proses.');
+        if (
+          db()
+            .prepare(
+              `SELECT ts.id FROM tahfidz_sessions ts JOIN tahfidz_groups g ON g.id=ts.group_id
+          WHERE g.school_id=? AND g.academic_year_id=? AND ts.status='open' LIMIT 1`,
+            )
+            .get(schoolId, sourceYear.id)
+        )
+          throw new HttpError(
+            409,
+            'Tutup semua sesi tahfidz tahun asal sebelum menyelesaikan pergantian tahun ajaran.',
+          );
         const sourceStudentCount = (
           db()
             .prepare(
@@ -816,6 +847,10 @@ export async function POST(request: Request) {
       }
       if (input.activate_target) {
         reconcileExtracurricularParticipants(schoolId, targetYear.id);
+        const snapshot = reconcileTahfidzParticipants(schoolId, targetYear.id);
+        db()
+          .prepare('UPDATE promotion_batches SET tahfidz_snapshot=? WHERE id=?')
+          .run(snapshot, batchId);
         db()
           .prepare(
             "UPDATE academic_years SET is_active=0,updated_at=datetime('now') WHERE school_id=?",
@@ -876,6 +911,7 @@ export async function DELETE(request: Request) {
             target_academic_year_id: string;
             actions: string;
             activates_target: number;
+            tahfidz_snapshot: string;
           }
         | undefined;
       if (!batch) throw new HttpError(404, 'Proses kenaikan aktif tidak ditemukan.');
@@ -891,6 +927,7 @@ export async function DELETE(request: Request) {
           'Proses tidak dapat dibatalkan karena penempatan tahun baru sudah berubah.',
         );
       if (batch.activates_target) {
+        restoreTahfidzParticipants(schoolId, batch.target_academic_year_id, batch.tahfidz_snapshot);
         const unrelatedTarget = (
           db()
             .prepare(

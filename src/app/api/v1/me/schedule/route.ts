@@ -83,11 +83,12 @@ export async function GET(request: Request) {
          LEFT JOIN semesters sem ON sem.id=tg.semester_id
          LEFT JOIN tahfidz_sessions ts ON ts.group_id=tg.id AND ts.attendance_date=?
          WHERE tg.teacher_id=? AND tg.school_id=? AND ay.is_active=1 AND tg.status='active'
+           AND ? BETWEEN ay.start_date AND ay.end_date
            AND EXISTS(SELECT 1 FROM json_each(tg.weekdays) WHERE value=?)
            AND (tg.semester_id IS NULL OR (sem.start_date<=? AND sem.end_date>=?))
          ORDER BY sts.start_time,tg.name`,
       )
-      .all(date, actor.teacher_id, actor.school_id, isoWeekday(date), date, date) as Array<
+      .all(date, actor.teacher_id, actor.school_id, date, isoWeekday(date), date, date) as Array<
       Record<string, unknown> & { start_time: string }
     >;
     const schedules = [

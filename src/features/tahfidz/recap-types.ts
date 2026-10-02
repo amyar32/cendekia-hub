@@ -1,6 +1,7 @@
 import type { TahfidzHistoryRecord } from './history-types';
 
 export type TahfidzRecapFilters = {
+  academic_year_id: string;
   date_from: string;
   date_to: string;
   group_id: string;
@@ -31,6 +32,7 @@ export type TahfidzRecap = {
   school_name: string;
   filters: TahfidzRecapFilters;
   options: {
+    academic_years: { value: string; label: string }[];
     groups: { value: string; label: string }[];
     students: { value: string; label: string }[];
   };

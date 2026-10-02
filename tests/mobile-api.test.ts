@@ -297,6 +297,66 @@ test('mobile teacher authentication and attendance flow', async () => {
   assert.equal(combinedSchedule[1].teacher_name, 'Budi Guru');
   assert.equal(combinedSchedule[1].student_count, 1);
   assert.equal(combinedSchedule[1].attendance_session_id, null);
+  const tahfidzDb = new Database(databasePath);
+  const archivedYearId = randomUUID(),
+    archivedGroupId = randomUUID();
+  try {
+    tahfidzDb
+      .prepare(
+        "INSERT INTO academic_years(id,school_id,name,start_date,end_date) VALUES(?,?,'2028/2029','2028-07-01','2029-06-30')",
+      )
+      .run(archivedYearId, ids.school);
+    tahfidzDb
+      .prepare(
+        "INSERT INTO tahfidz_groups(id,school_id,name,teacher_id,academic_year_id,time_slot_id,weekday,weekdays,status) VALUES(?,?,'Kelompok tahun lama',?,?,?,1,'[1]','active')",
+      )
+      .run(archivedGroupId, ids.school, ids.teacher, archivedYearId, ids.tahfidzSlot);
+    response = await api(
+      '/api/v1/tahfidz/sessions?date=2029-07-02',
+      'GET',
+      undefined,
+      login.access_token,
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+      (await response.json()).data.sessions.map((row: { group_id: string }) => row.group_id),
+      [ids.tahfidzGroup],
+    );
+    response = await api(
+      '/api/v1/tahfidz/sessions?date=2028-06-26',
+      'GET',
+      undefined,
+      login.access_token,
+    );
+    assert.deepEqual((await response.json()).data.sessions, []);
+    response = await api(
+      '/api/v1/me/schedule?date=2028-06-26',
+      'GET',
+      undefined,
+      login.access_token,
+    );
+    assert.ok(
+      (await response.json()).data.schedules.every(
+        (row: { type: string }) => row.type !== 'tahfidz',
+      ),
+    );
+    response = await api(
+      '/api/v1/tahfidz/sessions',
+      'POST',
+      { schedule_id: ids.tahfidzGroup, attendance_date: '2028-06-26' },
+      login.access_token,
+    );
+    assert.equal(response.status, 400);
+    assert.equal(
+      (await api('/api/v1/tahfidz/sessions?date=2029-02-30', 'GET', undefined, login.access_token))
+        .status,
+      400,
+    );
+  } finally {
+    tahfidzDb.prepare('DELETE FROM tahfidz_groups WHERE id=?').run(archivedGroupId);
+    tahfidzDb.prepare('DELETE FROM academic_years WHERE id=?').run(archivedYearId);
+    tahfidzDb.close();
+  }
 
   assert.equal((await api('/api/v1/attendances')).status, 401);
   response = await api('/api/v1/attendances', 'GET', undefined, login.access_token);

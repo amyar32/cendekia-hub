@@ -14,10 +14,11 @@ after(() => {
 });
 sql.exec(`
   CREATE TABLE students(id TEXT PRIMARY KEY,school_id TEXT,name TEXT,nis TEXT);
-  CREATE TABLE tahfidz_groups(id TEXT PRIMARY KEY,school_id TEXT,teacher_id TEXT);
+  CREATE TABLE academic_years(id TEXT PRIMARY KEY,school_id TEXT,name TEXT,start_date TEXT,end_date TEXT,is_active INTEGER);
+  CREATE TABLE tahfidz_groups(id TEXT PRIMARY KEY,school_id TEXT,teacher_id TEXT,academic_year_id TEXT);
   CREATE TABLE tahfidz_group_members(group_id TEXT,student_id TEXT);
   CREATE TABLE tahfidz_sessions(id TEXT PRIMARY KEY,school_id TEXT,teacher_id TEXT,attendance_date TEXT,
-    starts_at TEXT,group_name TEXT,teacher_name TEXT,status TEXT);
+    starts_at TEXT,group_name TEXT,teacher_name TEXT,status TEXT,group_id TEXT);
   CREATE TABLE tahfidz_session_records(id TEXT PRIMARY KEY,session_id TEXT,student_id TEXT,class_name TEXT,
     status TEXT,activity_type TEXT,surah_number INTEGER,ayah_from INTEGER,ayah_to INTEGER,result TEXT,note TEXT);
 `);
@@ -25,6 +26,17 @@ const student = randomUUID(),
   emptyStudent = randomUUID(),
   otherStudent = randomUUID(),
   foreignStudent = randomUUID();
+const oldYear = randomUUID(),
+  currentYear = randomUUID(),
+  foreignYear = randomUUID();
+for (const [id, school, name, start, end, active] of [
+  [oldYear, 'school', '2025/2026', '2025-10-01', '2026-09-30', 0],
+  [currentYear, 'school', '2026/2027', '2026-10-01', '2027-09-30', 1],
+  [foreignYear, 'foreign', '2026/2027', '2026-10-01', '2027-09-30', 1],
+])
+  sql
+    .prepare('INSERT INTO academic_years VALUES(?,?,?,?,?,?)')
+    .run(id, school, name, start, end, active);
 for (const [id, school, name] of [
   [student, 'school', 'Andi'],
   [emptyStudent, 'school', 'Baru'],
@@ -33,13 +45,24 @@ for (const [id, school, name] of [
 ]) {
   sql.prepare('INSERT INTO students VALUES (?,?,?,?)').run(id, school, name, name);
 }
-sql.prepare('INSERT INTO tahfidz_groups VALUES (?,?,?)').run('empty-group', 'school', 'teacher');
+sql
+  .prepare('INSERT INTO tahfidz_groups VALUES (?,?,?,?)')
+  .run('empty-group', 'school', 'teacher', currentYear);
 sql.prepare('INSERT INTO tahfidz_group_members VALUES (?,?)').run('empty-group', emptyStudent);
 function record(pupil: string, school: string, teacher: string, date: string, result = 'fluent') {
   const session = randomUUID(),
     id = randomUUID();
+  const groupId = randomUUID();
   sql
-    .prepare('INSERT INTO tahfidz_sessions VALUES (?,?,?,?,?,?,?,?)')
+    .prepare('INSERT INTO tahfidz_groups VALUES (?,?,?,?)')
+    .run(
+      groupId,
+      school,
+      teacher,
+      school === 'foreign' ? foreignYear : date < '2026-10-01' ? oldYear : currentYear,
+    );
+  sql
+    .prepare('INSERT INTO tahfidz_sessions VALUES (?,?,?,?,?,?,?,?,?)')
     .run(
       session,
       school,
@@ -49,6 +72,7 @@ function record(pupil: string, school: string, teacher: string, date: string, re
       'Halaqah lama',
       'Pembimbing lama',
       'closed',
+      groupId,
     );
   sql
     .prepare('INSERT INTO tahfidz_session_records VALUES (?,?,?,?,?,?,?,?,?,?,?)')
@@ -107,4 +131,37 @@ test('new participants have empty history and malformed query parameters are rej
 test('native history endpoint requires authentication', async () => {
   const response = await mobileHistory(request());
   assert.equal(response.status, 401);
+});
+
+test('year filter scopes students, totals and records while all years preserves continuity', () => {
+  const history = tahfidzHistory(
+    'school',
+    new Request(`http://localhost/history?student_id=${student}&academic_year_id=${oldYear}`),
+  )!;
+  assert.equal(history.total, 21);
+  assert.ok(
+    history.records.every(
+      (row) => row.academic_year_id === oldYear && row.academic_year_name === '2025/2026',
+    ),
+  );
+  assert.equal(tahfidzHistory('school', request(student))!.total, 22);
+  const current = tahfidzHistory(
+    'school',
+    new Request(`http://localhost/history?student_id=${student}&academic_year_id=${currentYear}`),
+  )!;
+  assert.equal(current.total, 1);
+  assert.equal(
+    tahfidzHistory(
+      'school',
+      new Request(`http://localhost/history?student_id=${student}&academic_year_id=${currentYear}`),
+      'teacher',
+    ),
+    null,
+  );
+  assert.throws(() =>
+    tahfidzHistory(
+      'school',
+      new Request(`http://localhost/history?academic_year_id=${foreignYear}`),
+    ),
+  );
 });

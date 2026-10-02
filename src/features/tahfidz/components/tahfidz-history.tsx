@@ -19,17 +19,18 @@ import {
   historyStatuses,
 } from '../history-types';
 
-export function TahfidzHistoryPanel() {
+export function TahfidzHistoryPanel({ initialYear = 'all' }: { initialYear?: string }) {
+  const [year, setYear] = useState(initialYear);
   const [studentId, setStudentId] = useState('');
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<{ key: string; data?: TahfidzHistory; error?: string }>({
     key: '',
   });
-  const key = `${studentId}:${page}:${revision}`;
+  const key = `${year}:${studentId}:${page}:${revision}`;
   useEffect(() => {
     const controller = new AbortController();
-    const params = new URLSearchParams({ page: String(page) });
+    const params = new URLSearchParams({ page: String(page), academic_year_id: year });
     if (studentId) params.set('student_id', studentId);
     fetch(`/api/modules/tahfidz/history?${params}`, { signal: controller.signal })
       .then(async (response) => {
@@ -45,7 +46,7 @@ export function TahfidzHistoryPanel() {
           });
       });
     return () => controller.abort();
-  }, [studentId, page, revision, key]);
+  }, [year, studentId, page, revision, key]);
   const data = state.key === key ? state.data : undefined;
   const loading = state.key !== key;
   return (
@@ -54,6 +55,19 @@ export function TahfidzHistoryPanel() {
         Riwayat lintas kelompok dan tahun ajaran, dari yang terbaru. Sesi terbuka masih dapat
         berubah.
       </Text>
+      <Select
+        label="Tahun ajaran"
+        value={year}
+        data={[
+          { value: 'all', label: 'Semua tahun ajaran' },
+          ...(state.data?.academic_years || []),
+        ]}
+        onChange={(value) => {
+          setYear(value || 'all');
+          setStudentId('');
+          setPage(1);
+        }}
+      />
       <Select
         searchable
         clearable
@@ -106,7 +120,7 @@ export function TahfidzHistoryPanel() {
                           )}
                         </Text>
                         <Text size="xs">
-                          {record.group_name} · {record.class_name}
+                          {record.group_name} · {record.class_name} · {record.academic_year_name}
                         </Text>
                         <Badge
                           size="xs"

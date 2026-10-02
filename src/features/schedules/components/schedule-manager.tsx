@@ -14,6 +14,7 @@ import {
   Modal,
   NumberInput,
   Paper,
+  Pagination,
   SegmentedControl,
   Select,
   Stack,
@@ -26,6 +27,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useRouter } from 'next/navigation';
 import { TimePicker } from '@mantine/dates';
 import {
   IconBell,
@@ -45,6 +47,7 @@ import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import { moduleMutation } from '@/hooks/use-module-list';
 import styles from '@/features/schedules/components/schedule-manager.module.css';
 import { playBellPreview } from '@/features/schedules/client/bell';
+import { ScheduleCellContent } from './schedule-cell-content';
 
 type Option = { value: string; label: string; type?: 'lesson' | 'extracurricular' };
 type CopyOption = Option & {
@@ -64,7 +67,7 @@ type Slot = {
 type Entry = {
   id: string;
   assignment_id: string;
-  entry_type: 'lesson' | 'extracurricular';
+  entry_type: 'lesson' | 'extracurricular' | 'tahfidz';
   semester_id: string;
   time_slot_id: string;
   weekday: number;
@@ -73,6 +76,8 @@ type Entry = {
   teacher_name: string;
   class_name: string;
   has_attendance: number;
+  location?: string;
+  participant_count?: number;
 };
 type ScheduleResponse = {
   entries: Entry[];
@@ -137,6 +142,7 @@ async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function ScheduleManager({ writable }: { writable: boolean }) {
+  const router = useRouter();
   const [tab, setTab] = useState<string | null>('schedule');
   const [view, setView] = useState<'class' | 'teacher'>('class');
   const [academicYearId, setAcademicYearId] = useState('');
@@ -153,6 +159,11 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
   const [confirmingRemoval, setConfirmingRemoval] = useState(false);
   const [sourceSemesterId, setSourceSemesterId] = useState('');
   const [sourceClassId, setSourceClassId] = useState('');
+  const [details, setDetails] = useState<{ weekday: number; slot: Slot; entries: Entry[] } | null>(
+    null,
+  );
+  const [detailQuery, setDetailQuery] = useState('');
+  const [detailPage, setDetailPage] = useState(1);
 
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
@@ -303,11 +314,36 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
   }
 
   function openCell(weekday: number, timeSlotId: string, entry?: Entry) {
+    if (entry?.entry_type === 'tahfidz') {
+      router.push(`/academic/tahfidz?academic_year_id=${academicYearId}`);
+      return;
+    }
     if (!writable) return;
     setCell({ weekday, time_slot_id: timeSlotId });
     setEditing(entry || null);
     setAssignmentId(entry?.assignment_id || '');
   }
+
+  function openScheduleCell(weekday: number, slot: Slot, entries: Entry[]) {
+    if (
+      entries.length > 1 ||
+      entries.some((entry) => entry.entry_type === 'tahfidz') ||
+      (!writable && entries.length)
+    ) {
+      setDetails({ weekday, slot, entries });
+      setDetailQuery('');
+      setDetailPage(1);
+      return;
+    }
+    openCell(weekday, slot.id, entries[0]);
+  }
+  const detailEntries = (details?.entries || [])
+    .filter((entry) =>
+      `${entry.entry_name} ${entry.teacher_name} ${entry.class_name} ${entry.location || ''}`
+        .toLocaleLowerCase('id-ID')
+        .includes(detailQuery.trim().toLocaleLowerCase('id-ID')),
+    )
+    .toSorted((a, b) => a.entry_name.localeCompare(b.entry_name, 'id', { numeric: true }));
 
   async function saveWeekdays() {
     setSavingWeekdays(true);
@@ -752,8 +788,6 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                       </div>
                       {activeWeekdays.map((weekday) => {
                         const cellEntries = entryMap.get(`${weekday}:${slot.id}`) || [];
-                        const entry = cellEntries[0];
-                        const entryNames = [...new Set(cellEntries.map((item) => item.entry_name))];
                         if (slot.is_break)
                           return (
                             <div className={styles.breakCell} key={weekday}>
@@ -765,29 +799,12 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                             type="button"
                             key={weekday}
                             className={`${styles.scheduleCell} ${weekday >= 6 ? styles.weekendCell : ''} ${cellEntries.length ? styles.filledCell : ''}`}
-                            onClick={() => openCell(weekday, slot.id, entry)}
-                            disabled={!writable || cellEntries.length > 1}
+                            onClick={() => openScheduleCell(weekday, slot, cellEntries)}
+                            disabled={!writable && cellEntries.length === 0}
+                            aria-label={`${weekdayName(weekday)}, ${slot.name}: ${cellEntries.length ? `${cellEntries.length} kegiatan, lihat rincian` : 'Tambah pelajaran'}`}
                           >
                             {cellEntries.length ? (
-                              <>
-                                <Text fw={700} size="xs" lineClamp={2}>
-                                  {entryNames.join(', ')}
-                                </Text>
-                                <Text variant="caption" lineClamp={1}>
-                                  {cellEntries.length > 1
-                                    ? `${cellEntries.length} kegiatan`
-                                    : view === 'class'
-                                      ? entry.teacher_name
-                                      : entry.class_name}
-                                </Text>
-                                <Badge size="xs" variant="light" mt={5}>
-                                  {cellEntries.every(
-                                    (item) => item.entry_type === 'extracurricular',
-                                  )
-                                    ? 'EKSKUL'
-                                    : entry?.entry_code}
-                                </Badge>
-                              </>
+                              <ScheduleCellContent entries={cellEntries} view={view} />
                             ) : writable ? (
                               <IconPlus size={17} />
                             ) : (
@@ -826,15 +843,18 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                     </Text>
                     {data.slots.map((slot) => {
                       const cellEntries = entryMap.get(`${weekday}:${slot.id}`) || [];
-                      const entry = cellEntries[0];
-                      const entryNames = [...new Set(cellEntries.map((item) => item.entry_name))];
                       return (
                         <button
                           type="button"
                           key={slot.id}
                           className={`${styles.mobileSlot} ${cellEntries.length ? styles.filledCell : ''} ${slot.is_break ? styles.mobileBreak : ''}`}
-                          onClick={() => !slot.is_break && openCell(weekday, slot.id, entry)}
-                          disabled={!writable || Boolean(slot.is_break) || cellEntries.length > 1}
+                          onClick={() =>
+                            !slot.is_break && openScheduleCell(weekday, slot, cellEntries)
+                          }
+                          disabled={
+                            Boolean(slot.is_break) || (!writable && cellEntries.length === 0)
+                          }
+                          aria-label={`${weekdayName(weekday)}, ${slot.name}: ${cellEntries.length} kegiatan`}
                         >
                           <Box className={styles.mobileTime}>
                             <Text fw={700} size="xs">
@@ -848,18 +868,7 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
                             {slot.is_break ? (
                               <Text variant="caption">Istirahat</Text>
                             ) : cellEntries.length ? (
-                              <>
-                                <Text fw={700} size="xs">
-                                  {entryNames.join(', ')}
-                                </Text>
-                                <Text variant="caption">
-                                  {cellEntries.length > 1
-                                    ? `${cellEntries.length} kegiatan`
-                                    : view === 'class'
-                                      ? entry.teacher_name
-                                      : entry.class_name}
-                                </Text>
-                              </>
+                              <ScheduleCellContent entries={cellEntries} view={view} />
                             ) : (
                               <Text variant="caption">{writable ? '+ Tambah pelajaran' : '—'}</Text>
                             )}
@@ -1111,6 +1120,111 @@ export function ScheduleManager({ writable }: { writable: boolean }) {
         </Tabs.Panel>
       </Tabs>
 
+      <Modal
+        opened={Boolean(details)}
+        onClose={() => setDetails(null)}
+        title={
+          details
+            ? `${weekdayName(details.weekday)} · ${details.slot.start_time}–${details.slot.end_time}`
+            : 'Rincian jadwal'
+        }
+        size="lg"
+      >
+        <Stack>
+          <Text size="sm" c="dimmed">
+            {details?.entries.length || 0} kegiatan pada {details?.slot.name}. Menampilkan 10
+            kegiatan per halaman.
+          </Text>
+          <TextInput
+            label="Cari kegiatan atau pembimbing"
+            placeholder="Nama kelompok, guru, rombel, atau lokasi"
+            value={detailQuery}
+            onChange={(event) => {
+              setDetailQuery(event.currentTarget.value);
+              setDetailPage(1);
+            }}
+          />
+          <Table.ScrollContainer minWidth={520}>
+            <Table verticalSpacing="sm" striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Kegiatan / kelompok</Table.Th>
+                  <Table.Th>Pembimbing / guru</Table.Th>
+                  <Table.Th>Peserta / rombel</Table.Th>
+                  {writable ? <Table.Th /> : null}
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {detailEntries.slice((detailPage - 1) * 10, detailPage * 10).map((entry) => (
+                  <Table.Tr key={entry.id}>
+                    <Table.Td>
+                      <Text fw={600} size="sm">
+                        {entry.entry_name}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {entry.entry_type === 'tahfidz'
+                          ? 'Tahfidz'
+                          : entry.entry_type === 'lesson'
+                            ? 'Pelajaran'
+                            : 'Ekstrakurikuler'}
+                        {entry.location ? ` · ${entry.location}` : ''}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{entry.teacher_name}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">
+                        {entry.entry_type === 'tahfidz'
+                          ? `${entry.participant_count ?? 0} peserta`
+                          : entry.class_name || '—'}
+                      </Text>
+                    </Table.Td>
+                    {writable ? (
+                      <Table.Td>
+                        {entry.entry_type !== 'tahfidz' ? (
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => {
+                              if (!details) return;
+                              const selected = details;
+                              setDetails(null);
+                              openCell(selected.weekday, selected.slot.id, entry);
+                            }}
+                          >
+                            Ubah
+                          </Button>
+                        ) : null}
+                      </Table.Td>
+                    ) : null}
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+          {!detailEntries.length ? (
+            <Text size="sm" c="dimmed">
+              Tidak ada kegiatan yang cocok.
+            </Text>
+          ) : null}
+          {detailEntries.length > 10 ? (
+            <Pagination
+              value={detailPage}
+              onChange={setDetailPage}
+              total={Math.ceil(detailEntries.length / 10)}
+            />
+          ) : null}
+          {details?.entries.some((entry) => entry.entry_type === 'tahfidz') ? (
+            <Button
+              variant="light"
+              onClick={() => router.push(`/academic/tahfidz?academic_year_id=${academicYearId}`)}
+            >
+              Buka modul Tahfidz & Halaqah
+            </Button>
+          ) : null}
+        </Stack>
+      </Modal>
       <Modal
         opened={editing !== undefined && !confirmingRemoval}
         onClose={() => !saving && setEditing(undefined)}

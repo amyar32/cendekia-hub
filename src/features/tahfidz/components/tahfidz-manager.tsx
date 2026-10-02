@@ -60,8 +60,14 @@ const empty = (): Form => ({
 });
 const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const endpoint = '/api/modules/tahfidz';
-export function TahfidzManager({ writable }: { writable: boolean }) {
-  const [year, setYear] = useState('');
+export function TahfidzManager({
+  writable,
+  initialYear = '',
+}: {
+  writable: boolean;
+  initialYear?: string;
+}) {
+  const [year, setYear] = useState(initialYear);
   const [historyOpened, setHistoryOpened] = useState(false);
   const list = useModuleList<Group>(endpoint, year ? { academic_year_id: year } : {});
   const [editing, setEditing] = useState<Group | null | undefined>();
@@ -69,6 +75,11 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
   const [form, setForm] = useState<Form>(empty());
   const [saving, setSaving] = useState(false);
   const selectedYear = year || list.selected?.academic_year_id || '';
+  const editable =
+    writable &&
+    list.selected?.read_only === '0' &&
+    selectedYear === list.selected?.academic_year_id &&
+    !list.loading;
   const open = (row: Group | null) => {
     setForm(
       row
@@ -82,7 +93,7 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
             status: row.status,
             student_ids: row.student_ids,
           }
-        : empty(),
+        : { ...empty(), status: list.selected?.is_draft === '1' ? 'draft' : 'active' },
     );
     setEditing(row);
   };
@@ -140,7 +151,7 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
         loading={list.loading}
         error={list.error}
         onReload={list.reload}
-        onAdd={writable ? () => open(null) : undefined}
+        onAdd={editable ? () => open(null) : undefined}
         addLabel="Tambah halaqah"
         emptyMessage="Belum ada kelompok halaqah."
         note="Jadwal memakai slot waktu sekolah dan mencegah bentrok pembimbing maupun peserta."
@@ -171,7 +182,7 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
                 <Table.Th>Jadwal</Table.Th>
                 <Table.Th>Peserta</Table.Th>
                 <Table.Th>Status</Table.Th>
-                {writable ? <Table.Th /> : null}
+                {editable ? <Table.Th /> : null}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -202,7 +213,7 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
                           : 'Selesai'}
                     </Badge>
                   </Table.Td>
-                  {writable ? (
+                  {editable ? (
                     <Table.Td>
                       <Group gap="xs" wrap="nowrap">
                         <ActionIcon variant="subtle" onClick={() => open(row)} aria-label="Edit">
@@ -231,7 +242,7 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
         title="Riwayat hafalan siswa"
         size="xl"
       >
-        {historyOpened ? <TahfidzHistoryPanel /> : null}
+        {historyOpened ? <TahfidzHistoryPanel initialYear={selectedYear || 'all'} /> : null}
       </Modal>
       <Modal
         opened={editing !== undefined}
@@ -241,6 +252,14 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
       >
         <form onSubmit={save}>
           <Stack>
+            <Text size="sm" c="dimmed">
+              Tahun ajaran:{' '}
+              {
+                list.options?.academic_year_id?.find((option) => option.value === selectedYear)
+                  ?.label
+              }
+              . Peserta draft akan disesuaikan saat pergantian tahun ajaran selesai.
+            </Text>
             <TextInput
               required
               label="Nama kelompok"
@@ -299,7 +318,7 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
                 placeholder="Pilih status kelompok"
                 data={[
                   { value: 'draft', label: 'Draft' },
-                  { value: 'active', label: 'Aktif' },
+                  { value: 'active', label: 'Aktif', disabled: list.selected?.is_draft === '1' },
                   { value: 'completed', label: 'Selesai' },
                 ]}
                 value={form.status}
@@ -307,7 +326,6 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
               />
             </Group>
             <MultiSelect
-              required
               searchable
               label="Peserta"
               description="Boleh berasal dari rombel dan tingkat yang berbeda."
@@ -335,7 +353,10 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
         title="Hapus kelompok halaqah?"
         confirmLabel="Hapus"
       >
-        <Text>Riwayat sesi dan setoran kelompok ini ikut terhapus.</Text>
+        <Text>
+          Kelompok yang sudah memiliki sesi tidak dapat dihapus agar riwayat hafalan tetap
+          tersimpan.
+        </Text>
       </ConfirmationDialog>
     </>
   );

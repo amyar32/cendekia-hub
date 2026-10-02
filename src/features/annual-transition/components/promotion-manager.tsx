@@ -119,6 +119,16 @@ type PromotionData = {
   teaching_assignments: TeachingAssignment[];
   homeroom_assignments: HomeroomAssignment[];
   extracurricular_assignments: ExtracurricularAssignment[];
+  tahfidz_groups: Array<{
+    id: string;
+    name: string;
+    status: string;
+    teacher_name: string;
+    weekdays: string;
+    start_time: string;
+    end_time: string;
+    participant_count: number;
+  }>;
   grade_options: GradeOption[];
   students: Student[];
   max_grade_level: number | null;
@@ -186,6 +196,9 @@ export function PromotionManager({ writable }: { writable: boolean }) {
   const [copyExtracurricularAssignments, setCopyExtracurricularAssignments] = useState(true);
   const [copyHomeroom, setCopyHomeroom] = useState(true);
   const [copySchedules, setCopySchedules] = useState(true);
+  const [copyTahfidz, setCopyTahfidz] = useState(true);
+  const [showTahfidzGroups, setShowTahfidzGroups] = useState(false);
+  const [tahfidzPage, setTahfidzPage] = useState(1);
   const [mappings, setMappings] = useState<Record<string, string>>({});
   const [actions, setActions] = useState<Record<string, Action>>({});
   const [teachingAssignments, setTeachingAssignments] = useState<TeachingAssignment[]>([]);
@@ -245,6 +258,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
         const result = (await response.json()) as PromotionData & { error?: string };
         if (!response.ok) throw new Error(result.error);
         setData(result);
+        setTahfidzPage(1);
         setTeachingAssignments(result.teaching_assignments);
         setHomeroomAssignments(result.homeroom_assignments);
         setExtracurricularAssignments(result.extracurricular_assignments);
@@ -489,6 +503,7 @@ export function PromotionManager({ writable }: { writable: boolean }) {
           copy_classrooms: true,
           copy_teaching_assignments: copyTeaching,
           copy_extracurricular_assignments: copyExtracurricularAssignments,
+          copy_tahfidz_groups: copyTahfidz,
           copy_homeroom_assignments: copyHomeroom,
           copy_schedules: copySchedules,
         }),
@@ -935,6 +950,13 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                   onChange={setCopyHomeroom}
                 />
                 <CopyCard
+                  icon={<IconUsersGroup size={22} />}
+                  title="Tahfidz & halaqah"
+                  detail="Salin kelompok, pembimbing, jadwal, kuota, dan peserta dari tahun sebelumnya sebagai draft"
+                  checked={copyTahfidz}
+                  onChange={setCopyTahfidz}
+                />
+                <CopyCard
                   icon={<IconCalendarEvent size={22} />}
                   title="Jadwal pelajaran"
                   detail="Jadwal mingguan dari tahun sebelumnya"
@@ -963,6 +985,98 @@ export function PromotionManager({ writable }: { writable: boolean }) {
                 </Text>
               </Stack>
 
+              <Paper withBorder p="lg">
+                <Group justify="space-between" mb="sm">
+                  <Text fw={700}>Tahfidz & halaqah tahun baru</Text>
+                  <Badge variant="light">{data.tahfidz_groups.length} kelompok</Badge>
+                </Group>
+                <Text size="sm" c="dimmed">
+                  {data.tahfidz_groups.length
+                    ? 'Kelompok sudah tersedia di tahun baru. Salinan mengikuti pembimbing, jadwal, kuota, dan peserta tahun sebelumnya dengan status draft.'
+                    : 'Belum ada kelompok di tahun baru. Kelompok disalin saat opsi Tahfidz & halaqah dipilih pada langkah Salin struktur.'}{' '}
+                  Lanjutkan pergantian dari halaman ini. Peserta yang lulus atau keluar otomatis
+                  dikeluarkan dari kelompok tahun baru saat finalisasi. Kelompok tetap draft untuk
+                  ditinjau setelah pergantian selesai.
+                </Text>
+                {data.tahfidz_groups.length > 0 && (
+                  <>
+                    <Button
+                      variant="subtle"
+                      size="xs"
+                      mt="sm"
+                      onClick={() => setShowTahfidzGroups((value) => !value)}
+                      rightSection={
+                        showTahfidzGroups ? (
+                          <IconChevronUp size={15} />
+                        ) : (
+                          <IconChevronDown size={15} />
+                        )
+                      }
+                    >
+                      {showTahfidzGroups ? 'Tutup rincian' : 'Lihat kelompok tahun baru'}
+                    </Button>
+                    <Collapse in={showTahfidzGroups}>
+                      <Table.ScrollContainer minWidth={500}>
+                        <Table mt="sm" verticalSpacing="sm">
+                          <Table.Thead>
+                            <Table.Tr>
+                              <Table.Th>Kelompok</Table.Th>
+                              <Table.Th>Pembimbing</Table.Th>
+                              <Table.Th>Jadwal</Table.Th>
+                              <Table.Th>Peserta</Table.Th>
+                              <Table.Th>Status</Table.Th>
+                            </Table.Tr>
+                          </Table.Thead>
+                          <Table.Tbody>
+                            {data.tahfidz_groups
+                              .slice((tahfidzPage - 1) * 10, tahfidzPage * 10)
+                              .map((group) => (
+                                <Table.Tr key={group.id}>
+                                  <Table.Td>{group.name}</Table.Td>
+                                  <Table.Td>{group.teacher_name}</Table.Td>
+                                  <Table.Td>
+                                    {(JSON.parse(group.weekdays) as number[])
+                                      .map(
+                                        (day) =>
+                                          [
+                                            'Senin',
+                                            'Selasa',
+                                            'Rabu',
+                                            'Kamis',
+                                            'Jumat',
+                                            'Sabtu',
+                                            'Minggu',
+                                          ][day - 1],
+                                      )
+                                      .join(', ')}
+                                    {' · '}
+                                    {group.start_time}–{group.end_time}
+                                  </Table.Td>
+                                  <Table.Td>{group.participant_count}</Table.Td>
+                                  <Table.Td>
+                                    {group.status === 'draft'
+                                      ? 'Draft'
+                                      : group.status === 'active'
+                                        ? 'Aktif'
+                                        : 'Selesai'}
+                                  </Table.Td>
+                                </Table.Tr>
+                              ))}
+                          </Table.Tbody>
+                        </Table>
+                      </Table.ScrollContainer>
+                      {data.tahfidz_groups.length > 10 && (
+                        <Pagination
+                          mt="sm"
+                          value={tahfidzPage}
+                          onChange={setTahfidzPage}
+                          total={Math.ceil(data.tahfidz_groups.length / 10)}
+                        />
+                      )}
+                    </Collapse>
+                  </>
+                )}
+              </Paper>
               <Paper withBorder p="lg">
                 <Group justify="space-between" mb="md">
                   <div>

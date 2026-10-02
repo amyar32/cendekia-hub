@@ -1960,6 +1960,58 @@ test('guided annual transition keeps the source active until finalization and ca
   assert.equal(res.status, 201);
   const student = await res.json();
 
+  const tahfidzOptions = await (
+    await api(`/api/modules/tahfidz?academic_year_id=${sourceYear.value}`)
+  ).json();
+  res = await api('/api/modules/schedule-time-slots', 'POST', {
+    name: 'Tahfidz pergantian',
+    start_time: '20:00',
+    end_time: '20:30',
+    slot_order: 99,
+    is_break: false,
+    is_active: true,
+  });
+  assert.equal(res.status, 201);
+  const tahfidzSlot = await res.json();
+  const sourceParticipants = [
+    ...new Set([student.id, ...setup.students.map((row: { id: string }) => row.id)]),
+  ];
+  res = await api('/api/modules/tahfidz', 'POST', {
+    academic_year_id: sourceYear.value,
+    name: 'Halaqah pergantian',
+    teacher_id: tahfidzOptions.options.teacher_id[0].value,
+    semester_id: 'all',
+    time_slot_id: tahfidzSlot.id,
+    weekdays: [1],
+    quota: 100,
+    status: 'active',
+    student_ids: sourceParticipants,
+  });
+  assert.equal(res.status, 201);
+  const sourceTahfidz = await res.json();
+  const combinedClassSchedule = await (
+    await api(
+      `/api/modules/schedules?academic_year_id=${sourceYear.value}&semester_id=${tahfidzOptions.options.semester_id[1].value}&class_id=${sourceClass.id}`,
+    )
+  ).json();
+  assert.ok(
+    combinedClassSchedule.entries.some(
+      (entry: { entry_type: string; assignment_id: string }) =>
+        entry.entry_type === 'tahfidz' && entry.assignment_id === sourceTahfidz.id,
+    ),
+  );
+  const lessonAssignment = combinedClassSchedule.assignments.find(
+    (assignment: { type: string }) => assignment.type === 'lesson',
+  );
+  assert.ok(lessonAssignment);
+  res = await api('/api/modules/schedules', 'POST', {
+    teaching_assignment_id: lessonAssignment.value,
+    semester_id: tahfidzOptions.options.semester_id[1].value,
+    time_slot_id: tahfidzSlot.id,
+    weekday: 1,
+  });
+  assert.equal(res.status, 409, 'Pelajaran harus memeriksa jadwal tahfidz murid.');
+
   res = await api('/api/modules/academic-years', 'POST', {
     name: '2029/2030',
     start_date: '2029-07-01',
@@ -1971,9 +2023,34 @@ test('guided annual transition keeps the source active until finalization and ca
     copy_teaching_assignments: true,
     copy_homeroom_assignments: true,
     copy_extracurricular_assignments: true,
+    copy_tahfidz_groups: true,
   });
   assert.equal(res.status, 201);
   const draft = await res.json();
+
+  const draftTahfidz = await (
+    await api(`/api/modules/tahfidz?academic_year_id=${draft.id}`)
+  ).json();
+  const targetTahfidz = draftTahfidz.rows.find(
+    (row: { name: string }) => row.name === 'Halaqah pergantian',
+  );
+  assert.ok(targetTahfidz);
+  assert.equal(targetTahfidz.status, 'draft');
+  assert.notEqual(targetTahfidz.id, sourceTahfidz.id);
+  assert.deepEqual([...targetTahfidz.student_ids].sort(), [...sourceParticipants].sort());
+  res = await api('/api/modules/tahfidz', 'PATCH', {
+    ...targetTahfidz,
+    semester_id: targetTahfidz.semester_id || 'all',
+    academic_year_id: draft.id,
+  });
+  assert.equal(res.status, 200, 'Peserta draft dapat ditinjau sebelum memiliki rombel tahun baru.');
+  res = await api('/api/modules/tahfidz', 'PATCH', {
+    ...targetTahfidz,
+    semester_id: targetTahfidz.semester_id || 'all',
+    academic_year_id: draft.id,
+    status: 'active',
+  });
+  assert.equal(res.status, 409, 'Kelompok draft belum boleh diaktifkan.');
 
   const beforeFinalization = await (await api('/api/modules/academic-years')).json();
   assert.equal(
@@ -1990,6 +2067,14 @@ test('guided annual transition keeps the source active until finalization and ca
   const preview = await res.json();
   assert.ok(preview.target_classes.length > 0);
   assert.ok(preview.students.some((row: { id: string }) => row.id === student.id));
+  const copiedGroupPreview = preview.tahfidz_groups.find(
+    (row: { id: string }) => row.id === targetTahfidz.id,
+  );
+  assert.ok(copiedGroupPreview, 'Hasil salinan halaqah tersedia langsung di wizard pergantian.');
+  assert.equal(copiedGroupPreview.status, 'draft');
+  assert.equal(copiedGroupPreview.participant_count, sourceParticipants.length);
+  assert.ok(copiedGroupPreview.teacher_name);
+  assert.equal(copiedGroupPreview.start_time, '20:00');
 
   const editableClass = preview.target_classes[0];
   res = await api('/api/modules/promotions', 'PATCH', {
@@ -2023,14 +2108,64 @@ test('guided annual transition keeps the source active until finalization and ca
       };
     },
   );
-  res = await api('/api/modules/promotions', 'POST', {
+  const transitionDb = new Database(join(dir, 'test.sqlite'));
+  const openSessionId = randomUUID();
+  const adminId = (
+    transitionDb.prepare("SELECT id FROM users WHERE email='admin@test.local'").get() as {
+      id: string;
+    }
+  ).id;
+  transitionDb
+    .prepare(
+      'INSERT INTO tahfidz_sessions(id,school_id,group_id,teacher_id,attendance_date,group_name,teacher_name,created_by) VALUES(?,?,?,?,?,?,?,?)',
+    )
+    .run(
+      openSessionId,
+      sourceClass.school_id,
+      sourceTahfidz.id,
+      targetTahfidz.teacher_id,
+      sourceYear.start_date,
+      'Halaqah pergantian',
+      'Guru',
+      adminId,
+    );
+  const transitionBody = {
     source_academic_year_id: sourceYear.value,
     target_academic_year_id: draft.id,
     activate_target: true,
     actions,
-  });
+  };
+  res = await api('/api/modules/promotions', 'POST', transitionBody);
+  assert.equal(res.status, 409, 'Sesi terbuka tahun asal harus ditutup.');
+  transitionDb.prepare("UPDATE tahfidz_sessions SET status='closed' WHERE id=?").run(openSessionId);
+  transitionDb.close();
+  res = await api('/api/modules/promotions', 'POST', transitionBody);
   assert.equal(res.status, 200);
   const completed = await res.json();
+  const transitionedTahfidz = await (
+    await api(`/api/modules/tahfidz?academic_year_id=${draft.id}`)
+  ).json();
+  const remainingParticipants = actions
+    .filter((action: { outcome: string }) => ['promoted', 'retained'].includes(action.outcome))
+    .map((action: { student_id: string }) => action.student_id);
+  assert.deepEqual(
+    [
+      ...transitionedTahfidz.rows.find((row: { id: string }) => row.id === targetTahfidz.id)
+        .student_ids,
+    ].sort(),
+    [...remainingParticipants].sort(),
+  );
+  assert.equal(
+    (
+      await api('/api/modules/tahfidz', 'PATCH', {
+        ...targetTahfidz,
+        id: sourceTahfidz.id,
+        semester_id: 'all',
+        academic_year_id: sourceYear.value,
+      })
+    ).status,
+    409,
+  );
   const afterFinalization = await (await api('/api/modules/academic-years')).json();
   assert.equal(
     afterFinalization.rows.find((row: { id: string }) => row.id === draft.id).is_active,
@@ -2088,6 +2223,16 @@ test('guided annual transition keeps the source active until finalization and ca
   res = await api('/api/modules/promotions', 'DELETE', { id: completed.id });
   assert.equal(res.status, 200);
   const afterUndo = await (await api('/api/modules/academic-years')).json();
+  const restoredTahfidz = await (
+    await api(`/api/modules/tahfidz?academic_year_id=${draft.id}`)
+  ).json();
+  assert.deepEqual(
+    [
+      ...restoredTahfidz.rows.find((row: { id: string }) => row.id === targetTahfidz.id)
+        .student_ids,
+    ].sort(),
+    [...sourceParticipants].sort(),
+  );
   assert.equal(
     afterUndo.rows.find((row: { id: string }) => row.id === sourceYear.value).is_active,
     1,

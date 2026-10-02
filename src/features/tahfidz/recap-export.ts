@@ -52,6 +52,7 @@ const detailHeaders = [
   'Hasil',
   'Sesi',
   'Catatan',
+  'Tahun ajaran',
 ];
 function detailRows(data: TahfidzRecap) {
   return (data.records || []).map((row) => [
@@ -68,10 +69,12 @@ function detailRows(data: TahfidzRecap) {
     historyResults[row.result],
     row.session_status === 'closed' ? 'Ditutup' : 'Terbuka',
     row.note,
+    row.academic_year_name,
   ]);
 }
 export function recapFilterLabels(data: TahfidzRecap) {
   return [
+    `Tahun ajaran: ${data.options.academic_years.find((row) => row.value === data.filters.academic_year_id)?.label || 'Semua tahun ajaran'}`,
     `Periode ${data.filters.date_from} s.d. ${data.filters.date_to}`,
     `Kelompok: ${data.options.groups.find((row) => row.value === data.filters.group_id)?.label || 'Semua kelompok'}`,
     `Siswa: ${data.options.students.find((row) => row.value === data.filters.student_id)?.label || 'Semua siswa'}`,
@@ -94,7 +97,7 @@ export async function createTahfidzExcel(data: TahfidzRecap) {
     sheet.addRow([
       `Kehadiran = (hadir + telat) / catatan sesi. ${data.summary.sessions} sesi, ${data.summary.students} siswa, ${data.summary.open_sessions} sesi terbuka.`,
     ]);
-    for (let row = 1; row <= 7; row++) sheet.mergeCells(row, 1, row, headers.length);
+    for (let row = 1; row <= sheet.rowCount; row++) sheet.mergeCells(row, 1, row, headers.length);
     const heading = sheet.addRow(headers);
     heading.height = 32;
     heading.font = {
@@ -217,7 +220,7 @@ export async function createTahfidzPdf(data: TahfidzRecap) {
       columnStyles:
         index === 1
           ? Object.fromEntries(
-              [20, 20, 24, 14, 22, 23, 17, 17, 22, 12, 17, 13, 56].map((width, column) => [
+              [20, 20, 24, 14, 22, 23, 17, 17, 22, 12, 17, 13, 36, 20].map((width, column) => [
                 column,
                 { cellWidth: width },
               ]),
