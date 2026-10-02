@@ -1,6 +1,7 @@
 'use client';
 
 import { Avatar, Image } from '@mantine/core';
+
 import {
   IconAlertTriangle,
   IconBell,
@@ -10,21 +11,30 @@ import {
   IconCheck,
   IconClock,
   IconDeviceDesktop,
-  IconDoorExit,
-  IconMaximize,
   IconSchool,
   IconUsers,
   IconWifi,
   IconWifiOff,
 } from '@tabler/icons-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import type { LiveDisplaySnapshot, LivePerson, LiveSchedule } from '@/lib/live-display';
-import styles from '@/features/live/components/live-display.module.css';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-const SCENE_DURATION = 15_000;
+import {
+  LIVE_PAGE_DURATION,
+  livePage,
+  liveScenePageCounts,
+  nextLiveFrame,
+  type LiveFrame,
+  type LiveDisplaySnapshot,
+  type LivePerson,
+  type LiveSchedule,
+} from '@/lib/live-display';
+import styles from '@/features/live/components/live-display.module.css';
+import { ActivityScene } from './activity-scene';
+import { EmptyState } from './empty-state';
+import { HalaqahScene } from './halaqah-scene';
+
 const POLL_INTERVAL = 5_000;
-const sceneNames = ['Ringkasan', 'Kehadiran', 'Jadwal & guru'];
+const sceneNames = ['Ringkasan', 'Kehadiran', 'Jadwal & guru', 'Kegiatan sekolah', 'Halaqah'];
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -135,36 +145,29 @@ function AttendanceCard({
   );
 }
 
-function EmptyState({ children }: { children: React.ReactNode }) {
-  return (
-    <div className={styles.empty}>
-      <IconCheck size={34} stroke={1.8} />
-      {children}
-    </div>
-  );
-}
-
-function OverviewScene({ data }: { data: LiveDisplaySnapshot }) {
+function OverviewScene({ data, page }: { data: LiveDisplaySnapshot; page: number }) {
   const slot = data.bell.current_slot;
   return (
     <div className={styles.scene}>
       <section className={styles.heroGrid}>
         <article className={styles.periodCard}>
           <div className={styles.eyebrow}>
-            <IconBook2 size={18} /> SEDANG BERLANGSUNG
+            <IconBook2 size={18} /> SLOT WAKTU SAAT INI
           </div>
           <div className={styles.periodMain}>
             <div>
-              <h2>{slot?.name || 'Belum ada kegiatan'}</h2>
+              <h2>{slot?.name || 'Di luar slot bel'}</h2>
               <p>
                 {slot
                   ? `${slot.start_time} — ${slot.end_time}`
-                  : 'Jadwal pelajaran hari ini belum dimulai'}
+                  : 'Tidak ada slot waktu yang sedang berjalan'}
               </p>
             </div>
             <div className={styles.liveClassCount}>
-              <strong>{data.current_schedules.length}</strong>
-              <span>kelas aktif</span>
+              <strong>
+                {data.activities.filter((activity) => activity.phase === 'current').length}
+              </strong>
+              <span>kegiatan aktif</span>
             </div>
           </div>
         </article>
@@ -186,7 +189,7 @@ function OverviewScene({ data }: { data: LiveDisplaySnapshot }) {
           </header>
           <div className={styles.scheduleTable}>
             {data.current_schedules.length ? (
-              data.current_schedules.slice(0, 5).map((schedule) => (
+              livePage(data.current_schedules, page, 5).map((schedule) => (
                 <div className={styles.scheduleRow} key={schedule.id}>
                   <div className={styles.timeBlock}>
                     {schedule.start_time}
@@ -229,7 +232,7 @@ function OverviewScene({ data }: { data: LiveDisplaySnapshot }) {
             <span>{data.notices.length} informasi</span>
           </header>
           <div className={styles.noticeList}>
-            {data.notices.slice(0, 4).map((notice, index) => (
+            {livePage(data.notices, page, 3).map((notice, index) => (
               <div
                 className={`${styles.notice} ${styles[notice.tone]}`}
                 key={`${notice.title}-${index}`}
@@ -244,7 +247,10 @@ function OverviewScene({ data }: { data: LiveDisplaySnapshot }) {
           </div>
         </article>
       </section>
-      <RecentStrip people={data.recent_checkins.slice(0, 6)} timezone={data.school.timezone} />
+      <RecentStrip
+        people={livePage(data.recent_checkins, page, 3)}
+        timezone={data.school.timezone}
+      />
     </div>
   );
 }
@@ -352,7 +358,7 @@ function PeopleList({
   );
 }
 
-function AttendanceScene({ data }: { data: LiveDisplaySnapshot }) {
+function AttendanceScene({ data, page }: { data: LiveDisplaySnapshot; page: number }) {
   return (
     <div className={styles.scene}>
       <section className={styles.sceneHeading}>
@@ -388,7 +394,10 @@ function AttendanceScene({ data }: { data: LiveDisplaySnapshot }) {
             </div>
             <span>{data.recent_checkins.length} terbaru</span>
           </header>
-          <PeopleList people={data.recent_checkins.slice(0, 8)} timezone={data.school.timezone} />
+          <PeopleList
+            people={livePage(data.recent_checkins, page, 6)}
+            timezone={data.school.timezone}
+          />
         </article>
         <article className={styles.panel}>
           <header className={styles.panelHeader}>
@@ -401,7 +410,7 @@ function AttendanceScene({ data }: { data: LiveDisplaySnapshot }) {
             <span>{data.attendance.students.missing} orang</span>
           </header>
           <PeopleList
-            people={data.missing_students.slice(0, 8)}
+            people={livePage(data.missing_students, page, 6)}
             timezone={data.school.timezone}
             missing
           />
@@ -417,7 +426,7 @@ function AttendanceScene({ data }: { data: LiveDisplaySnapshot }) {
             <span>{data.attendance.teachers.missing}</span>
           </header>
           <PeopleList
-            people={data.missing_teachers.slice(0, 5)}
+            people={livePage(data.missing_teachers, page, 6)}
             timezone={data.school.timezone}
             missing
           />
@@ -427,50 +436,9 @@ function AttendanceScene({ data }: { data: LiveDisplaySnapshot }) {
   );
 }
 
-function ScheduleScene({ data }: { data: LiveDisplaySnapshot }) {
-  const remainingSchedules = data.day_schedules.filter((item) => item.phase === 'upcoming');
-  const allAgendaSlots = Array.from(
-    remainingSchedules
-      .reduce((groups, schedule) => {
-        const key = `${schedule.start_time}-${schedule.end_time}`;
-        const slot = groups.get(key);
-        if (slot) slot.schedules.push(schedule);
-        else
-          groups.set(key, {
-            key,
-            startTime: schedule.start_time,
-            endTime: schedule.end_time,
-            name: schedule.slot_name,
-            schedules: [schedule],
-          });
-        return groups;
-      }, new Map<string, { key: string; startTime: string; endTime: string; name: string; schedules: LiveSchedule[] }>())
-      .values(),
-  ).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const agendaSlots = allAgendaSlots.slice(0, 6);
-  const expandedSlot = agendaSlots[0];
-  const denseAgenda = agendaSlots.length > 4;
-  const upcomingMissingTeachers = Array.from(
-    [...remainingSchedules]
-      .sort((a, b) => a.start_time.localeCompare(b.start_time))
-      .reduce((teachers, schedule) => {
-        if (schedule.teacher_status !== 'missing' || teachers.has(schedule.teacher_id)) {
-          return teachers;
-        }
-        teachers.set(schedule.teacher_id, {
-          id: schedule.teacher_id,
-          name: schedule.teacher_name,
-          code: schedule.subject_name,
-          photo_url: schedule.teacher_photo_url,
-          group_label: `${schedule.start_time} · ${schedule.class_name}`,
-          person_type: 'teacher' as const,
-          status: 'missing' as const,
-          checked_in_at: null,
-        });
-        return teachers;
-      }, new Map<string, LivePerson>())
-      .values(),
-  );
+function ScheduleScene({ data, page }: { data: LiveDisplaySnapshot; page: number }) {
+  const upcoming = data.day_schedules.filter((s) => s.phase === 'upcoming');
+  const shown = livePage(upcoming, page, 6);
   return (
     <div className={styles.scene}>
       <section className={styles.sceneHeading}>
@@ -479,150 +447,120 @@ function ScheduleScene({ data }: { data: LiveDisplaySnapshot }) {
             <IconCalendarTime size={30} />
           </span>
           <div>
-            <span>OPERASIONAL AKADEMIK</span>
-            <h2>Kegiatan dan kesiapan berikutnya</h2>
+            <span>JADWAL PELAJARAN BERIKUTNYA</span>
+            <h2>Kelas dan kesiapan guru</h2>
           </div>
         </div>
         <div className={styles.headingStats}>
           <span>
-            <b>{allAgendaSlots.length}</b>Slot berikutnya
+            <b>{upcoming.length}</b>Jadwal berikutnya
           </span>
           <span>
-            <b>{remainingSchedules.length}</b>Kelas terjadwal
-          </span>
-          <span>
-            <b>{upcomingMissingTeachers.length}</b>Guru berikutnya belum hadir
+            <b>{data.suspended_lessons}</b>Ditangguhkan saat ujian
           </span>
         </div>
       </section>
-      <section className={styles.scheduleSceneGrid}>
-        <article className={styles.panel}>
-          <header className={styles.panelHeader}>
-            <div>
-              <span className={styles.iconBox}>
-                <IconBook2 size={21} />
-              </span>
-              <h3>Kegiatan selanjutnya</h3>
-            </div>
-            <span>
-              {allAgendaSlots.length > agendaSlots.length
-                ? `${agendaSlots.length} dari ${allAgendaSlots.length} slot`
-                : `${allAgendaSlots.length} slot`}{' '}
-              · {remainingSchedules.length} jadwal
+      <article className={styles.panel}>
+        <header className={styles.panelHeader}>
+          <div>
+            <span className={styles.iconBox}>
+              <IconBook2 size={21} />
             </span>
-          </header>
-          <div className={`${styles.agendaGrid} ${denseAgenda ? styles.agendaDense : ''}`}>
-            {agendaSlots.length ? (
-              agendaSlots.map((slot) => {
-                const expanded = slot.key === expandedSlot?.key;
-                const missing = slot.schedules.filter(
-                  (schedule) => schedule.teacher_status === 'missing',
-                ).length;
-                return (
-                  <div
-                    className={`${styles.timelineItem} ${expanded ? styles.timelineExpanded : ''} ${expanded && slot.schedules.length > 6 ? styles.timelineExpandedLarge : ''}`}
-                    key={slot.key}
-                  >
-                    <div className={styles.agendaTime}>
-                      <strong>{slot.startTime}</strong>
-                      <span>{slot.endTime}</span>
-                    </div>
-                    <div className={styles.timelineRail}>
-                      <i />
-                    </div>
-                    <div
-                      className={`${styles.agendaCard} ${expanded ? styles.agendaUpcoming : styles.slotCompactCard}`}
-                    >
-                      <div className={styles.slotSummary}>
-                        <span>{expanded ? 'JADWAL BERIKUTNYA' : slot.name}</span>
-                        <strong>{slot.schedules.length} kelas</strong>
-                        <small>
-                          {slot.schedules.length - missing} guru siap
-                          {missing ? ` · ${missing} belum check-in` : ''}
-                        </small>
-                      </div>
-                      {expanded && (
-                        <div className={styles.slotClassList}>
-                          {slot.schedules.map((schedule) => (
-                            <div className={styles.slotClassRow} key={schedule.id}>
-                              <div>
-                                <strong>{schedule.subject_name}</strong>
-                                <span>Kelas {schedule.class_name}</span>
-                              </div>
-                              <div className={styles.slotClassTeacher}>
-                                <Avatar
-                                  src={schedule.teacher_photo_url || undefined}
-                                  size={30}
-                                  radius="xl"
-                                  color="brand"
-                                >
-                                  {initials(schedule.teacher_name)}
-                                </Avatar>
-                                <span>{schedule.teacher_name}</span>
-                                <i
-                                  className={styles[schedule.teacher_status]}
-                                  title={statusLabel(schedule.teacher_status)}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <EmptyState>Tidak ada kegiatan berikutnya hari ini.</EmptyState>
-            )}
+            <h3>Agenda pelajaran</h3>
           </div>
-        </article>
-        <article className={styles.panel}>
-          <header className={styles.panelHeader}>
-            <div>
-              <span className={`${styles.iconBox} ${styles.alertIcon}`}>
-                <IconAlertTriangle size={21} />
-              </span>
-              <h3>Guru jadwal berikutnya</h3>
-            </div>
-            <span>Belum check-in</span>
-          </header>
-          <PeopleList
-            people={upcomingMissingTeachers.slice(0, 7)}
-            timezone={data.school.timezone}
-            missing
-          />
-        </article>
-      </section>
+          <span>{upcoming.length} jadwal · berganti otomatis</span>
+        </header>
+        <div className={styles.scheduleTable}>
+          {shown.length ? (
+            shown.map((s) => (
+              <div className={styles.scheduleRow} key={s.id}>
+                <div className={styles.timeBlock}>
+                  {s.start_time}
+                  <small>{s.end_time}</small>
+                </div>
+                <div>
+                  <strong>{s.subject_name}</strong>
+                  <span>{s.slot_name}</span>
+                </div>
+                <div className={styles.classCell}>
+                  <strong>{s.class_name.trim()}</strong>
+                </div>
+                <div className={styles.teacherCell}>
+                  <Avatar
+                    src={s.teacher_photo_url || undefined}
+                    size={36}
+                    radius="xl"
+                    color="brand"
+                  >
+                    {initials(s.teacher_name)}
+                  </Avatar>
+                  <span>{s.teacher_name}</span>
+                </div>
+                <StatusPill status={s.teacher_status} />
+              </div>
+            ))
+          ) : (
+            <EmptyState>Tidak ada pelajaran berikutnya hari ini.</EmptyState>
+          )}
+        </div>
+      </article>
     </div>
   );
 }
 
-export function LiveDisplay({ operatorName }: { operatorName: string }) {
-  const router = useRouter();
+export function LiveDisplay() {
   const [snapshot, setSnapshot] = useState<LiveDisplaySnapshot | null>(null);
   const [connection, setConnection] = useState<'connecting' | 'live' | 'offline'>('connecting');
-  const [scene, setScene] = useState(0);
+  const [frame, setFrame] = useState<LiveFrame>({ scene: 0, pages: [0, 0, 0, 0, 0], step: 0 });
   const [now, setNow] = useState(() => new Date());
   const [tickerIndex, setTickerIndex] = useState(0);
+  const [error, setError] = useState('');
+  const request = useRef<AbortController | null>(null);
+  const scene = frame.scene;
+  const counts = snapshot ? liveScenePageCounts(snapshot) : [1, 1, 1, 1, 1];
+  const pageCount = counts[scene];
+  const page = frame.pages[scene] % pageCount;
+  const hasSnapshot = Boolean(snapshot);
 
   const load = useCallback(async () => {
+    if (request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
     try {
-      const response = await fetch('/api/live', { cache: 'no-store' });
+      const response = await fetch('/api/live', {
+        cache: 'no-store',
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
+      });
+      if (response.status === 401)
+        throw new Error('Sesi layar berakhir. Operator perlu masuk kembali.');
+      if (response.status === 403) throw new Error('Akun ini tidak memiliki akses Live TV.');
       if (!response.ok) throw new Error('Snapshot tidak tersedia');
-      setSnapshot(await response.json());
+      const data: LiveDisplaySnapshot = await response.json();
+      if (controller.signal.aborted) return;
+      setSnapshot(data);
       setConnection('live');
-    } catch {
+      setError('');
+    } catch (cause) {
+      if (controller.signal.aborted) return;
       setConnection('offline');
+      const accessError =
+        cause instanceof Error &&
+        (cause.message.startsWith('Sesi layar') || cause.message.startsWith('Akun ini'));
+      setError(
+        accessError ? cause.message : 'Koneksi terputus. Menghubungkan kembali secara otomatis…',
+      );
+    } finally {
+      if (request.current === controller) request.current = null;
     }
   }, []);
-
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0);
     const poller = window.setInterval(() => void load(), POLL_INTERVAL);
     return () => {
       window.clearTimeout(initial);
       window.clearInterval(poller);
+      request.current?.abort();
+      request.current = null;
     };
   }, [load]);
   useEffect(() => {
@@ -630,46 +568,41 @@ export function LiveDisplay({ operatorName }: { operatorName: string }) {
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
-    const rotation = window.setInterval(
-      () => setScene((current) => (current + 1) % sceneNames.length),
-      SCENE_DURATION,
+    if (!hasSnapshot) return;
+    const rotation = window.setTimeout(
+      () => setFrame((current) => nextLiveFrame(current, pageCount)),
+      LIVE_PAGE_DURATION,
     );
-    return () => window.clearInterval(rotation);
-  }, []);
+    return () => window.clearTimeout(rotation);
+  }, [frame, hasSnapshot, pageCount]);
   useEffect(() => {
     const ticker = window.setInterval(() => setTickerIndex((current) => current + 1), 6000);
     return () => window.clearInterval(ticker);
   }, []);
+  const tickerText = useMemo(
+    () =>
+      snapshot?.ticker.length
+        ? snapshot.ticker[tickerIndex % snapshot.ticker.length]
+        : 'Menunggu data aktivitas sekolah…',
+    [snapshot, tickerIndex],
+  );
 
-  const tickerText = useMemo(() => {
-    if (!snapshot?.ticker.length) return 'Menunggu data aktivitas sekolah…';
-    return snapshot.ticker[tickerIndex % snapshot.ticker.length];
-  }, [snapshot, tickerIndex]);
-
-  async function fullscreen() {
-    if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-    else await document.exitFullscreen();
-  }
-  async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.replace('/login');
-    router.refresh();
-  }
-
-  if (!snapshot) {
+  if (!snapshot)
     return (
       <main className={styles.loading}>
         <span className={styles.loadingMark}>
           <IconBroadcast size={34} />
         </span>
         <h1>Live Report</h1>
-        <p>Menyusun informasi operasional sekolah…</p>
+        <p role={error ? 'alert' : undefined}>
+          {error || 'Menyusun informasi operasional sekolah…'}
+        </p>
         <div className={styles.loadingBar}>
           <i />
         </div>
+        {error && <small>Mencoba kembali setiap 5 detik.</small>}
       </main>
     );
-  }
 
   return (
     <main className={styles.display}>
@@ -713,29 +646,25 @@ export function LiveDisplay({ operatorName }: { operatorName: string }) {
                   : 'TERPUTUS'}
             </span>
           </div>
-          <button
-            className={styles.iconButton}
-            onClick={() => void fullscreen()}
-            title="Layar penuh"
-          >
-            <IconMaximize size={21} />
-          </button>
-          <button
-            className={styles.iconButton}
-            onClick={() => void logout()}
-            title={`Keluar (${operatorName})`}
-          >
-            <IconDoorExit size={21} />
-          </button>
         </div>
       </header>
-
-      <div className={styles.viewport} key={scene}>
-        {scene === 0 && <OverviewScene data={snapshot} />}
-        {scene === 1 && <AttendanceScene data={snapshot} />}
-        {scene === 2 && <ScheduleScene data={snapshot} />}
+      {error && (
+        <div className={styles.errorBanner} role="alert">
+          <IconAlertTriangle size={18} />
+          <span>{error} Menampilkan data terakhir.</span>
+          <strong>Data {formatCheckin(snapshot.generated_at, snapshot.school.timezone)}</strong>
+        </div>
+      )}
+      <div className={styles.viewport} key={`${scene}-${page}`}>
+        {scene === 0 && <OverviewScene data={snapshot} page={page} />}
+        {scene === 1 && <AttendanceScene data={snapshot} page={page} />}
+        {scene === 2 && <ScheduleScene data={snapshot} page={page} />}
+        {scene === 3 && <ActivityScene data={snapshot} page={page} />}
+        {scene === 4 && <HalaqahScene data={snapshot} page={page} />}
       </div>
-
+      <div className={styles.rotationProgress} key={`progress-${scene}-${page}-${frame.step}`}>
+        <i style={{ animationDuration: `${LIVE_PAGE_DURATION}ms` }} />
+      </div>
       <footer className={styles.footer}>
         <div className={styles.tickerLabel}>
           <IconBroadcast size={17} /> INFO TERKINI
@@ -746,13 +675,11 @@ export function LiveDisplay({ operatorName }: { operatorName: string }) {
         <div className={styles.sceneControls}>
           <IconDeviceDesktop size={17} />
           <span>{sceneNames[scene]}</span>
+          <span>
+            Halaman {page + 1}/{pageCount}
+          </span>
           {sceneNames.map((name, index) => (
-            <button
-              key={name}
-              aria-label={`Tampilkan ${name}`}
-              className={index === scene ? styles.activeScene : ''}
-              onClick={() => setScene(index)}
-            />
+            <i key={name} aria-label={name} className={index === scene ? styles.activeScene : ''} />
           ))}
         </div>
       </footer>

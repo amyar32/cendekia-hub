@@ -19,5 +19,5 @@ export default async function LivePage() {
       </main>
     );
   }
-  return <LiveDisplay operatorName={user.name} />;
+  return <LiveDisplay />;
 }

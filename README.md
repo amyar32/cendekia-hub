@@ -66,6 +66,13 @@ Buka <http://localhost:3000>. Masuk dengan akun yang diisi pada `.env`. Seeding 
 - **Murid:** identitas, wali, dokumen, riwayat rombel, proses kenaikan kelas massal yang dapat dibatalkan, serta laporan historis.
 - **Sistem Penerimaan Murid Baru (SPMB):** periode dan kuota penerimaan, formulir publik, captcha dan rate limit, nomor pendaftaran, pelacakan status, upload serta verifikasi dokumen, penilaian seleksi, keputusan, daftar ulang, dan konversi transaksional ke murid aktif.
 - **Check-in gerbang:** satu scanner untuk kartu QR murid dan guru, daftar bertab, pencatatan manual, deteksi keterlambatan otomatis, rotasi QR, dan kartu identitas siap cetak.
+- **Live TV / Live Report:** layar TV kantor yang berjalan tanpa mouse atau keyboard. Ringkasan,
+  kehadiran, jadwal guru, dan agenda lintas fitur berganti otomatis setiap 12 detik; daftar panjang
+  dilanjutkan pada putaran berikutnya agar seluruh data mendapat giliran tampil. Data diperbarui
+  setiap 5 detik, mencakup ujian terpublikasi, tahfidz, ekstrakurikuler, check-in guru, dan status
+  sesi absensi. Hitungan guru tidak berulang dan mengikuti penangguhan KBM saat ujian.
+  Monitor halaqah menampilkan 12 kelompok per halaman dalam dua kolom, dengan tiga halaman
+  per putaran untuk 25–36 kelompok. Akses memerlukan `live-display.read`.
 - **Pengaturan sekolah:** identitas sekolah, kode, NPSN, alamat, kontak, upload logo, zona waktu, status aktif, RBAC, dan audit perubahan.
 - **Media upload:** komponen upload gambar reusable, scope berbasis permission, validasi isi PNG/JPEG/WebP, metadata, dan storage lokal persisten.
 - **Dashboard:** statistik dan aktivitas aktual, serta panel tindak lanjut sesuai akses pengguna:
