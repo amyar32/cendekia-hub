@@ -1,9 +1,9 @@
 'use client';
 import { useState } from 'react';
 import Image from 'next/image';
-import { Button, Group, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Button, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowRight, IconShieldCheck, IconDatabase, IconHistory } from '@tabler/icons-react';
+import { IconArrowRight } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { APP_BRAND_ASSETS, APP_NAME } from '@/config/branding';
 import styles from '@/features/login/components/login-form.module.css';
@@ -24,7 +24,7 @@ export function LoginForm() {
       if (!response.ok) throw new Error(result.error);
       notifications.show({
         title: 'Berhasil masuk',
-        message: 'Selamat datang kembali di workspace Anda.',
+        message: 'Selamat datang kembali. Semoga hari Anda menyenangkan!',
         color: 'green',
       });
       router.replace(result.must_change_password ? '/settings/account' : result.redirect_to || '/');
@@ -52,42 +52,6 @@ export function LoginForm() {
             priority
           />
         </Text>
-        <div>
-          <Text variant="eyebrow">SISTEM OPERASIONAL SEKOLAH</Text>
-          <Title
-            order={1}
-            fz="clamp(32px, 3.5vw, 54px)"
-            lh={1.2}
-            my={20}
-            c="var(--app-color-surface)"
-          >
-            Sekolah tertata.
-            <br />
-            Aktivitas terpantau.
-          </Title>
-          <Text className={styles.intro}>
-            Kelola data akademik, jadwal, kehadiran,
-            <br />
-            dan SPMB dalam satu sistem terintegrasi.
-          </Text>
-          <Stack gap={20} mt={40} c="var(--app-color-brand-soft)">
-            {[
-              [IconDatabase, 'Data sekolah terintegrasi'],
-              [IconShieldCheck, 'Akses aman sesuai peran'],
-              [IconHistory, 'Aktivitas sekolah terpantau'],
-            ].map(([Icon, label]) => {
-              const I = Icon as typeof IconDatabase;
-              return (
-                <Group gap={13} key={String(label)}>
-                  <I size={21} />
-                  <Text size="xs" inherit>
-                    {String(label)}
-                  </Text>
-                </Group>
-              );
-            })}
-          </Stack>
-        </div>
         <Text className={styles.copyright} size="xs" c="var(--app-color-muted-soft)">
           © {new Date().getFullYear()} {APP_NAME}
         </Text>
@@ -103,10 +67,8 @@ export function LoginForm() {
             priority
           />
           <Stack gap={8} mt="xl">
-            <Title order={2}>Masuk ke sistem sekolah</Title>
-            <Text variant="description">
-              Gunakan akun yang diberikan oleh administrator sekolah.
-            </Text>
+            <Title order={2}>Selamat datang kembali</Title>
+            <Text variant="description">Silakan masuk dengan akun sekolah Anda.</Text>
           </Stack>
           <form onSubmit={submit}>
             <TextInput
@@ -122,7 +84,7 @@ export function LoginForm() {
             <PasswordInput
               label="Kata sandi"
               name="password"
-              placeholder="Masukkan kata sandi Anda"
+              placeholder="Masukkan kata sandi"
               autoComplete="current-password"
               required
               size="md"
@@ -136,11 +98,11 @@ export function LoginForm() {
               loading={busy}
               rightSection={<IconArrowRight size={18} />}
             >
-              Masuk ke workspace
+              Masuk
             </Button>
           </form>
           <Text className={styles.help} variant="caption">
-            Belum memiliki akses? Hubungi administrator workspace Anda.
+            Butuh bantuan untuk masuk? Hubungi admin sekolah.
           </Text>
         </div>
       </section>

@@ -19,7 +19,9 @@
 }
 
 .brand {
+  flex: 1;
   display: flex;
+  justify-content: center;
   align-items: center;
   font-size: 20px;
   font-weight: 800;
@@ -30,7 +32,7 @@
 
 .brandLogo {
   display: block;
-  width: min(250px, 100%);
+  width: min(340px, 100%);
   height: auto;
   filter: brightness(0) invert(1);
 }
@@ -40,17 +42,6 @@
   width: 58px;
   height: 58px;
   border-radius: 14px;
-}
-
-.brandLight {
-  font-weight: 400;
-  color: color-mix(in srgb, var(--app-color-brand-soft), var(--app-color-brand) 25%);
-}
-
-.intro {
-  color: color-mix(in srgb, var(--app-color-brand-soft), var(--app-color-muted) 25%);
-  line-height: 1.9;
-  font-size: 14px;
 }
 
 .formWrap {
@@ -83,20 +74,24 @@
 @media (max-width: 780px) {
   .layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
 
   .story {
     min-height: auto;
-    padding: 25px;
+    padding: 12px 22px;
   }
 
-  .story > div:not(.brand),
+  .brandLogo {
+    width: min(180px, 100%);
+  }
+
   .copyright {
     display: none;
   }
 
   .formWrap {
-    min-height: calc(100vh - 84px);
+    min-height: 0;
     padding: 35px 22px;
   }
 }
