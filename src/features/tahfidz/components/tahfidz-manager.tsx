@@ -14,11 +14,12 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconPencil, IconTrash } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { ConfirmationDialog } from '@/components/cms/confirmation-dialog/confirmation-dialog';
 import { ModuleListLayout } from '@/components/cms/module-list-layout/module-list-layout';
 import { moduleMutation, useModuleList } from '@/hooks/use-module-list';
+import { TahfidzHistoryPanel } from './tahfidz-history';
 
 type Group = {
   id: string;
@@ -28,7 +29,6 @@ type Group = {
   semester_id: string | null;
   time_slot_id: string;
   weekdays: number[];
-  location: string;
   quota: number;
   status: 'draft' | 'active' | 'completed';
   student_ids: string[];
@@ -44,7 +44,6 @@ type Form = {
   semester_id: string;
   time_slot_id: string;
   weekdays: string[];
-  location: string;
   quota: number | string;
   status: 'draft' | 'active' | 'completed';
   student_ids: string[];
@@ -55,7 +54,6 @@ const empty = (): Form => ({
   semester_id: 'all',
   time_slot_id: '',
   weekdays: ['1', '2', '3', '4', '5'],
-  location: '',
   quota: 10,
   status: 'active',
   student_ids: [],
@@ -64,6 +62,7 @@ const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const endpoint = '/api/modules/tahfidz';
 export function TahfidzManager({ writable }: { writable: boolean }) {
   const [year, setYear] = useState('');
+  const [historyOpened, setHistoryOpened] = useState(false);
   const list = useModuleList<Group>(endpoint, year ? { academic_year_id: year } : {});
   const [editing, setEditing] = useState<Group | null | undefined>();
   const [removing, setRemoving] = useState<Group | null>(null);
@@ -79,7 +78,6 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
             semester_id: row.semester_id || 'all',
             time_slot_id: row.time_slot_id,
             weekdays: row.weekdays.map(String),
-            location: row.location,
             quota: row.quota,
             status: row.status,
             student_ids: row.student_ids,
@@ -147,16 +145,21 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
         emptyMessage="Belum ada kelompok halaqah."
         note="Jadwal memakai slot waktu sekolah dan mencegah bentrok pembimbing maupun peserta."
         toolbarLeading={
-          <Select
-            aria-label="Filter tahun ajaran"
-            value={selectedYear}
-            onChange={(v) => {
-              setYear(v || '');
-              list.setPage(1);
-            }}
-            data={list.options?.academic_year_id || []}
-            w={220}
-          />
+          <Group>
+            <Button variant="light" onClick={() => setHistoryOpened(true)}>
+              Riwayat hafalan siswa
+            </Button>
+            <Select
+              aria-label="Filter tahun ajaran"
+              value={selectedYear}
+              onChange={(v) => {
+                setYear(v || '');
+                list.setPage(1);
+              }}
+              data={list.options?.academic_year_id || []}
+              w={220}
+            />
+          </Group>
         }
       >
         <Table.ScrollContainer minWidth={780}>
@@ -178,7 +181,6 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
                     <Text fw={700}>{row.name}</Text>
                     <Text size="xs" c="dimmed">
                       {row.semester_name}
-                      {row.location ? ` · ${row.location}` : ''}
                     </Text>
                   </Table.Td>
                   <Table.Td>{row.teacher_name}</Table.Td>
@@ -223,6 +225,14 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
           </Table>
         </Table.ScrollContainer>
       </ModuleListLayout>
+      <Modal
+        opened={historyOpened}
+        onClose={() => setHistoryOpened(false)}
+        title="Riwayat hafalan siswa"
+        size="xl"
+      >
+        {historyOpened ? <TahfidzHistoryPanel /> : null}
+      </Modal>
       <Modal
         opened={editing !== undefined}
         onClose={() => setEditing(undefined)}
@@ -274,12 +284,6 @@ export function TahfidzManager({ writable }: { writable: boolean }) {
                 onChange={(v) => setForm({ ...form, time_slot_id: v || '' })}
               />
             </Group>
-            <TextInput
-              label="Lokasi"
-              placeholder="Contoh: Masjid sekolah"
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.currentTarget.value })}
-            />
             <Group grow>
               <NumberInput
                 required

@@ -294,6 +294,7 @@ test('mobile teacher authentication and attendance flow', async () => {
   );
   assert.equal(combinedSchedule[1].schedule_id, ids.tahfidzGroup);
   assert.equal(combinedSchedule[1].group_name, 'Kelompok A');
+  assert.equal(combinedSchedule[1].teacher_name, 'Budi Guru');
   assert.equal(combinedSchedule[1].student_count, 1);
   assert.equal(combinedSchedule[1].attendance_session_id, null);
 

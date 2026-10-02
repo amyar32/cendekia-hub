@@ -66,7 +66,7 @@ export async function GET(request: Request) {
     >;
     const tahfidz = db()
       .prepare(
-        `SELECT tg.id AS schedule_id,tg.id AS group_id,tg.name AS group_name,tg.location,
+        `SELECT tg.id AS schedule_id,tg.id AS group_id,tg.name AS group_name,tg.location,t.name AS teacher_name,
           sts.name AS slot_name,sts.start_time,sts.end_time,
           ts.id AS attendance_session_id,ts.status AS attendance_status,
           CASE WHEN ts.id IS NULL THEN
@@ -77,6 +77,7 @@ export async function GET(request: Request) {
           ELSE (SELECT COUNT(*) FROM tahfidz_session_records tr WHERE tr.session_id=ts.id) END AS student_count,
           COALESCE((SELECT COUNT(*) FROM tahfidz_session_records tr WHERE tr.session_id=ts.id AND tr.status='present'),0) AS present_count
          FROM tahfidz_groups tg
+         JOIN teachers t ON t.id=tg.teacher_id
          JOIN schedule_time_slots sts ON sts.id=tg.time_slot_id
          JOIN academic_years ay ON ay.id=tg.academic_year_id
          LEFT JOIN semesters sem ON sem.id=tg.semester_id
