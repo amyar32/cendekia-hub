@@ -24,7 +24,7 @@ export function LoginForm() {
       if (!response.ok) throw new Error(result.error);
       notifications.show({
         title: 'Berhasil masuk',
-        message: 'Selamat datang kembali. Semoga hari Anda menyenangkan!',
+        message: 'Selamat datang kembali.',
         color: 'green',
       });
       router.replace(result.must_change_password ? '/settings/account' : result.redirect_to || '/');

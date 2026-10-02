@@ -194,7 +194,7 @@ export function CmsShell({
       if (!res.ok) throw new Error();
       notifications.show({
         title: 'Berhasil keluar',
-        message: 'Sesi Anda telah berakhir.',
+        message: 'Sesimu telah berakhir.',
         color: 'green',
       });
       router.replace('/login');
