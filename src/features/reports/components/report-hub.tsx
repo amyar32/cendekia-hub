@@ -8,11 +8,21 @@ import {
   IconChecklist,
   IconHistory,
   IconSchool,
+  IconBook2,
 } from '@tabler/icons-react';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import styles from '@/features/reports/components/report-hub.module.css';
 
 const reports = [
+  {
+    title: 'Tahfidz',
+    description:
+      'Rekap kehadiran, hafalan baru, murajaah, dan hasil setoran per siswa dengan ekspor Excel dan PDF.',
+    href: '/reports/tahfidz',
+    icon: IconBook2,
+    color: 'green',
+    status: 'Baru',
+  },
   {
     title: 'Kehadiran',
     description:

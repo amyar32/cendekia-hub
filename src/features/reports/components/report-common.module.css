@@ -1,3 +1,9 @@
+.reportPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-md);
+}
+
 .backLink {
   display: inline-flex;
   align-items: center;
@@ -6,42 +12,46 @@
   text-decoration: none;
   font-size: var(--mantine-font-size-sm);
   font-weight: 700;
-  margin-bottom: 14px;
+  align-self: flex-start;
 }
 
 .filterPanel {
-  padding: 20px;
-  margin-bottom: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .filterActions,
 .pageActions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 8px;
 }
 
 .summaryGrid {
-  margin-bottom: 20px;
+  margin-bottom: 0;
+}
+
+.pageActions {
+  justify-content: flex-end;
 }
 
 .summaryCard {
-  min-height: 94px;
-  padding: 18px;
-  background: linear-gradient(135deg, var(--app-color-surface), var(--app-color-subtle));
+  padding: var(--mantine-spacing-sm);
 }
 
 .summaryValue {
-  font-size: 28px;
-  font-weight: 750;
+  font-size: var(--mantine-font-size-xl);
+  font-weight: 700;
   line-height: 1.2;
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .panel {
-  padding: 20px;
-  margin-bottom: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   overflow: hidden;
 }
 
@@ -50,7 +60,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: var(--mantine-spacing-md);
 }
 
 .trendList {

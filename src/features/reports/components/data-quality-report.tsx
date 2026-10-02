@@ -167,7 +167,7 @@ export function DataQualityReport({
   }
 
   return (
-    <>
+    <div className={styles.reportPage}>
       <Link href="/reports" className={styles.backLink}>
         <IconArrowLeft size={16} /> Pusat Laporan
       </Link>
@@ -175,22 +175,6 @@ export function DataQualityReport({
         eyebrow="KUALITAS DATA"
         title="Kelengkapan data"
         description="Temukan hambatan data sebelum memengaruhi kartu identitas, absensi, jadwal, dan proses akademik."
-        action={
-          <Group className={`${styles.pageActions} ${styles.screenOnly}`}>
-            <Button
-              variant="default"
-              leftSection={<IconDownload size={16} />}
-              onClick={exportExcel}
-              loading={exporting}
-              disabled={!visibleIssues.length}
-            >
-              Excel
-            </Button>
-            <Button leftSection={<IconPrinter size={16} />} onClick={() => window.print()}>
-              Cetak
-            </Button>
-          </Group>
-        }
       />
 
       <Paper withBorder className={`${styles.filterPanel} ${styles.screenOnly}`}>
@@ -198,7 +182,7 @@ export function DataQualityReport({
           title="Filter laporan"
           description="Pilih tahun ajaran, kategori, prioritas, atau cari data tertentu."
         />
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
           <Select
             label="Tahun ajaran"
             placeholder="Pilih tahun ajaran"
@@ -280,6 +264,20 @@ export function DataQualityReport({
                 color="green"
               />
             </SimpleGrid>
+            <Group className={`${styles.pageActions} ${styles.screenOnly}`}>
+              <Button
+                variant="light"
+                leftSection={<IconDownload size={16} />}
+                onClick={exportExcel}
+                loading={exporting}
+                disabled={!visibleIssues.length}
+              >
+                Ekspor Excel
+              </Button>
+              <Button leftSection={<IconPrinter size={16} />} onClick={() => window.print()}>
+                Cetak
+              </Button>
+            </Group>
 
             <Paper withBorder className={styles.panel}>
               <ReportPanelHeader
@@ -388,6 +386,6 @@ export function DataQualityReport({
           </>
         )
       )}
-    </>
+    </div>
   );
 }

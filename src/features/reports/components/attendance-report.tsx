@@ -223,7 +223,7 @@ export function AttendanceReport() {
   const lesson = data?.summary.lesson;
 
   return (
-    <>
+    <div className={styles.reportPage}>
       <Link href="/reports" className={styles.backLink}>
         <IconArrowLeft size={16} /> Pusat Laporan
       </Link>
@@ -231,22 +231,6 @@ export function AttendanceReport() {
         eyebrow="LAPORAN KEHADIRAN"
         title="Kehadiran terpadu"
         description="Gabungkan absensi pelajaran dan check-in gerbang untuk membaca pola kehadiran sekolah."
-        action={
-          <Group className={`${styles.pageActions} ${styles.screenOnly}`}>
-            <Button
-              variant="default"
-              leftSection={<IconDownload size={16} />}
-              onClick={exportExcel}
-              loading={exporting}
-              disabled={!data?.students.length}
-            >
-              Excel
-            </Button>
-            <Button leftSection={<IconPrinter size={16} />} onClick={() => window.print()}>
-              Cetak
-            </Button>
-          </Group>
-        }
       />
 
       <Paper withBorder className={`${styles.filterPanel} ${styles.screenOnly}`}>
@@ -369,6 +353,20 @@ export function AttendanceReport() {
               color="orange"
             />
           </SimpleGrid>
+          <Group className={`${styles.pageActions} ${styles.screenOnly}`}>
+            <Button
+              variant="light"
+              leftSection={<IconDownload size={16} />}
+              onClick={exportExcel}
+              loading={exporting}
+              disabled={!data?.students.length}
+            >
+              Ekspor Excel
+            </Button>
+            <Button leftSection={<IconPrinter size={16} />} onClick={() => window.print()}>
+              Cetak
+            </Button>
+          </Group>
 
           <SimpleGrid cols={{ base: 1, lg: 2 }}>
             <Paper withBorder className={styles.panel}>
@@ -542,6 +540,6 @@ export function AttendanceReport() {
           </Text>
         </>
       )}
-    </>
+    </div>
   );
 }

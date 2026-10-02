@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react';
-import { Badge, Paper, Text, Title } from '@mantine/core';
+import { Paper, Text, Title } from '@mantine/core';
 import styles from '@/features/reports/components/report-common.module.css';
 
 export function ReportSummaryCard({
   label,
   value,
-  color,
 }: {
   label: string;
   value: ReactNode;
@@ -13,9 +12,9 @@ export function ReportSummaryCard({
 }) {
   return (
     <Paper withBorder className={styles.summaryCard}>
-      <Badge variant="light" color={color}>
+      <Text size="xs" c="dimmed">
         {label}
-      </Badge>
+      </Text>
       <div className={styles.summaryValue}>{value}</div>
     </Paper>
   );

@@ -26,6 +26,7 @@ import {
 } from '@tabler/icons-react';
 import { PageHeading } from '@/components/cms/page-heading/page-heading';
 import { APP_NAME } from '@/config/branding';
+import { reportExportTheme } from '@/features/reports/export-theme';
 import {
   ReportPanelHeader,
   ReportSummaryCard,
@@ -72,22 +73,14 @@ const reportColumns = [
   'Status',
 ];
 
-const exportPalette = {
-  brand: 'FFE15F37',
-  brandStrong: 'FFC94E29',
-  brandSoft: 'FFFCEFE9',
-  ink: 'FF58595B',
-  muted: 'FF858587',
-  line: 'FFEBE7E4',
-  stripe: 'FFFAF8F7',
-};
+const exportPalette = reportExportTheme.excel;
 
 const exportStatusColors: Record<string, string> = {
-  active: 'FFFCEFE9',
-  promoted: 'FFFFF4F0',
-  retained: 'FFFAF8F7',
-  graduated: 'FFFFE4DA',
-  withdrawn: 'FFFFC6B4',
+  active: exportPalette.brandSoft,
+  promoted: exportPalette.success,
+  retained: exportPalette.warning,
+  graduated: exportPalette.success,
+  withdrawn: exportPalette.danger,
 };
 
 type Rgb = [number, number, number];
@@ -407,7 +400,7 @@ export function AcademicReport() {
   };
 
   return (
-    <>
+    <div className={styles.reportPage}>
       <Link href="/reports" className={styles.backLink}>
         <IconArrowLeft size={16} /> Pusat Laporan
       </Link>
@@ -415,27 +408,6 @@ export function AcademicReport() {
         eyebrow="RIWAYAT AKADEMIK"
         title="Riwayat & Mutasi Murid"
         description="Telusuri penempatan, kenaikan kelas, kelulusan, serta perpindahan murid per tahun ajaran."
-        action={
-          <Group className={`${styles.pageActions} ${styles.screenOnly}`}>
-            <Button
-              variant="default"
-              leftSection={<IconFileSpreadsheet size={16} />}
-              onClick={downloadExcel}
-              loading={exporting === 'excel'}
-              disabled={!data?.rows.length}
-            >
-              Excel
-            </Button>
-            <Button
-              leftSection={<IconFileTypePdf size={16} />}
-              onClick={downloadPdf}
-              loading={exporting === 'pdf'}
-              disabled={!data?.rows.length}
-            >
-              PDF
-            </Button>
-          </Group>
-        }
       />
 
       <Paper
@@ -447,7 +419,7 @@ export function AcademicReport() {
           title="Filter laporan"
           description="Sesuaikan hasil berdasarkan periode, rombel, dan status."
         />
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
           <Select
             label="Tahun ajaran"
             required
@@ -529,6 +501,25 @@ export function AcademicReport() {
           />
         ))}
       </SimpleGrid>
+      <Group className={`${styles.pageActions} ${styles.screenOnly}`}>
+        <Button
+          variant="light"
+          leftSection={<IconFileSpreadsheet size={16} />}
+          onClick={downloadExcel}
+          loading={exporting === 'excel'}
+          disabled={!data?.rows.length}
+        >
+          Ekspor Excel
+        </Button>
+        <Button
+          leftSection={<IconFileTypePdf size={16} />}
+          onClick={downloadPdf}
+          loading={exporting === 'pdf'}
+          disabled={!data?.rows.length}
+        >
+          Ekspor PDF
+        </Button>
+      </Group>
 
       <Paper component="section" className={styles.panel} withBorder>
         <ReportPanelHeader
@@ -581,6 +572,6 @@ export function AcademicReport() {
           </Table.ScrollContainer>
         )}
       </Paper>
-    </>
+    </div>
   );
 }
