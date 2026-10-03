@@ -1,0 +1,11 @@
+{
+  "id": "cendekia",
+  "brandName": "Cendekia",
+  "name": "Cendekia Hub",
+  "theme": "classic",
+  "qrNamespace": "cendekia",
+  "assets": {
+    "logo": "/branding/cendekia/logo.png",
+    "icon": "/branding/cendekia/icon.png"
+  }
+}

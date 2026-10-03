@@ -1,0 +1,11 @@
+{
+  "id": "myppi",
+  "brandName": "myPPI",
+  "name": "myPPI",
+  "theme": "fresh",
+  "qrNamespace": "myppi",
+  "assets": {
+    "logo": "/branding/myppi/logo.png",
+    "icon": "/branding/myppi/icon.png"
+  }
+}

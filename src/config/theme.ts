@@ -8,13 +8,12 @@ import {
 } from '@mantine/core';
 import { classicTheme } from './themes/classic';
 import { freshTheme } from './themes/fresh';
+import { appConfig } from './app-config';
+export type { AppThemeName } from './app-config';
 
 export const DEFAULT_COLOR_SCHEME: MantineColorScheme = 'light';
 
-export type AppThemeName = 'classic' | 'fresh';
-
-export const APP_THEME_NAME: AppThemeName =
-  process.env.NEXT_PUBLIC_APP_THEME === 'fresh' ? 'fresh' : 'classic';
+export const APP_THEME_NAME = appConfig.theme;
 
 const selectedTheme = APP_THEME_NAME === 'fresh' ? freshTheme : classicTheme;
 const appColors = selectedTheme.appColors;

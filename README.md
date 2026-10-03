@@ -14,33 +14,57 @@ cp .env.example .env
 
 Isi `SEED_ADMIN_EMAIL` dan `SEED_ADMIN_PASSWORD` di `.env`. Password wajib minimal 12 karakter; tidak ada password admin bawaan.
 
-Tema warna dapat dipilih melalui `NEXT_PUBLIC_APP_THEME`. Gunakan `classic` untuk palet oranye
-bawaan atau `fresh` untuk palet hijau jade. Restart aplikasi setelah nilainya diubah.
+Pilih brand dengan satu nilai di `.env`, sama seperti aplikasi native:
 
 ```dotenv
-NEXT_PUBLIC_APP_THEME=fresh
-NEXT_PUBLIC_APP_BRAND_NAME=Cendekia
-NEXT_PUBLIC_APP_NAME=Cendekia Hub
-NEXT_PUBLIC_APP_QR_NAMESPACE=cendekia
+APP_VARIANT=cendekia
+# Ganti menjadi APP_VARIANT=myppi untuk MyPPI.
 ```
 
-Saat membuat clone baru, ubah tiga nilai tersebut di `.env` sebelum menjalankan seed atau
-mencetak kartu: `NEXT_PUBLIC_APP_BRAND_NAME` untuk nama singkat pada logo,
-`NEXT_PUBLIC_APP_NAME` untuk judul lengkap, metadata, dokumen API, dan footer, serta
-`NEXT_PUBLIC_APP_QR_NAMESPACE` untuk identitas kartu QR. Namespace QR otomatis memakai nama
-singkat bila tidak diisi, tetapi sebaiknya ditetapkan secara eksplisit dan tidak diubah setelah
-kartu QR dicetak. Nama file backup dan template onboarding mengikuti nama singkat aplikasi.
+| Varian     | Nama         | Tema            | Namespace QR |
+| ---------- | ------------ | --------------- | ------------ |
+| `cendekia` | Cendekia Hub | `classic`, oren | `cendekia`   |
+| `myppi`    | myPPI        | `fresh`, hijau  | `myppi`      |
+
+Untuk myPPI bernomor, atur dua parameter yang sama di admin dan native:
+
+```dotenv
+APP_VARIANT=myppi
+APP_PPI_NUMBER=38
+```
+
+Ganti `38` menjadi `31`, `99`, atau angka bulat positif lain. Nama aplikasi,
+metadata dan footer menjadi `myPPI 38`; logo tetap berupa tulisan `myPPI`. Namespace QR
+menjadi `myppi-38`. Kosongkan nomor untuk nama `myPPI`. Angka nol/negatif/desimal
+ditolak; `038` dinormalisasi menjadi `38`. Parameter ini diabaikan pada Cendekia.
+Pilih nomor sebelum menerbitkan kartu QR; ganti nomor berarti namespace kartu berbeda.
+
+Preset berada di `src/config/apps/<varian>.json`. Nama, metadata, footer, dokumen API,
+tema UI/laporan, aset, nama file backup/template, dan namespace QR mengikuti preset.
+Nilai varian/tema yang tidak dikenal akan ditolak. Restart `pnpm dev` setelah perubahan;
+produksi perlu `pnpm build` lagi karena konfigurasi publik ikut bundle browser.
+
+Override `NEXT_PUBLIC_APP_THEME`, `NEXT_PUBLIC_APP_BRAND_NAME`, `NEXT_PUBLIC_APP_NAME`, dan
+`NEXT_PUBLIC_APP_QR_NAMESPACE` tetap didukung. Kosongkan/hapus override lama agar mengganti
+`APP_VARIANT` saja cukup. Jangan mengubah namespace aplikasi yang sudah menerbitkan kartu QR.
+Untuk brand ketiga, tambahkan JSON, daftarkan di `src/config/app-config.ts`, dan siapkan aset.
+Database, upload, kredensial, serta alamat backend tetap dikonfigurasi per deployment;
+selector brand tidak memindahkan data sekolah.
 
 ## Asset branding
 
-Ganti asset tiap clone dengan nama dan path yang tetap:
+Setiap brand punya direktori terpisah, sehingga aset Cendekia dan MyPPI tidak saling menimpa:
 
 ```text
-public/branding/logo.png  Wordmark horizontal
-public/branding/icon.png  Ikon aplikasi, favicon, dan halaman masuk
+public/branding/cendekia/logo.png
+public/branding/cendekia/icon.png
+public/branding/myppi/logo.png
+public/branding/myppi/icon.png
 ```
 
-Path asset dikelola melalui `APP_BRAND_ASSETS` di `src/config/branding.ts`.
+Path aset ditentukan di JSON preset dan diakses melalui `APP_BRAND_ASSETS`.
+Logo dan ikon myPPI memakai tulisan `myPPI`, dengan sumber SVG yang bisa diedit.
+Untuk aset tambahan, tambahkan key di `assets` preset dan gunakan dari konfigurasi.
 
 ```bash
 pnpm run db:seed
